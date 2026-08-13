@@ -1,3 +1,10 @@
+> **Document:** Project Reports Template  
+> **File:** `docs/reports/README.md`  
+> **Version:** v1.0.0  
+> **Created:** 2026-08-11  
+> **Last Updated:** 2026-08-12  
+> **Status:** Template  
+
 # Reports - Báo Cáo Dự Án
 
 ## Mục Đích

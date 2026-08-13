@@ -1,47 +1,49 @@
-# Tài Liệu Dự Án - [Tên Dự Án]
+> **Document:** Scan Pilot Documentation Index  
+> **File:** `docs/README.md`  
+> **Version:** v1.2.0  
+> **Created:** 2026-08-11  
+> **Last Updated:** 2026-08-12  
+> **Status:** Active  
 
-## Mục Đích Thư Mục `docs/`
+# Scan Pilot Documentation
 
-Thư mục `docs/` (viết tắt của documents - tài liệu) là nơi lưu trữ toàn bộ tài liệu chính thức liên quan đến dự án.
-* Tài liệu giúp các thành viên trong nhóm, giảng viên hoặc người đánh giá dễ dàng hiểu được yêu cầu nghiệp vụ, kiến trúc thiết kế, sơ đồ hoạt động và báo cáo tiến độ của dự án.
-* Việc lưu trữ tập trung tại đây giúp đảm bảo tài liệu luôn đi kèm với mã nguồn, tránh tình trạng thất lạc hoặc mâu thuẫn giữa tài liệu và mã nguồn thực tế.
+This directory is the canonical source of product, research, and specification context.
 
-## Cấu Trúc Thư Mục
+## Start Here
 
-Dưới đây là cấu trúc tổ chức các thư mục tài liệu trong dự án:
+| Order | Document | Purpose | Status |
+|---:|---|---|---|
+| 1 | [Project Context](PROJECT-CONTEXT.md) | Product identity, users, direction, and open questions | Active |
+| 2 | [Accepted Decisions](DECISIONS.md) | Decisions an agent must not silently override | Active |
+| 3 | [Current Status](CURRENT-STATUS.md) | Current phase, checkpoint, and next logical task | Active |
+| 4 | [Product Definition](PRODUCT.md) | Product scope and MVP outcome | Under Review |
+| 5 | [Requirements](REQUIREMENTS.md) | High-level functional and quality requirements | Under Review |
+| 6 | [Inspection Specification](INSPECTION-SPEC.md) | Official rule contracts and rule candidates | Under Review |
+| 7 | [Evidence Model](EVIDENCE-MODEL.md) | Provenance, evidence types, scoped claims, and verification status | Active |
+| 8 | [Finding Tracking Model](FINDING-TRACKING.md) | Hybrid identity, repository versions, diff, workspaces, and re-scan tracking | Active |
 
-```text
-docs/
-├── requirements/
-│   ├── SRS.md
-│   └── project-requirements.md
-│
-├── diagrams/
-│   ├── Activity/
-│   │   └── README.md
-│   ├── ERD/
-│   │   └── README.md
-│   └── UseCase/
-│       └── README.md
-│
-└── reports/
-    └── README.md
-```
+## Design and Lifecycle
 
-## Ý Nghĩa Các Thư Mục
+- [Architecture Direction](ARCHITECTURE.md)
+- [Scan Lifecycle](SCAN-LIFECYCLE.md)
+- [Evidence Model](EVIDENCE-MODEL.md)
+- [Finding Tracking Model](FINDING-TRACKING.md)
+- Scoring model: not yet created because the scoring formula is unresolved.
+- Data model: not yet created because the exact database schema remains unresolved.
 
-* **`requirements/`** (Requirement - yêu cầu): Lưu trữ các yêu cầu của dự án, bao gồm cả yêu cầu nghiệp vụ chi tiết và đặc tả kỹ thuật.
-* **`diagrams/`** (Diagram - sơ đồ): Chứa các sơ đồ mô tả kiến trúc, luồng hoạt động và thiết kế cơ sở dữ liệu của hệ thống.
-  * **`Activity/`** (Sơ đồ hoạt động): Chứa sơ đồ luồng đi của các chức năng nghiệp vụ chi tiết.
-  * **`ERD/`** (Sơ đồ quan hệ thực thể): Chứa thiết kế bảng và mối quan hệ giữa các bảng trong cơ sở dữ liệu.
-  * **`UseCase/`** (Sơ đồ ca sử dụng): Chứa sơ đồ mô tả sự tương tác giữa người dùng (Actor) và các chức năng hệ thống.
-* **`reports/`** (Report - báo cáo): Chứa các báo cáo tiến độ, nhật ký làm việc nhóm, biên bản họp hoặc tài liệu nộp môn học.
+## Research
 
-## Quy Tắc Viết Tài Liệu
+- [Research Sources](RESEARCH-SOURCES.md)
+- [A01 Broken Access Control](research/security/A01-BROKEN-ACCESS-CONTROL.md)
+- [A02 Security Misconfiguration](research/security/A02-SECURITY-MISCONFIGURATION.md)
 
-Khi cập nhật tài liệu trong thư mục này, vui lòng tuân thủ các checklist (danh sách kiểm tra) sau:
-- [ ] Viết rõ ràng, ngắn gọn và dễ hiểu.
-- [ ] Cập nhật tài liệu kịp thời mỗi khi thay đổi chức năng.
-- [ ] Không để tài liệu mâu thuẫn với mã nguồn thực tế đang chạy.
-- [ ] Nếu thay đổi cấu trúc bảng cơ sở dữ liệu, phải cập nhật đồng thời file ERD và script tạo bảng tại `database/schema.sql`.
-- [ ] Nếu thay đổi luồng xử lý hoặc nghiệp vụ, phải cập nhật sơ đồ hoạt động (Activity Diagram) tương ứng.
+Research notes may contain unresolved candidates. Only user-accepted content recorded in `DECISIONS.md` and promoted into a specification is authoritative for implementation.
+
+## Legacy Template Documents
+
+- `requirements/PRD.md` and `requirements/SRS.md` are deprecated template documents retained only to prevent broken historical references.
+- `diagrams/` and `reports/` contain reusable template guidance; they are not current Scan Pilot specifications.
+
+## Documentation Metadata
+
+Important Markdown files must begin with document name, repository-relative file path, document version, created date, last updated date, and status. See `../.agent/skill/document-metadata-standardizer/SKILL.md`.
