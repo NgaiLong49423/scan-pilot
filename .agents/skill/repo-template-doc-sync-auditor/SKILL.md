@@ -4,10 +4,10 @@ name: repo-template-doc-sync-auditor
 description: Use this skill when the user asks to audit, review, synchronize, or fix documentation consistency in a repository that follows the standard Java webapp project template. This skill checks contradictions across README, SRS, project requirements, database docs, GitHub templates, changelog, AGENTS.md, and agent contract files before making any edits.
 risk: medium
 source: self
-version: v1.0.1
+version: v1.0.2
 created_date: 2026-06-29
-last_updated_date: 2026-06-29
-------------
+last_updated_date: 2026-08-13
+---
 
 # Repo Template Documentation Sync Auditor
 
@@ -90,7 +90,7 @@ Assume the repository may contain these standard files and folders:
 │   ├── ISSUE_TEMPLATE/
 │   ├── labels.yml
 │   └── pull_request_template.md
-└── .agent/
+└── .agents/
     ├── repo-contract.yml
     ├── skills/
     │   ├── active/
@@ -120,10 +120,10 @@ Prefer these files as the source of truth:
 | GitHub labels                   | `.github/labels.yml`                        |
 | GitHub issue format             | `.github/ISSUE_TEMPLATE/`                   |
 | Agent behavior                  | `AGENTS.md`                                 |
-| Repository contract             | `.agent/repo-contract.yml`                  |
-| Agent outputs                   | `.agent/outputs/`                           |
+| Repository contract             | `.agents/repo-contract.yml`                  |
+| Agent outputs                   | `.agents/outputs/`                           |
 
-If `.agent/repo-contract.yml` exists, follow it first. If it conflicts with this skill, report the conflict instead of silently choosing one.
+If `.agents/repo-contract.yml` exists, follow it first. If it conflicts with this skill, report the conflict instead of silently choosing one.
 
 ## Operating Modes
 
@@ -167,7 +167,7 @@ AGENTS.md
 .github/
 docs/
 database/
-.agent/
+.agents/
 ```
 
 If multiple roots are possible, choose the directory containing the most template markers.
@@ -178,7 +178,7 @@ Read these files first if they exist:
 
 ```text
 AGENTS.md
-.agent/repo-contract.yml
+.agents/repo-contract.yml
 CONTRIBUTING.md
 ```
 
@@ -204,9 +204,9 @@ database/**/*.md
 .github/**/*.md
 .github/**/*.yml
 .github/**/*.yaml
-.agent/**/*.md
-.agent/**/*.yml
-.agent/**/*.yaml
+.agents/**/*.md
+.agents/**/*.yml
+.agents/**/*.yaml
 ```
 
 Ignore these by default:
@@ -264,7 +264,7 @@ Repository structure described in docs does not match actual folders.
 Examples:
 
 ```text
-README.md says `agent/`, but the repo uses `.agent/`.
+README.md says `agent/`, but the repo uses `.agents/`.
 ```
 
 ```text
@@ -382,8 +382,8 @@ Agent documentation conflicts with repo contract or skill folder structure.
 Examples:
 
 ```text
-AGENTS.md says reports go to `.agent/reports/`.
-repo-contract.yml says reports go to `.agent/outputs/reports/`.
+AGENTS.md says reports go to `.agents/reports/`.
+repo-contract.yml says reports go to `.agents/outputs/reports/`.
 ```
 
 #### 10. Placeholder Leakage
@@ -486,7 +486,7 @@ Consider moving examples out of CHANGELOG.md.
 In audit mode, write or propose this report:
 
 ```text
-.agent/outputs/reports/DOC_CONSISTENCY_REPORT.md
+.agents/outputs/reports/DOC_CONSISTENCY_REPORT.md
 ```
 
 If the output folder does not exist, report that it should be created.
@@ -539,7 +539,7 @@ Every finding must include concrete evidence.
 Good evidence:
 
 ```text
-README.md says the agent folder is `agent/`, but the repo contains `.agent/`.
+README.md says the agent folder is `agent/`, but the repo contains `.agents/`.
 ```
 
 Bad evidence:
@@ -589,7 +589,7 @@ Use a clear entry such as:
 - Synchronized repository documentation paths with the standard template structure.
 
 ### Fixed
-- Fixed inconsistent references to `.agent/` across README and agent documentation.
+- Fixed inconsistent references to `.agents/` across README and agent documentation.
 ```
 
 ## AGENTS.md Rules
@@ -607,14 +607,14 @@ A valid `AGENTS.md` should be concise and include:
 - Changelog: `CHANGELOG.md`
 - Contribution rules: `CONTRIBUTING.md`
 - Database schema: `database/schema.sql`
-- Agent contract: `.agent/repo-contract.yml`
+- Agent contract: `.agents/repo-contract.yml`
 
 ## Project Layout
 - App source: `App/`
 - Database scripts: `database/`
 - Documentation: `docs/`
 - GitHub config: `.github/`
-- Agent skills and outputs: `.agent/`
+- Agent skills and outputs: `.agents/`
 
 ## Documentation Rules
 - Report contradictions before editing requirement documents.
@@ -630,7 +630,7 @@ Keep `AGENTS.md` short. Do not paste full SRS, README, or workflow explanations 
 
 ## repo-contract.yml Rules
 
-If `.agent/repo-contract.yml` is missing, recommend creating it.
+If `.agents/repo-contract.yml` is missing, recommend creating it.
 
 Suggested minimal contract:
 
@@ -648,12 +648,12 @@ canonical_docs:
   agent_instructions: AGENTS.md
 
 agent_paths:
-  skills_active: .agent/skills/active
-  skills_reference: .agent/skills/reference
-  skills_archive: .agent/skills/archive
-  reports: .agent/outputs/reports
-  drafts: .agent/outputs/drafts
-  logs: .agent/outputs/logs
+  skills_active: .agents/skills/active
+  skills_reference: .agents/skills/reference
+  skills_archive: .agents/skills/archive
+  reports: .agents/outputs/reports
+  drafts: .agents/outputs/drafts
+  logs: .agents/outputs/logs
 
 sync_rules:
   - when: docs/requirements/SRS.md changes
@@ -674,8 +674,8 @@ sync_rules:
       - CONTRIBUTING.md
   - when: AGENTS.md changes
     check:
-      - .agent/repo-contract.yml
-      - .agent/skills/active
+      - .agents/repo-contract.yml
+      - .agents/skills/active
 ```
 
 ## Safety Boundaries
@@ -720,7 +720,7 @@ Status: Ready / Needs cleanup / Not ready.
 Critical: X
 Major: X
 Minor: X
-Report: .agent/outputs/reports/DOC_CONSISTENCY_REPORT.md
+Report: .agents/outputs/reports/DOC_CONSISTENCY_REPORT.md
 Top issues:
 1. ...
 2. ...

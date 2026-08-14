@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Project README  
 > **File:** `README.md`  
-> **Version:** v1.0.0  
+> **Version:** v1.1.0  
 > **Created:** 2026-08-11  
-> **Last Updated:** 2026-08-12  
+> **Last Updated:** 2026-08-14  
 > **Status:** Active  
 
 # Scan Pilot
@@ -54,7 +54,7 @@ The first accepted MVP rule is `SP-CONFIG-001 — Source Code Secret Exposure`.
 | Area | Direction |
 |---|---|
 | Frontend | React, TypeScript, Vite, Tailwind CSS, shadcn/ui, TanStack Query |
-| Backend | Spring Boot 3, Java 21, RESTful modular monolith |
+| Backend | Spring Boot 3, Java 21, Apache Maven, RESTful modular monolith |
 | Database | PostgreSQL, Spring Data JPA/Hibernate, Flyway |
 | Repository integration | GitHub App and webhooks |
 | AI | Gemini first, provider abstraction for later providers and BYOK |

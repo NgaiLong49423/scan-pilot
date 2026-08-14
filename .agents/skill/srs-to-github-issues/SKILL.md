@@ -4,9 +4,9 @@ description: Convert PRD, SRS, product specs, requirement documents, or planning
 risk: critical
 source: self
 source_type: custom
-version: v1.1.0
+version: v1.1.1
 created_date: 2026-06-27
-last_updated_date: 2026-06-29
+last_updated_date: 2026-08-13
 ---
 
 # SRS to GitHub Issues
@@ -58,7 +58,7 @@ If an issue cannot be traced to a source document, do not create it as a require
 Before drafting, inspect relevant files:
 
 - `AGENTS.md`
-- `.agent/repo-contract.yml`
+- `.agents/repo-contract.yml`
 - `README.md`
 - `PRD.md`
 - `SRS.md`
@@ -72,8 +72,8 @@ If the repo uses the standard template, prefer:
 
 - `docs/requirements/SRS.md`
 - `docs/requirements/PRD.md`
-- `.agent/outputs/drafts/github-issues/`
-- `.agent/outputs/reports/`
+- `.agents/outputs/drafts/github-issues/`
+- `.agents/outputs/reports/`
 
 If the repo contract defines different paths, follow the repo contract.
 
@@ -85,7 +85,7 @@ Default mode. Create Markdown issue drafts only.
 
 Default output:
 
-- `.agent/outputs/drafts/github-issues/ISSUE_INDEX.md`
+- `.agents/outputs/drafts/github-issues/ISSUE_INDEX.md`
 - numbered issue draft files such as `001-module-short-title.md`
 
 Draft mode must not create real issues, update Projects, create labels, create branches, commit changes, or modify code unless explicitly asked.
@@ -240,7 +240,7 @@ Do not print full issue bodies in chat unless the user asks.
 
 Draft mode:
 
-- `.agent/outputs/drafts/github-issues/ISSUE_INDEX.md`
+- `.agents/outputs/drafts/github-issues/ISSUE_INDEX.md`
 - numbered draft files
 
 Reference templates:

@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Product Definition  
 > **File:** `docs/PRODUCT.md`  
-> **Version:** v0.4.0  
+> **Version:** v0.11.0  
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-13  
+> **Last Updated:** 2026-08-14  
 > **Status:** Under Review  
 
 # Scan Pilot Product Definition
@@ -43,7 +43,7 @@ Required product capabilities currently accepted:
 - GitHub Issue workflow;
 - re-scan and lifecycle tracking;
 - working Google Cloud deployment direction;
-- a focused set of strong rules rather than a mock-heavy rule catalog.
+- a focused set of strong rules rather than a mock-heavy rule catalog;
 - Project Discovery and a persistent Repository Profile;
 - asynchronous human review for conclusions that require project or business context.
 
@@ -55,15 +55,39 @@ The primary is scanned first during repository initialization. Its exact capture
 
 After a valid baseline, Scan Pilot uses compatible checkpoints for incremental history scanning. A force-push or other non-ancestor history rewrite causes a new baseline rather than an unsafe clean assumption.
 
+For secret scanning, every Git-tracked content item in the selected scope is considered for eligibility. Supported content is scanned; unsupported or bounded content is shown as skipped with a reason. The product must not present a repository-wide clean claim when the recorded coverage does not support it.
+
+For otherwise eligible supported text, Continuous Monitoring performs full-file secret scanning through `10 MiB`. Larger items remain visible as skipped by the monitoring size policy rather than being labeled safe. The release-oriented verification tier accepts compatible prior evidence and scans eligible full files through `50 MiB`; a required item above that ceiling makes release coverage incomplete. The exact broader MVP scope and workflow of Release Assessment remain under review, but neither tier may use partial-file processing to claim complete coverage.
+
 If GitHub changes the default branch, Scan Pilot synchronizes the primary automatically. When the new default is not already monitored and all three slots are occupied, the former primary leaves the current monitored scope while both user-selected secondary branches remain. Historical scans, evidence, and Findings for the former primary remain available for audit.
 
 ## Project Understanding and Human Review
 
 Scan Pilot remembers structured facts about each repository, including detected technologies, important project files, architecture signals, external services, and the scan checkpoint. This state is persisted in the application database and refreshed when relevant evidence changes.
 
+Project Discovery first inventories all content in its captured repository scope. It reads supported repository text, configuration, manifests, CI/CD, IaC, and source-derived signals through deterministic or structured processing. Only selected, bounded, secret-redacted supported text may be classified or summarized by Gemini.
+
+PDF, DOC/DOCX, XLS/XLSX, and PPT/PPTX are visible as inventoried items but their internal content is not extracted or semantically analyzed in the MVP. This limitation remains explicit in Project Discovery and security coverage. Optional user-selected binary document analysis is a possible Phase 2 Project Understanding enhancement, not part of MVP security-baseline completion.
+
 The dashboard includes an Action Center for Review Requests. A user can select a suggested answer, state that they do not know, provide another answer, add free-text context, and reference supporting repository or GitHub evidence. Scans do not pause while awaiting a response.
 
 User responses remain attributed assertions. They help interpretation but do not automatically replace technical evidence or prove that a risk has been fixed.
+
+## Configuration Awareness
+
+Scan Pilot treats configuration as a first-class repository surface. Project Discovery builds a Configuration Map that distinguishes application runtime configuration, build and dependency manifests, CI/CD workflows, container configuration, Infrastructure as Code, and security-tool policy where supported. Classification relies on deterministic path, recognized structure or schema, content, and technology evidence before optional AI assistance.
+
+A configuration change causes the relevant artifact and supported dependent analysis to be reconsidered; it does not become a security Finding merely because the file changed. Secret detection continues to cover eligible content broadly, while misconfiguration Findings require family-specific rules and evidence. Initial deep-analysis research prioritizes Spring Boot, GitHub Actions, and Docker.
+
+The product describes this evidence as repository-declared configuration. It does not claim to know the effective production state when runtime profiles, environment variables, command-line arguments, external configuration stores, or cloud-side settings may override repository values.
+
+Each Configuration Artifact keeps format, technical family, roles, module scope, and exact declared environment or profile labels separate. Recognition, family, parse outcome, and analysis support also remain independent, so a malformed known workflow, an unsupported Terraform artifact, and an unknown YAML file do not collapse into the same result. Family-specific analyzers require deterministic classification and successful required parsing; eligible generic secret analysis remains independent.
+
+Environment interpretation is scenario-based. Repository observations are `DECLARED`; a supported, explicit, repository-complete scenario may be `REPOSITORY_EFFECTIVE`; authorized `RUNTIME_VERIFIED` configuration is a later capability. Branch names and labels such as `prod` or `live` do not prove production use, and user mappings remain attributed assertions.
+
+Git changes create Configuration Change Events and targeted reassessment, not automatic Findings. Direct imports, overrides, environment-file references, activation relationships, and module-context dependencies may invalidate compatible evidence. Unrelated artifacts may reuse evidence only when their content and contextual analyzer contracts remain compatible.
+
+The dashboard separates security attention, verification coverage, and configuration change. Findings and blocked verification appear first; analyzed non-finding changes are grouped. A Configuration Map organizes all artifacts by module and role. Unsupported, ambiguous, or parse-failed artifacts remain visible as neutral coverage limitations rather than clean or critical results, and configuration introduces no new color hierarchy.
 
 ## Dashboard Direction
 

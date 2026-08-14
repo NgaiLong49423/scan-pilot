@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Inspection Specification  
 > **File:** `docs/INSPECTION-SPEC.md`  
-> **Version:** v0.7.0  
+> **Version:** v0.12.0  
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-13  
+> **Last Updated:** 2026-08-14  
 > **Status:** Under Review  
 
 # Scan Pilot Inspection Specification
@@ -76,7 +76,35 @@ System.getenv("GEMINI_API_KEY")
 
 Detection should combine provider-specific format, context, entropy where useful, filename/location, and explicit test/example markers. Gitleaks is the first MVP detector behind a Scan Pilot adapter; the accepted rule, evidence, and lifecycle contracts remain owned by Scan Pilot rather than by the tool's native report model.
 
+Every Git-tracked content item within the selected Git scope is evaluated for eligibility. Scan Pilot distinguishes:
+
+- `CONSIDERED`: item inventoried and evaluated against the content policy;
+- `SCANNED`: eligible content successfully processed by the detector;
+- `SKIPPED`: content not processed, with a stable reason code and explicit coverage impact.
+
+Eligibility uses a layered content classifier:
+
+```text
+Git object kind
+→ recognized content/file signature
+→ bounded text-decoding and binary-content signals
+→ extension and .gitattributes as supporting hints
+→ TEXT | BINARY | UNDETERMINED
+```
+
+Neither the filename extension nor repository-controlled `.gitattributes` is authoritative on its own. Conflicting or insufficient evidence produces `UNDETERMINED`. Such an item must not be silently sent to the detector, silently discarded, or counted as clean; the applicable versioned eligibility policy must produce an explicit processing outcome and reason.
+
+Text documentation, examples, tests, GitHub workflows, and generated frontend output are not excluded merely because of their path category. For the MVP, PDF, DOC/DOCX, XLS/XLSX, and PPT/PPTX are `CONSIDERED` and then `SKIPPED` with reason `UNSUPPORTED_BINARY_DOCUMENT`; their internal content is not counted as scanned. Exact handling of other binary content, archives, symbolic links, submodules, dependency trees, generated output, lock files, and user exclusions remains under review.
+
+For otherwise eligible supported text, Continuous Monitoring scans the complete file through `10 MiB` and records a larger file as `SKIPPED` with `MONITORING_FILE_SIZE_LIMIT_EXCEEDED`. Release Assessment may reuse compatible full-file evidence and scans complete eligible files through `50 MiB`; a larger required item is `SKIPPED` with `RELEASE_FILE_SIZE_CEILING_EXCEEDED` and produces incomplete release coverage. Limits are inclusive, `1 MiB` is `1,048,576 bytes`, and partial-prefix or chunk results cannot satisfy full-file coverage.
+
 #### Detector and Coverage Contract
+
+Scan Pilot owns the trusted detector policy. Each invocation must bind an exact tested Gitleaks version or immutable artifact digest, an explicit trusted configuration and digest, enabled rules, adapter version, exact-byte size policy, timeout, and full redaction. The worker environment must not inherit unapproved `GITLEAKS_CONFIG` or `GITLEAKS_CONFIG_TOML` values.
+
+Repository `.gitleaks.toml`, `.gitleaksignore`, and inline `gitleaks:allow` directives are untrusted evidence and cannot silently suppress the baseline. The adapter requests `--ignore-gitleaks-allow` behavior and must use a benchmarked detector view or equivalent verified technique that prevents target `.gitleaksignore` from changing results without modifying the immutable source snapshot. Failure to prove that isolation produces incomplete coverage.
+
+Scan Pilot evaluates the `10 MiB` and `50 MiB` boundaries from exact blob byte size. Gitleaks' decimal `--max-target-megabytes` control may provide a second safety boundary but cannot establish Scan Pilot size coverage by itself.
 
 The `SP-CONFIG-001` scan captures one immutable HEAD SHA and uses two evidence flows:
 
@@ -87,7 +115,9 @@ The same `SP_SECRET_FP_V1` identity can group snapshot and historical evidence i
 
 Gitleaks output is processed only inside the trusted adapter boundary. Detector-side full redaction is required as defense in depth, but Scan Pilot must also remove unsafe raw fields, compute the fingerprint, and produce normalized redacted evidence before persistence, queues, logs, errors, metrics, display, or Gemini. The temporary raw report is deleted after successful safe normalization or failure cleanup.
 
-Coverage must bind repository and branch identity, captured HEAD, scan mode and Git range, detector/version, Scan Pilot rule/config version and digest, report/parser schema version, expected Git commit count, detector telemetry, timing, and terminal outcome. Exit code alone is not proof that the requested history was scanned. A zero-commit baseline or unknown coverage is not clean; an explicitly verified empty incremental range is `NO_CHANGE`.
+Coverage must bind repository and branch identity, captured HEAD, scan mode and Git range, detector/version, Scan Pilot rule/config version and digest, report/parser schema version, expected Git commit count, content considered/scanned/skipped counts with skip reasons, detector telemetry, timing, and terminal outcome. Exit code alone is not proof that the requested history or content was scanned. A zero-commit baseline or unknown coverage is not clean; an explicitly verified empty incremental range may be `NO_CHANGE`.
+
+Each skipped content item also has a durable structured coverage record containing, where applicable, scan ID, repository and branch, captured commit or Git object identity, repository-relative path, known size, content classification, processing outcome, stable reason code, applicable rule/config version, and coverage impact. These records support audit, UI detail, later policy re-evaluation, and backfill selection. Application logs may record safe operational diagnostics, but they do not replace these records and must not contain detected secret values.
 
 A compatible incremental range may be used only when the previous checkpoint is an ancestor of the captured new HEAD. Force-push, history rewrite, or incompatible detector/rule/config/parser state requires a new full-history baseline for the MVP. Checkpoints advance only after coverage is validated as complete, and relevant rule changes can require backfill.
 

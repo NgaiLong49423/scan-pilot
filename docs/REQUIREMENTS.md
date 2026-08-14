@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Requirements  
 > **File:** `docs/REQUIREMENTS.md`  
-> **Version:** v0.8.0  
+> **Version:** v0.19.0  
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-13  
+> **Last Updated:** 2026-08-14  
 > **Status:** Under Review  
 
 # Scan Pilot Requirements
@@ -43,6 +43,20 @@ This document records accepted high-level requirements and explicitly marks unre
 | FR-028 | Coverage records bind the repository and branch, captured HEAD, mode and Git scope, detector/version, rule/config version and digest, parser schema, Git commit expectations, scanner telemetry, timestamps, and terminal status; exit code or an unverified zero-commit result cannot prove clean coverage. | Accepted | Scan Pilot must distinguish a real clean scan from an empty, partial, failed, or incompatible scanner run. |
 | FR-029 | A baseline checkpoint is persisted or advanced only after coverage validation completes; relevant detector, rule, config, or parser changes can require history backfill or re-verification. | Accepted | Incremental scans are trustworthy only when they build on a compatible verified baseline. |
 | FR-030 | Scan Pilot must not automatically validate a discovered credential against its provider; live credential verification is a separate future capability requiring explicit policy and authorization. | Accepted | Detection must not misuse credentials, consume quota, or create unauthorized external requests. |
+| FR-031 | `SP-CONFIG-001` considers every Git-tracked content item within the selected Git scope for eligibility, scans supported eligible content, and records every policy-based or technical skip with a stable reason code and coverage impact. | Accepted | Secret exposure is not limited to source folders, but Scan Pilot must not claim that unsupported or bounded content was successfully analyzed. |
+| FR-032 | Project Discovery obtains document text and metadata through a Scan Pilot-owned extraction adapter running in an isolated scan worker. | Deferred to optional Phase 2 by `DEC-033` | The adapter remains a possible future direction but is not an MVP implementation requirement. |
+| FR-033 | Project Discovery targets DOCX and text-native PDF semantic extraction through the document adapter. | Superseded by `FR-034` and `DEC-033` | The accepted MVP now inventories binary documents without extracting their internal content. |
+| FR-034 | Project Discovery inventories PDF and common Office binary documents with path, detected content type, size, content hash, and source commit where available, while recording `semantic_analysis: NOT_SUPPORTED_MVP`; `SP-CONFIG-001` records these items as `CONSIDERED` then `SKIPPED` with reason `UNSUPPORTED_BINARY_DOCUMENT`, and does not count their internal content as scanned. | Accepted | The MVP remains aware of repository content and reports honest coverage without adding a document-parsing subsystem that does not advance the core security vertical slice. |
+| FR-035 | Before `SP-CONFIG-001` applies content eligibility, Scan Pilot classifies each Git-tracked item as `TEXT`, `BINARY`, or `UNDETERMINED` using Git object kind, recognized signatures, bounded content signals, and extension or `.gitattributes` only as supporting hints. Every skipped item is persisted as a structured coverage record with its scope, identity, path, classification, stable reason, policy version, and coverage impact; application logs are not the source of truth for skips. | Accepted | Layered classification resists misleading names and repository hints, while durable per-item outcomes let users and later scans know exactly what was not inspected and why. |
+| FR-036 | The Java 21 and Spring Boot 3 backend uses Apache Maven as its canonical build and dependency-management tool. | Accepted | One Java build contract supports reproducible dependency management and avoids parallel Maven and Gradle configurations in the solo project. |
+| FR-037 | For otherwise eligible supported text, Continuous Monitoring scans full files up to `10 MiB`; larger files are skipped with `MONITORING_FILE_SIZE_LIMIT_EXCEEDED`. Release Assessment scans or reuses compatible full-file evidence up to `50 MiB`; content above that ceiling is skipped with `RELEASE_FILE_SIZE_CEILING_EXCEEDED` and makes required release coverage `INCOMPLETE`. | Accepted | A two-tier versioned limit bounds recurring worker cost while providing stronger release-oriented verification without chunk checkpoints or false clean claims. |
+| FR-038 | Scan Pilot supplies and records a trusted, pinned Gitleaks detection policy; repository `.gitleaks.toml`, `.gitleaksignore`, inline `gitleaks:allow`, and inherited Gitleaks configuration variables cannot silently redefine or suppress the `SP-CONFIG-001` baseline. | Accepted | The repository is untrusted input and cannot be the authority that disables its own assessment. |
+| FR-039 | Project Discovery inventories configuration artifacts and classifies them by technical family and repository role from deterministic path, structure or schema, content, and technology evidence; configuration changes trigger compatible family-specific reassessment but do not automatically become Findings. Stored configuration memory is limited to source identity, versioned classification and parser evidence, digests, and safe derived facts, and repository evidence must not be represented as verified production configuration. | Accepted | Configuration requires role-aware analysis and change tracking, while static repository evidence cannot prove runtime values that profiles, environment variables, external stores, or deployment settings may override. |
+| FR-040 | A Configuration Artifact is a Git-tracked file primarily declaring or controlling application, build, dependency, test, CI/CD, container, infrastructure, or security-tool behavior and is modeled through independent format, technical-family, multi-role, module, and declared environment or profile dimensions; configuration expressed through ordinary source code remains source code for the MVP. | Accepted | One syntax may serve unrelated systems and one artifact may serve several roles, while classifying all program source as configuration would make the MVP boundary unbounded. |
+| FR-041 | Configuration recognition, technical family, parse outcome, and analysis support remain independent. Family-specific analysis requires sufficient deterministic family evidence and successful required parsing; conflicting or AI-only classification remains unresolved, while eligible generic analysis continues independently. | Accepted | Scan Pilot must not confuse file intent, parser success, analyzer availability, or AI inference and thereby create false Findings or false coverage. |
+| FR-042 | Scan Pilot preserves exact declared environment and profile labels and uses family-specific activation and precedence models. It may claim `REPOSITORY_EFFECTIVE` only for an explicit scenario with complete supported repository-visible inputs; unknown external inputs remain unresolved, User Assertions do not become Technical Evidence, and `RUNTIME_VERIFIED` is outside the MVP. | Accepted | Repository configuration does not prove the deployed environment or values that runtime and platform sources can override. |
+| FR-043 | Git changes create Configuration Change Events rather than Findings. Changed artifacts and directly related configuration evidence are reassessed, and prior evidence is reused only across compatible content, path/context, scenario, classifier, parser, analyzer, rule, and configuration versions. Rename or deletion cannot automatically preserve identity or resolve a Finding, and generic change records cannot retain raw sensitive values. | Accepted | Semantic rule evaluation, not line-level diff alone, determines security impact and lifecycle changes. |
+| FR-044 | Configuration UX separates Security Attention, Verification Coverage, and Configuration Change; the dashboard prioritizes Findings, blocked verification, and material Review Requests, while the Configuration Map inventories all artifacts and groups non-finding changes. Unsupported, ambiguous, and parse-failed artifacts remain neutral coverage limitations and do not receive a clean or critical security color. | Accepted | An action-first interface must not conflate known risk, ordinary repository activity, and lack of assessment. |
 
 ## Inspection Requirements
 
@@ -57,6 +71,8 @@ This document records accepted high-level requirements and explicitly marks unre
 - Confirmed wording must meet the evidence threshold defined by the applicable accepted rule contract.
 - Failed, partial, skipped, or incompatible scan output must not be treated as evidence that a Finding is resolved.
 - `VERIFIED_COMPLETE` must not be assigned from incomplete current-source or Git-history coverage.
+- `CONSIDERED`, `SCANNED`, and `SKIPPED` content outcomes must remain distinguishable; absence of a Finding applies only to successfully scanned content within the recorded scope.
+- `UNDETERMINED` content must not be silently treated as clean or successfully scanned, and every `SKIPPED` outcome must remain queryable from persistent coverage independently of application-log retention.
 - Remediation quality applies to one Finding and must not be presented as overall project safety or health.
 
 ## Security and Isolation Requirements
@@ -89,6 +105,9 @@ This document records accepted high-level requirements and explicitly marks unre
 - Webhook processing should be idempotent when designed.
 - The product should be deployable on the accepted Google Cloud direction.
 - The demo-critical core loop must have repeatable verification before submission.
+- Cloud architecture and operation must fit a two-month USD 250 planning envelope, target no more than USD 180 expected spend, and preserve a USD 70 reserve unless a later explicit user decision changes the budget.
+- Paid services must expose cost attribution and bounded usage controls; initial controls include scale-to-zero where compatible, maximum one scan-worker instance, and billing notifications at USD 25, 50, 100, 150, 180, and 220.
+- Promotional-credit value, expiry, and service eligibility must be verified before deployment and must not be treated as guaranteed cash or as justification for additional scope.
 
 ## Unresolved Requirements
 
@@ -105,4 +124,6 @@ This document records accepted high-level requirements and explicitly marks unre
 - exact sandbox technology and controls for execution-based rules;
 - source snapshot retention policy beyond the accepted default of no long-term full-source retention;
 - final V1 rule count and supported secret providers;
+- exact Configuration Artifact taxonomy, classification-confidence contract, supported parsers, change-impact relationships, and family-specific rules for Spring Boot, GitHub Actions, and Docker;
+- exact Configuration Map wireframe, default filters, accessibility behavior, and family-specific user-review questions;
 - exact deployment service choices within Google Cloud.

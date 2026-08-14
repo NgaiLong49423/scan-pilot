@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Research Sources  
 > **File:** `docs/RESEARCH-SOURCES.md`  
-> **Version:** v1.0.0  
+> **Version:** v1.8.0  
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-12  
+> **Last Updated:** 2026-08-14  
 > **Status:** Active  
 
 # Scan Pilot Research Sources
@@ -19,6 +19,36 @@ This is the canonical external-source policy for proposing or implementing inspe
 6. Record automability as `FULL`, `PARTIAL`, or `MANUAL`.
 7. Record detection method as `STATIC`, `EXECUTION`, `AI`, or `HYBRID`.
 8. State verification limits and avoid unsupported compliance claims.
+
+## Comparative Product Research and Attribution
+
+For a material product, security, architecture, scanning, workflow, or UX question, research relevant mature products and tools before proposing a Scan Pilot decision when suitable references exist.
+
+Each comparative research note must record:
+
+| Field | Required content |
+|---|---|
+| Problem | The specific Scan Pilot question being investigated |
+| Source | Product/tool/standards owner, document title, official URL, and access date |
+| Observed behavior | What the source explicitly documents or demonstrates |
+| Design reason | The stated reason, or a clearly labeled research inference when no reason is stated |
+| Applicable lesson | The principle Scan Pilot could adapt |
+| Non-transferable detail | Product-specific limits, licensing constraints, scale assumptions, or behavior Scan Pilot should not copy automatically |
+| Verification limit | Missing implementation details, inaccessible evidence, version drift, or other uncertainty |
+| Decision status | `Research only`, `Proposed`, or the accepted decision reference after user approval |
+
+Research must preserve these distinctions:
+
+```text
+External Standard
+≠ Product Benchmark
+≠ Research Inference
+≠ Accepted Scan Pilot Decision
+```
+
+Learning from a documented behavior is not plagiarism. Scan Pilot may independently adapt a general engineering pattern while citing where it was learned. Do not copy proprietary code, private implementation details, protected prose, branding, screenshots, or UI assets. Before reusing open-source code or configuration, inspect and comply with its license; a citation alone does not authorize reuse.
+
+When sources disagree, report the difference and the product context behind it instead of choosing silently. When no reliable source is available, state that limitation and do not imply industry consensus.
 
 ## Tier 1 — Core Standards
 
@@ -75,16 +105,55 @@ These are benchmarks, not security standards.
 | Source | Research purpose | Status |
 |---|---|---|
 | GitHub Code Scanning / CodeQL | alert model, evidence, PR workflow | Pending |
-| GitHub Secret Scanning | provider-specific detection, lifecycle, remediation | Pending; high priority for `SP-CONFIG-001` |
+| GitHub Secret Scanning | provider-specific detection, lifecycle, remediation | Content-scope and size-boundary benchmark reviewed through 2026-08-14; broader lifecycle review pending |
+| GitLab Secret Detection | file exclusions, historic scans, push-protection limits, finding behavior | Content-scope and latency-sensitive size benchmark reviewed through 2026-08-14 |
+| Gitleaks | detector behavior, Git/directory modes, configuration precedence, suppression, size, reporting, and archive limits | Adapter trust-policy research accepted as `DEC-037`; exact version and worker behavior still require benchmark verification |
+| Git | text/binary content heuristics and repository-controlled attributes | Layered-classification benchmark reviewed on 2026-08-13 |
+| Sourcegraph | binary, encoding, file-size, and visible indexing-skip boundaries | Layered-classification benchmark reviewed on 2026-08-13 |
+| Apache Tika | local document detection/extraction and hostile-input isolation | Deferred to optional Phase 2 by `DEC-033`; not an MVP dependency |
+| Docling | structured document conversion, layout, table, and OCR comparison | Deferred Phase 2 research alternative |
+| Google Cloud Document AI | managed document/OCR/layout parsing and Google Cloud fit | Deferred Phase 2 alternative; privacy, authorization, cost, and limits unresolved |
 | SARIF | interoperable static-analysis result format | Candidate only |
 | Semgrep | rule design, triage, false positives, remediation | Pending |
-| SonarQube | project health, quality gates, new-code model | Pending |
+| SonarQube | project health, quality gates, new-code model | Quality-gate evidence reuse reviewed on 2026-08-14 for the release-oriented size-policy distinction; broader product-health research pending |
 | Snyk | dependency monitoring and remediation UX | Pending |
+| Trivy | configuration-family detection and family-specific misconfiguration checks | Configuration Awareness direction reviewed and accepted as `DEC-038`; exact adapter or reuse decision remains open |
+| Spring Boot | repository and runtime configuration sources, profiles, imports, and override precedence | Reviewed on 2026-08-14 to bound repository-declared configuration claims |
+| Docker Compose | family-specific environment precedence, interpolation, and ordered override-file merge | Reviewed on 2026-08-14 for scenario-bounded configuration effect |
+| Terraform | configuration-change planning versus current state and speculative-result limits | Reviewed on 2026-08-14 as a non-MVP benchmark for separating text change from runtime effect |
+| GitLab IaC | supported configuration scope and linked finding/report UX | Reviewed on 2026-08-14 for attention, coverage, and change separation |
+| Snyk IaC | per-configuration issue presentation and explicit support boundaries | Reviewed on 2026-08-14 for Configuration Map and Finding separation |
 
 Official links:
 
 - https://docs.github.com/en/code-security/code-scanning
 - https://docs.github.com/en/code-security/secret-scanning
+- https://docs.gitlab.com/user/application_security/secret_detection/pipeline/
+- https://docs.gitlab.com/user/application_security/secret_detection/secret_push_protection/
+- https://docs.gitlab.com/user/application_security/secret_detection/exclusions/
+- https://github.com/gitleaks/gitleaks
+- https://trivy.dev/docs/latest/scanner/misconfiguration/
+- https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/reviewing-dependency-changes-in-a-pull-request
+- https://docs.spring.io/spring-boot/3.4/reference/features/external-config.html
+- https://docs.docker.com/compose/how-tos/environment-variables/envvars-precedence/
+- https://docs.docker.com/compose/how-tos/multiple-compose-files/merge/
+- https://docs.github.com/en/actions/concepts/workflows-and-actions/variables
+- https://developer.hashicorp.com/terraform/cli/commands/plan
+- https://git-scm.com/docs/git-diff.html
+- https://git-scm.com/docs/gitdiffcore
+- https://docs.gitlab.com/user/application_security/iac_scanning/
+- https://docs.snyk.io/scan-with-snyk/snyk-iac/getting-started-with-current-iac
+- https://raw.githubusercontent.com/gitleaks/gitleaks/master/cmd/root.go
+- https://raw.githubusercontent.com/gitleaks/gitleaks/master/cmd/git.go
+- https://raw.githubusercontent.com/gitleaks/gitleaks/master/LICENSE
+- https://git-scm.com/docs/gitattributes
+- https://sourcegraph.com/docs/admin/search
+- https://tika.apache.org/3.2.2/formats.html
+- https://cwiki.apache.org/confluence/display/TIKA/The%2BRobustness%2Bof%2BApache%2BTika
+- https://docling-project.github.io/docling/concepts/architecture/
+- https://docling-project.github.io/docling/reference/document_converter/
+- https://docs.cloud.google.com/document-ai/docs/file-types
+- https://docs.cloud.google.com/document-ai/docs/layout-parse-chunk
 - https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning
 - https://semgrep.dev/docs/
 - https://docs.sonarsource.com/sonarqube-server/
@@ -110,5 +179,7 @@ A01 checkpoint completed
 → NIST SSDF lifecycle mapping
 → OWASP AISVS AI-specific mapping
 ```
+
+The Document Extraction Adapter benchmark is retained but deferred beyond the MVP by `DEC-033`; it is not part of the current research order.
 
 For each proposed rule, record the source, exact requirement ID, evidence, automability, detection method, false-positive limits, and V1 priority. User acceptance is required before promotion into `docs/INSPECTION-SPEC.md` as an official rule.

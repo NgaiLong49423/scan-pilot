@@ -1,15 +1,15 @@
 > **Document:** A02 Security Misconfiguration Research  
 > **File:** `docs/research/security/A02-SECURITY-MISCONFIGURATION.md`  
-> **Version:** v0.3.0  
+> **Version:** v0.5.0  
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-13  
+> **Last Updated:** 2026-08-14  
 > **Status:** Under Review  
 
 # A02:2025 — Security Misconfiguration Research
 
 ## Research Status
 
-Research in progress. One rule, `SP-CONFIG-001`, has been accepted for the MVP. Other candidates remain unaccepted.
+The general Configuration Awareness checkpoint is complete. One security rule, `SP-CONFIG-001`, is accepted. The first deep configuration family and its family-specific rules remain unselected and unaccepted.
 
 ## What A02 Means
 
@@ -88,13 +88,17 @@ No row above is an accepted rule merely because it is listed.
 
 ## Next Research Task
 
-Define the exact repository content scope and exclusions for `SP-CONFIG-001`, then benchmark the accepted Gitleaks adapter behavior: exact-HEAD snapshot scanning, graph-aware history ranges, report redaction and parsing, coverage telemetry, timeout/cancellation, and temporary-report cleanup.
+Compare Spring Boot, GitHub Actions, and Docker and select the first family-specific Configuration Awareness slice. The comparison must cover demo value, recognized security guidance, deterministic identification and parsing, candidate rules, false-positive boundaries, implementation and benchmark cost, and relevance to Scan Pilot's own stack. Do not promote a family or rule until the user accepts it.
 
-**Reason:** Gitleaks is accepted as the first detector behind an adapter, but Scan Pilot must still verify that the concrete invocation can support its independently accepted evidence, safety, and coverage contract before implementation begins.
+**Reason:** The common artifact, classification, scenario, change, and UX contracts are accepted. A narrow first family is now needed to turn that model into a real vertical slice without claiming shallow support for every configuration ecosystem.
 
 Tool research references:
 
 - Gitleaks official repository and CLI documentation: https://github.com/gitleaks/gitleaks
 - Git ancestor check: https://git-scm.com/docs/git-merge-base
+- OWASP A02:2025 Security Misconfiguration: https://owasp.org/Top10/2025/A02_2025-Security_Misconfiguration/
+- Trivy Misconfiguration Scanning: https://trivy.dev/docs/latest/scanner/misconfiguration/
+- GitHub Dependency Review: https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/reviewing-dependency-changes-in-a-pull-request
+- Spring Boot Externalized Configuration: https://docs.spring.io/spring-boot/3.4/reference/features/external-config.html
 
 The exact Gitleaks version or container digest remains unresolved and must be pinned before implementation. The adapter is required in part because the detector's current official project notice describes Gitleaks as feature complete and limits future releases to security patches; Scan Pilot must retain the ability to replace or supplement it without changing the product rule contract.

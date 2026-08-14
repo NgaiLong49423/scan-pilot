@@ -11,12 +11,12 @@ canonical_docs:
   agent_instructions: AGENTS.md
 
 agent_paths:
-  skills_active: .agent/skills/active
-  skills_reference: .agent/skills/reference
-  skills_archive: .agent/skills/archive
-  reports: .agent/outputs/reports
-  drafts: .agent/outputs/drafts
-  logs: .agent/outputs/logs
+  skills_active: .agents/skills/active
+  skills_reference: .agents/skills/reference
+  skills_archive: .agents/skills/archive
+  reports: .agents/outputs/reports
+  drafts: .agents/outputs/drafts
+  logs: .agents/outputs/logs
 
 document_rules:
   v0_means_draft: true
@@ -53,11 +53,11 @@ sync_rules:
 
   - when: AGENTS.md changes
     check:
-      - .agent/repo-contract.yml
-      - .agent/skills/active
+      - .agents/repo-contract.yml
+      - .agents/skills/active
 
-  - when: .agent/repo-contract.yml changes
+  - when: .agents/repo-contract.yml changes
     check:
       - AGENTS.md
       - README.md
-      - .agent/skills/active
+      - .agents/skills/active

@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Project Context  
 > **File:** `docs/PROJECT-CONTEXT.md`  
-> **Version:** v1.3.0  
+> **Version:** v1.8.0  
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-13  
+> **Last Updated:** 2026-08-14  
 > **Status:** Active  
 
 # Scan Pilot Project Context
@@ -30,7 +30,11 @@ The primary interface is a multi-project dashboard. AI chat or assistant feature
 
 ## Persistent Project Context
 
-When a repository is connected, Scan Pilot performs Project Discovery before or alongside the first security scan. Deterministic extractors inspect repository metadata, structure, manifests, selected documentation, CI/CD, container, and infrastructure files. Gemini may summarize selected context where natural-language reasoning is useful, but it does not replace deterministic evidence.
+When a repository is connected, Scan Pilot performs Project Discovery before or alongside the first security scan. It inventories all content within the captured repository scope. Deterministic extractors inspect repository metadata, structure, supported text, manifests, CI/CD, container, infrastructure files, and source-derived technology signals.
+
+PDF and common Office binary documents remain inventory-only in the MVP. Scan Pilot records their path, detected content type, size, content hash, and source commit where available, but does not extract or semantically analyze their internal content. Apache Tika is not an MVP dependency. Optional user-selected document analysis is deferred to a separately accepted Phase 2 Project Understanding capability.
+
+Gemini may classify or summarize selected, bounded, secret-redacted context where natural-language reasoning is useful, but it does not replace deterministic evidence. Extracted document content remains untrusted input and cannot instruct or override Scan Pilot's system policy.
 
 Scan Pilot stores the resulting Repository Profile, scan checkpoints, finding history, and user-provided project context in PostgreSQL. Repository Markdown may be used as untrusted evidence, but it is not runtime state and Scan Pilot does not automatically commit a generated memory file to the user's repository.
 
@@ -49,6 +53,8 @@ Primary users are solo builders, students, small teams, and developers managing 
 ## Delivery Context
 
 Scan Pilot itself is currently built by one solo developer. References to a two-person team belong to a different project and must not be used for Scan Pilot planning, architecture justification, or delivery estimates.
+
+The accepted two-month cloud planning envelope is USD 250, with at most USD 180 expected operating spend and USD 70 protected reserve. Google Cloud promotional credit is the only currently recorded funding source. Architecture and external-service proposals must use the canonical constraints in `docs/CLOUD-BUDGET.md`; nominal credit that has not been verified for expiry and service eligibility is not guaranteed funding.
 
 The repository uses a lightweight branch workflow: `main` remains stable, while each coherent large workstream uses a working branch. Pull requests are optional self-review checkpoints for large changes, not a requirement for every small documentation edit.
 
@@ -107,6 +113,7 @@ The architecture must permit future AI providers and BYOK, but the exact BYOK se
 
 - React + TypeScript + Vite frontend
 - Spring Boot 3 + Java 21 backend
+- Apache Maven for Java build and dependency management
 - RESTful API
 - modular monolith
 - PostgreSQL with JPA/Hibernate and Flyway direction

@@ -3,9 +3,9 @@ name: document-metadata-standardizer
 description: Use this skill when the user asks to add, update, audit, or standardize metadata at the top of Markdown documentation files, including document version, created date, last updated date, status, and version bump decisions after document edits.
 risk: low
 source: self
-version: v1.1.0
+version: v1.1.1
 created_date: 2026-06-29
-last_updated_date: 2026-06-29
+last_updated_date: 2026-08-13
 ---
 
 # Document Metadata Standardizer
@@ -33,7 +33,7 @@ AGENTS.md
 docs/**/*.md
 database/**/*.md
 .github/**/*.md
-.agent/**/*.md
+.agents/**/*.md
 ```
 
 Do not apply to code, generated outputs, binaries, archives, SQL/YAML/XML configs, or dependency/build folders unless explicitly requested.
@@ -152,7 +152,7 @@ v1.0.2 -> v1.0.3
 v0.2.0 -> v0.2.1
 ```
 
-Use PATCH for typo/grammar fixes, formatting cleanup, metadata correction, broken link fixes, local path fixes, small wording clarification, or folder name correction such as `agent/` to `.agent/`.
+Use PATCH for typo/grammar fixes, formatting cleanup, metadata correction, broken link fixes, local path fixes, small wording clarification, or folder name correction such as `agent/` to `.agents/`.
 
 ### MINOR
 

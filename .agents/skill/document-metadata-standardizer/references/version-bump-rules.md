@@ -132,7 +132,7 @@ Use PATCH for:
 | Date format fix | `28/6` -> `2026-06-28` |
 | Broken relative link fix | Fix `docs/SRS.md` link |
 | Local link fix | Remove `file:///d:/...` |
-| Folder name correction | `agent/` -> `.agent/` |
+| Folder name correction | `agent/` -> `.agents/` |
 | Small clarification | Clarify wording without changing requirement |
 | Status metadata fix | `Active` -> `Under Review` for `v0.x.x` |
 

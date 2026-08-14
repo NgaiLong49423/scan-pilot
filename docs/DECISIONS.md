@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Accepted Decisions  
 > **File:** `docs/DECISIONS.md`  
-> **Version:** v1.10.0  
+> **Version:** v1.21.0  
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-13  
+> **Last Updated:** 2026-08-14  
 > **Status:** Active  
 
 # Scan Pilot Accepted Decisions
@@ -360,12 +360,228 @@ Automatic provider verification is not part of this pipeline. Scan Pilot does no
 
 **Reason:** The split gives users a fast warning about current code while preserving an honest, reproducible history baseline. Explicit coverage and checkpoint validation prevent an empty, partial, failed, or incompatible detector run from being mislabeled clean. A detector adapter keeps product semantics under Scan Pilot control instead of coupling Finding identity and lifecycle to one CLI tool.
 
+## DEC-029 — Secret scanning classifies all Git-tracked content for eligibility
+
+**Status:** Accepted
+
+For `SP-CONFIG-001`, every Git-tracked content item within the selected branch, commit, and history scope is considered for scan eligibility. `CONSIDERED` and `SCANNED` are distinct states:
+
+- `CONSIDERED` means Scan Pilot identified the item and evaluated it against the applicable content policy;
+- `SCANNED` means the detector successfully processed the eligible content;
+- an item that cannot or must not be processed is recorded as skipped with a stable reason code and coverage impact.
+
+Scan Pilot does not restrict secret detection by default to conventional source directories. Paths such as documentation, examples, tests, workflows, and generated frontend output are not excluded merely because they are outside `src/`. At the same time, Scan Pilot does not promise successful parsing of every repository byte.
+
+Policy-based exclusions and technical limits must be explicit, versioned, and visible in coverage. A skipped item cannot be silently counted as scanned, and a no-finding result applies only to content processed successfully within the recorded scope. Exact policy for binary content, archives, symbolic links, submodules, dependency trees, generated output, lock files, and user-configured exclusions remains unresolved; full-file size handling is now defined separately by `DEC-036`.
+
+**Reason:** Secret values can appear outside application source folders, while production scanners still need bounded resource and format policies. Eligibility classification preserves broad repository awareness without creating the false claim that every content type was analyzed. Explicit skip reasons make coverage auditable and allow support to expand later without changing the core model.
+
+## DEC-030 — Project Discovery uses an isolated document-extraction adapter
+
+**Status:** Superseded for the MVP by `DEC-033`; retained as Phase 2 research direction
+
+Project Discovery accesses repository documents through a Scan Pilot-owned `Document Extraction Adapter`. Document parsing runs in an isolated scan worker rather than in the Spring Boot API process. Extracted content is treated as untrusted and potentially sensitive input; it must be bounded and secret-redacted before it may be sent to Gemini or persisted as derived project context.
+
+Apache Tika is the first benchmark candidate because it is compatible with the accepted Java direction and supports detection and text or metadata extraction across many document formats. This decision does not select Tika as a production dependency. Production selection requires a benchmark against representative repository documents and failure cases.
+
+Alternative implementations, including Docling or Google Cloud Document AI, may be evaluated behind the same adapter without changing the Project Discovery contract. The initial MVP format scope is defined separately in `DEC-031`. Parser deployment form, size and page limits, timeout and memory limits, retention policy, and fallback behavior remain unresolved.
+
+**Reason:** The adapter keeps Scan Pilot's product contract independent from one parser, while process isolation limits the effect of malformed or hostile documents. Benchmarking before production selection avoids claiming PDF, DOCX, OCR, or layout support that has not been verified on the MVP environment.
+
+## DEC-031 — Project Discovery uses a balanced MVP document scope
+
+**Status:** Superseded by `DEC-033`
+
+Project Discovery inventories every content item within its captured repository scope before deciding whether semantic extraction is supported. The MVP processing target is:
+
+- text documentation, configuration, manifests, and other supported machine-readable text use deterministic readers or structured parsers first;
+- DOCX and text-native PDF are sent through the isolated `Document Extraction Adapter`;
+- image-only or scanned PDF is recognized as requiring OCR and is not semantically understood by the MVP;
+- PPTX, XLSX, and other unsupported binary document formats are inventoried but not semantically extracted unless a later decision expands the scope;
+- every unsupported, OCR-required, failed, bounded, or skipped item retains an explicit outcome and reason rather than being silently counted as understood.
+
+Gemini receives only selected, bounded, secret-redacted extracted content and may classify or summarize it. Source files, extracted text, and AI output remain distinct evidence stages. A successful inventory does not imply successful semantic extraction.
+
+**Reason:** This scope provides useful Project Discovery across common repository documentation without making OCR, computer vision, or complex office-layout processing a prerequisite for the solo MVP. It creates a measurable target for the Apache Tika benchmark while preserving honest coverage for every item outside the supported scope.
+
+## DEC-032 — Cloud design uses a two-month USD 250 planning envelope
+
+**Status:** Accepted
+
+Scan Pilot's approximately two-month development and public-demo cloud plan uses:
+
+- USD 250 as the total planning envelope;
+- at most USD 180 as the expected operating target;
+- USD 70 as protected reserve for variance, recovery, and final demo needs.
+
+The only currently recorded funding source is Google Cloud promotional credit. A user-supplied billing screenshot showed a nominal USD 300-equivalent Free Trial balance plus four nominal USD 10-equivalent monthly Developer Program credits, but expiry, eligibility, and application order were not visible. Architecture must not assume the full nominal amount can be pooled or used for every service. New funding or free-credit sources are unavailable for planning until the user reports them and the canonical budget is updated.
+
+Initial cost guardrails prefer scale-to-zero, one maximum scan-worker instance, and a small single-zone non-HA Cloud SQL instance without replicas. The earlier document-parser concurrency guardrail no longer applies to the MVP because `DEC-033` defers that subsystem. Cumulative billing notifications are required at USD 25, 50, 100, 150, 180, and 220. Alerts are not hard spending caps; service limits and resource review remain required.
+
+Any paid-service proposal must justify the MVP need, current two-month estimate, credit assumptions, containment controls, cheaper alternative, expiry behavior, and verification limits. Promotional credit does not justify scope expansion or weaker security and privacy boundaries.
+
+**Reason:** The available credit is sufficient for a carefully bounded MVP, but Cloud SQL, always-on capacity, scan concurrency, logging, managed parsing, and AI usage can consume it unexpectedly. A canonical envelope lets every agent make consistent architecture trade-offs while preserving a reserve and avoiding unsupported assumptions about promotional credit.
+
+## DEC-033 — Binary document semantic extraction is deferred beyond the MVP
+
+**Status:** Accepted
+
+Scan Pilot MVP inventories PDF, DOC/DOCX, XLS/XLSX, and PPT/PPTX content items but does not extract or semantically analyze their internal content. Project Discovery records path, detected content type, size, content hash, and source commit where available. Its status model keeps successful inventory separate from semantic support:
+
+```text
+inventory_status: INVENTORIED
+semantic_analysis: NOT_SUPPORTED_MVP
+```
+
+Project Discovery prioritizes repository text and machine-readable evidence, including Markdown, manifests, configuration, CI/CD, IaC, and source-derived technology signals. Selected bounded and secret-redacted text may still be classified or summarized by Gemini, but repository assertions remain weaker than contradictory technical evidence.
+
+For the `SP-CONFIG-001` MVP security baseline, these binary document families are `CONSIDERED` and then `SKIPPED` with reason `UNSUPPORTED_BINARY_DOCUMENT`. They are not counted as scanned, and coverage must disclose that their internal content was not inspected. Other binary, archive, link, submodule, dependency, generated-content, lock-file, and user-exclusion policies remain unresolved; accepted full-file size limits are governed by `DEC-036`.
+
+Apache Tika is not an MVP dependency and its benchmark is stopped for the current phase. `DEC-030` remains only a possible Phase 2 adapter direction, and `DEC-031` is superseded. A future optional Project Understanding capability may allow the user to select additional PDF or Office documents for analysis, but it requires a new accepted consent, privacy, extraction, AI-processing, safety, and operational contract. It is not part of security-baseline completion.
+
+**Reason:** Professional AppSec scanners prioritize code, manifests, configuration, and supported machine-readable formats; GitLab Secret Detection explicitly excludes PDF and common Office documents for performance and low expected secret likelihood, while Snyk Code defines supported source formats and code-graph analysis. More importantly for Scan Pilot, document parsing adds an isolated parser, malformed/encrypted/archive failure modes, benchmark and UI work, prompt-injection and redaction boundaries, and imprecise evidence locations without materially advancing the accepted secret-scanning vertical slice. Deferral reduces attack surface and solo-MVP delivery risk while preserving honest inventory and a future extension path.
+
+## DEC-034 — Content classification is layered and every skip is persisted
+
+**Status:** Accepted
+
+Before `SP-CONFIG-001` decides whether a Git-tracked item is eligible for detection, Scan Pilot classifies its content through layered evidence rather than trusting a filename extension or repository-controlled `.gitattributes` declaration alone. The classifier evaluates, as applicable:
+
+1. Git object kind;
+2. recognized content or file signatures;
+3. bounded content signals such as text decoding and binary-byte characteristics;
+4. filename extension and `.gitattributes` only as supporting hints.
+
+The normalized content classification is:
+
+```text
+TEXT
+BINARY
+UNDETERMINED
+```
+
+A classification conflict or insufficient evidence produces `UNDETERMINED`; it must not be silently treated as text, binary, successfully scanned, or clean. Exact classifier library, sampling thresholds, supported encodings, and handling of each non-document binary family remain unresolved and require implementation benchmarking.
+
+For every item that becomes `SKIPPED`, Scan Pilot persists a structured coverage record containing at least repository and branch scope, scan ID, captured commit or object identity where applicable, repository-relative path, content classification, processing outcome, stable reason code, size where known, applicable rule/config version, and coverage impact. This product record is distinct from an application log. Logs may contain safe operational diagnostics, but they are not the source of truth for which items were considered, scanned, or skipped and must never contain detected secret values.
+
+**Reason:** Extensions and repository attributes can be mistaken, inconsistent, or deliberately misleading, while any single content heuristic has blind spots. Layered evidence makes classification more defensible without claiming perfect format detection. Persisting each skip makes coverage auditable, lets the user see which files were not inspected and why, and prevents log retention or aggregation from erasing the scan contract. The trade-off is additional classifier and storage work; the verification limit is that malformed, encrypted, polyglot, uncommon-encoding, or otherwise ambiguous content can remain `UNDETERMINED` until later support is accepted.
+
+## DEC-035 — Java backend uses Apache Maven
+
+**Status:** Accepted
+
+Scan Pilot uses Apache Maven as the canonical build and dependency-management tool for its Java 21 and Spring Boot 3 backend. Backend dependencies, including the future Google Gen AI SDK adapter dependency, will be declared through Maven rather than maintaining a parallel Gradle build for the same backend.
+
+This decision selects the build tool only. Exact Maven version, Maven Wrapper policy, module layout, plugin versions, dependency versions, build profiles, and CI commands remain unresolved until the implementation structure is designed and verified.
+
+**Reason:** Maven provides one reproducible dependency and build contract for the Java backend, fits Spring Boot and the published Java dependencies under consideration, and avoids maintaining two competing Java build systems in a solo project. The trade-off is Maven-specific project configuration and lifecycle conventions; the verification limit is that no `pom.xml` or executable backend exists yet, so compatibility and build reproducibility cannot be tested until implementation begins.
+
+## DEC-036 — Secret scanning uses two accepted per-file size limits
+
+**Status:** Accepted
+
+For otherwise eligible supported text content, `SP-CONFIG-001` uses two initial full-file size limits, measured in mebibytes where `1 MiB = 1,048,576 bytes`:
+
+- Continuous Monitoring scans files up to and including `10 MiB`. A larger file is `CONSIDERED` then `SKIPPED` with reason `MONITORING_FILE_SIZE_LIMIT_EXCEEDED`; it must not be represented as clean or successfully scanned.
+- Release Assessment may reuse compatible evidence for files already scanned and performs a full-file scan for otherwise eligible text up to and including `50 MiB`. Content above that hard ceiling is `SKIPPED` with reason `RELEASE_FILE_SIZE_CEILING_EXCEEDED`; when that content belongs to required release coverage, the assessment is `INCOMPLETE`, not `PASS`, `CLEAN`, or `VERIFIED_COMPLETE`.
+
+The limits do not override format policy: PDF and common Office binary documents remain governed by `DEC-033`, and other unsupported content remains skipped under its applicable reason. The MVP does not use partial-prefix results, chunk checkpoints, or progressive byte-range resumption to claim that a large file was scanned. A monitoring skip may identify the item as eligible for later release verification, but it is not a scheduled `DEFERRED` job unless a job is actually created.
+
+These are versioned initial operational limits, not claims of detector capacity. Before implementation is considered verified, Scan Pilot must benchmark Gitleaks against representative eligible text at `1`, `10`, `25`, `50`, and `100 MiB`, measuring completion, time, peak memory, and timeout behavior in the intended worker boundary. Any later threshold change requires an explicit versioned policy change and updated coverage semantics rather than a silent configuration edit.
+
+**Reason:** Continuous Monitoring needs a predictable low-cost limit, while a release-oriented verification path should inspect materially larger eligible files without removing the worker's absolute safety boundary. The `10 MiB` and `50 MiB` tiers are simple to explain and avoid chunk lifecycle complexity. The benefit is bounded recurring work with transparent stronger verification when requested. The trade-off is that a secret in a file between the two limits may remain undetected until Release Assessment, and content above the release ceiling can keep that assessment incomplete. The verification limit is that Scan Pilot has not yet run the required worker benchmark, and this decision does not by itself settle the broader MVP delivery scope, triggers, build or artifact checks, or full completion contract of Release Assessment.
+
+## DEC-037 — Scan Pilot owns the trusted Gitleaks detection policy
+
+**Status:** Accepted
+
+For the `SP-CONFIG-001` security baseline, Scan Pilot owns the detector version, trusted rule configuration, configuration digest, enabled rules, exact-byte size policy, timeout, redaction, and suppression lifecycle. Repository-controlled `.gitleaks.toml`, `.gitleaksignore`, inline `gitleaks:allow`, and inherited `GITLEAKS_CONFIG` or `GITLEAKS_CONFIG_TOML` values must not silently suppress or redefine baseline detection.
+
+The adapter explicitly supplies a trusted configuration, removes unapproved Gitleaks configuration variables from the worker environment, requests full detector redaction with `--redact=100`, and invokes behavior equivalent to `--ignore-gitleaks-allow`. Because the current Gitleaks CLI also discovers `.gitleaksignore` from the target repository, the exact isolation technique must be benchmarked and verified without modifying the immutable source snapshot. If repository suppression cannot be proven inactive, coverage is incomplete rather than clean.
+
+Repository Gitleaks configuration and ignore files may still be inventoried and shown as untrusted repository evidence. A legitimate false-positive or risk-acceptance workflow belongs to Scan Pilot's own attributed, reviewable suppression model; exact authorization, scope, expiry, and invalidation behavior remain unresolved. The adapter must pin an exact tested Gitleaks version or immutable artifact digest and must not use a floating `latest` reference.
+
+Scan Pilot applies the accepted `MiB` thresholds using exact blob bytes before detector invocation. Gitleaks' `--max-target-megabytes` uses decimal megabytes in the reviewed source and may be used only as defense in depth; it is not the source of truth for `DEC-036` coverage.
+
+**Reason:** A repository is the untrusted subject being assessed and must not be able to redefine or disable the assessor. Product-owned policy makes results reproducible across repositories and preserves honest coverage. The benefit is resistance to silent detector suppression and configuration drift. The trade-off is that Scan Pilot may surface findings a repository's local Gitleaks workflow intentionally ignores and therefore needs its own suppression UX. The verification limit is that the adapter has not yet demonstrated a safe `.gitleaksignore` isolation method, exact pinned version, command matrix, or end-to-end report cleanup in the intended worker.
+
+## DEC-038 — Configuration Awareness is a dedicated product capability
+
+**Status:** Accepted
+
+Scan Pilot treats repository configuration as a dedicated product capability rather than as undifferentiated text or a filename-extension list. Project Discovery inventories configuration artifacts and classifies them by technical family and repository role using deterministic evidence such as path conventions, recognized structure or schema, content signals, and detected technology context. AI may assist only when deterministic evidence remains ambiguous, and its output remains an attributed inference rather than classification proof.
+
+Configuration changes are security-analysis triggers, not automatic Findings. Scan Pilot tracks compatible artifact identity, content digest, source commit, classifier or parser version, and safe derived facts so unchanged compatible evidence may be reused and changed artifacts can be reassessed with family-specific rules. Secret scanning remains applicable across eligible content, while later misconfiguration checks are defined separately for supported families rather than through one universal configuration rule.
+
+The initial deep-analysis direction prioritizes Spring Boot application configuration, GitHub Actions workflows, and Docker configuration. Exact artifact taxonomy, family-detection contract, parser choices, configuration-change impact graph, rule set, and support boundary remain unresolved and require separate accepted decisions. Repository evidence describes repository-declared configuration only; Scan Pilot must not claim that it proves the effective production configuration when runtime profiles, environment variables, command-line values, external stores, or cloud-side settings may override it.
+
+**Reason:** Configuration controls application, build, deployment, CI/CD, container, and security-tool behavior, and OWASP identifies repeatable configuration verification as an important security practice. Family-aware handling provides stronger and more explainable evidence than treating every YAML, JSON, XML, TOML, or properties file alike. The benefit is targeted rescanning and a structured path toward meaningful Security Misconfiguration rules. The trade-off is additional classifier, parser, versioning, and ecosystem-specific rule work. The verification limit is that no classifier, parser, benchmark, or configuration rule beyond `SP-CONFIG-001` has been implemented or validated, and static repository evidence cannot establish live production state.
+
+## DEC-039 — Configuration Artifacts use a multi-dimensional model
+
+**Status:** Accepted
+
+A Configuration Artifact is a Git-tracked file whose primary purpose is to declare or control application, build, dependency, test, CI/CD, container, infrastructure, or security-tool behavior. Scan Pilot describes an artifact through independent dimensions for physical format, technical family, one or more repository roles, module scope, and declared environment or profile scope rather than one overloaded `type` label. Artifact identity binds repository, branch or captured source scope, repository-relative path, Git object or content digest, and source commit.
+
+Source code that configures behavior through classes, annotations, builder APIs, or equivalent program logic remains source code for the MVP. A later framework-aware rule may relate that source to Configuration Artifacts without reclassifying all source files as configuration. A supported family parser may expose multiple logical Configuration Units inside one physical artifact, such as profile-specific Spring YAML documents, but the physical Git item remains the artifact boundary.
+
+**Reason:** The same syntax can configure unrelated systems, and one manifest can serve several roles. Separate dimensions allow correct parser and rule routing without turning ordinary source into an unbounded configuration inventory. The benefit is explainable monorepo and multi-role support. The trade-off is a richer model than one filename-derived enum. The verification limit is that the exact family, role, scope, and logical-unit taxonomies remain under review.
+
+## DEC-040 — Configuration classification separates recognition, family, parsing, and support
+
+**Status:** Accepted
+
+Configuration recognition, technical-family classification, parse outcome, and family-analysis support are independent facts. Platform-defined paths or names, recognized schema or structure, valid family syntax, and compatible detected technology context are deterministic evidence. Extensions, generic directory names, documentation, neighboring files, and AI classifications are supporting evidence only. AI may propose a candidate family but cannot by itself route a family-specific security analyzer.
+
+When deterministic evidence conflicts, Scan Pilot retains the candidate families and provenance, represents the family as unresolved, and does not run a family-specific analyzer. A deterministic platform path or artifact identity may preserve intended family classification when parsing fails; parse failure remains a separate coverage outcome. Generic eligible analysis such as secret scanning continues independently. Family-specific rules run only when deterministic family evidence, support status, and required parsing are sufficient.
+
+**Reason:** Knowing an artifact's intended family, successfully parsing it, and supporting security analysis are different claims. The separation avoids false Findings and preserves honest coverage for malformed, ambiguous, or unsupported artifacts. The trade-off is additional evidence and outcome state. The verification limit is that deterministic recognition fixtures and precedence for each family require separate benchmark validation.
+
+## DEC-041 — Configuration effect is scenario-scoped and repository-bounded
+
+**Status:** Accepted
+
+Scan Pilot preserves declared environment and profile labels exactly and does not automatically equate labels such as `prod`, `live`, `main`, or `release` with a production environment. An optional normalized meaning requires deterministic corroboration or an attributed User Assertion. Activation conditions, imports, overrides, and precedence are interpreted through a model specific to the technical family rather than one universal ordering.
+
+Configuration claims use three levels: `DECLARED` for a value or relationship observed in one source; `REPOSITORY_EFFECTIVE` only when an explicit scenario and every required repository-visible input in the supported precedence chain have been processed; and future `RUNTIME_VERIFIED` evidence from an authorized live integration. Unknown environment variables, command-line arguments, external configuration stores, platform variables, secrets, cloud-side settings, or other runtime inputs keep the effective result unresolved. `RUNTIME_VERIFIED` is outside the MVP.
+
+**Reason:** Spring Boot, Docker Compose, GitHub Actions, and other ecosystems have different activation and override behavior, while a Git branch or profile name does not prove deployment meaning. The benefit is useful scenario analysis without overstating production truth. The trade-off is that many results remain declared or unresolved. The verification limit is that even `REPOSITORY_EFFECTIVE` is valid only for its recorded commit, scenario, supported family model, and repository-visible inputs.
+
+## DEC-042 — Configuration changes trigger reassessment rather than Findings
+
+**Status:** Accepted
+
+Git change types are change evidence, not security conclusions. Scan Pilot records a Configuration Change Event separately from a Finding, reclassifies and reparses a changed artifact as required, and invalidates directly related import, override, environment-file, activation, reference, and module-context evidence. The MVP uses this bounded direct relationship graph rather than attempting a complete source-to-runtime impact graph.
+
+Content-level evidence may be reused only with a compatible content digest and parser version. Context and rule evidence additionally require compatible path, module, family, environment scenario, classifier, family analyzer, rule, and rule-configuration versions. Rename detection is supporting Git evidence rather than permanent identity, and deletion or movement does not automatically resolve a Finding. Semantic rules decide whether a change produces, resolves, or regresses a Finding.
+
+Generic change records persist safe change types, key paths where safe, digests, locations, and redacted or normalized evidence; they do not persist raw sensitive before-and-after values. Changed supported configuration receives higher analysis scheduling priority, but processing priority is not security severity.
+
+**Reason:** A textual edit may be formatting-only, may change behavior indirectly, or may alter context without changing bytes in a dependent file. The benefit is accurate incremental analysis without alert spam or full-repository recomputation. The trade-off is compatibility tracking and a bounded relationship graph. The verification limit is that the MVP cannot prove every downstream runtime or infrastructure effect.
+
+## DEC-043 — Configuration UX separates attention, coverage, and change
+
+**Status:** Accepted
+
+Configuration UX presents Security Attention, Verification Coverage, and Configuration Change as separate dimensions. The dashboard prioritizes active Findings, coverage blockers, and material Review Requests. Changes that produce no Finding are grouped as analyzed information rather than duplicated as alerts. A Configuration Map inventories artifacts by module and role and exposes family, declared profile or environment, analysis support, last assessed commit, recent change, Findings, and coverage limitations.
+
+Ambiguous, unsupported, or parse-failed artifacts are represented in neutral coverage or availability detail and are never presented as green or red merely because they could not be analyzed. Configuration reuses the accepted Finding lifecycle and attention/remediation labels; it does not introduce another color hierarchy. Human review is requested only when missing context materially affects interpretation, required verification, or an applicable rule, and responses remain User Assertions.
+
+**Reason:** Users must distinguish a confirmed security problem from an ordinary change and from missing verification. The benefit is an action-first dashboard that remains understandable to a security beginner while retaining audit detail. The trade-off is layered summary and detail views rather than one flat alert table. The verification limit is that exact wireframes, labels, filters, accessibility behavior, and final scoring remain unresolved.
+
 ## Intentionally Open Decisions
 
 - exact scoring formula and status thresholds;
 - exact optional confidence scale beyond the accepted verification statuses;
 - exact final V1 rule count;
 - exact detectors for rule families beyond the accepted Gitleaks-backed `SP-CONFIG-001` path;
+- optional Phase 2 document-extraction consent, privacy, implementation, format, OCR, resource, retention, and fallback policies;
+- exact eligibility reason-code taxonomy and policies for non-document binary families, archived, linked, generated, dependency, and user-excluded content beyond the accepted size reason codes;
+- exact Scan Pilot suppression authorization, scope, expiry, invalidation, and audit workflow;
+- exact Gitleaks version or artifact digest and the verified mechanism that prevents repository `.gitleaksignore` from controlling baseline detection;
+- exact Configuration Artifact taxonomy, deterministic classification evidence, ambiguity policy, parser set, safe derived-fact schema, change-impact model, and family-specific MVP rule set;
+- exact Configuration Map wireframe, filters, accessibility behavior, and configuration-specific Review Request triggers;
+- exact layered-classifier library, byte-sampling thresholds, supported text encodings, and conflict-resolution details;
 - exact fingerprint key service, access policy, rotation schedule, and retirement operation;
 - exact semantic matching strategies for later rule families;
 - exact sandbox or VM technology for rules that execute repository code;
@@ -374,4 +590,7 @@ Automatic provider verification is not part of this pipeline. Scan Pilot does no
 - exact ASVS coverage presentation;
 - exact BYOK encryption and storage;
 - exact queue/cache technology;
+- exact Maven version, Wrapper policy, backend module layout, plugins, dependency versions, profiles, and CI commands;
+- exact MVP delivery scope, triggers, evidence-validity rules, build or artifact checks, and full completion contract for Release Assessment beyond `DEC-036`;
 - final deployment topology within the accepted Google Cloud direction.
+- exact regional deployment prices and post-promotional-credit continuity plan.

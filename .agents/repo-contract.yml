@@ -73,7 +73,7 @@ doc_sync_rules:
   - when: .github/labels.yml changes
     check:
       - .github/ISSUE_TEMPLATE/
-      - .agent/skill/
+      - .agents/skill/
 
 guardrails:
   implementation_requires_explicit_phase_change: true
