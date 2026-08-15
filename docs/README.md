@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Documentation Index
 > **File:** `docs/README.md`
-> **Version:** v1.12.0
+> **Version:** v1.14.0
 > **Created:** 2026-08-11
 > **Last Updated:** 2026-08-16
 > **Status:** Active
@@ -39,6 +39,8 @@ This directory is the canonical source of product, research, and specification c
 
 - [AI Riser Vietnam 2026 Submission Context](research/submission/AI-RISER-VIETNAM-2026.md) — review before choosing or materially changing product direction, MVP scope, Google integration, deployment, demo, or submission material.
 - [AI Riser Submission Contract Verification](research/submission/AI-RISER-SUBMISSION-CONTRACT-VERIFICATION.md) — live official deadline, deliverables, access limitation, and Issue `#3` evidence.
+- [AI Studio Signed-Out Access Verification](research/submission/AI-STUDIO-SIGNED-OUT-ACCESS-VERIFICATION.md) — Issue `#4` evidence for required Google sign-in and judge-visible surfaces.
+- [AI Studio Export and Frozen Evidence Verification](research/submission/AI-STUDIO-EXPORT-VERIFICATION.md) — Issue `#5` evidence for the one-way handoff and safe ZIP snapshot boundary.
 - [Research Sources](RESEARCH-SOURCES.md)
 - [Secret Scanning Content Scope Benchmark](research/benchmarks/SECRET-SCANNING-CONTENT-SCOPE.md)
 - [Gitleaks Adapter Trust and Verification Benchmark](research/benchmarks/GITLEAKS-ADAPTER.md)

@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Current Status
 > **File:** `docs/CURRENT-STATUS.md`
-> **Version:** v1.25.0
+> **Version:** v1.27.0
 > **Created:** 2026-08-12
 > **Last Updated:** 2026-08-16
 > **Status:** Active
@@ -28,12 +28,14 @@ Production product implementation has not started. A downloaded AI Studio protot
 - Parent Eligibility Spike: Issue `#2`
 - Spike work items: Issues `#3` through `#8`
 - Delivery states: `Backlog → Planning → In Progress → Review → Done`; `Blocked` is a separate label.
-- Current schedule signal on 2026-08-16: Issue `#3` is complete after its 2026-08-15 target, Issue `#4` has not started, and no separate contingency day exists. The Eligibility Spike remains **at risk** until Issue `#4` and the remaining spike work recover the schedule.
+- Current schedule signal on 2026-08-16: Issues `#3` through `#5` are complete, and no separate contingency day exists. The Eligibility Spike remains **at risk** until the Cloud Run and authentication work recovers the schedule.
 
 ## Completed
 
 - GitHub Project #13, the submission milestone, and Eligibility Spike Issues `#2` through `#8` are established as the operational delivery plan.
 - Issue `#3` verified the official live submission contract with a `PASS` result: deadline `2026-08-30 23:59 GMT+7`, required core links distinguished from optional deployment, and exact emailed Completion Form limitations recorded.
+- Issue `#4` verified signed-out AI Studio access with a `PASS` result: Google authentication is required; a separate signed-in account could view Preview and Code, while prompt/project information and the original creation conversation were not observed.
+- Issue `#5` verified the AI Studio handoff with a `PASS` result: the standard ZIP is a secret-safe frozen evidence snapshot, while Antigravity export includes local workspace state and a configured secret and is internal-only.
 - Issue-driven delivery governance is accepted: GitHub Issues define executable work, Project #13 tracks operational fields, completed work enters `Review`, and only explicit Product Owner acceptance permits `Done` and closure.
 - Submission rule delivery is bounded to one required end-to-end rule, `SP-CONFIG-001`, with a second rule as stretch scope and a third only if the project becomes stable early.
 - AI Riser submission architecture accepted: Google AI Studio is the submission-facing frontend, the approved snapshot is frozen as evidence after a one-way handoff, and GitHub production source becomes the source of truth rather than maintaining two active codebases.
@@ -76,7 +78,7 @@ Production product implementation has not started. A downloaded AI Studio protot
 
 ## In Progress
 
-- Recovering the initial spike schedule: Issue `#4` (signed-out AI Studio access) is overdue as of 2026-08-16.
+- Recovering the initial spike schedule: Issues `#6` and `#7` remain pending after their planned start dates.
 - Selecting a safe independent secret-detection benchmark battery and reproducible publication protocol.
 - Resolving the pending `DEC-037` revision before the Gitleaks adapter benchmark so repository-controlled suppression behavior matches the user's newer simplification direction; no replacement policy is accepted yet.
 - A02 Security Misconfiguration research.
@@ -91,11 +93,9 @@ Production product implementation has not started. A downloaded AI Studio protot
 
 Complete the AI Riser Eligibility Spike specification before changing the implementation phase:
 
-1. execute Issue `#4` to verify the AI Studio link in a signed-out browser and record exactly what judges can open and inspect;
-2. execute Issue `#5` to verify the supported AI Studio export or transfer workflow and the frozen evidence snapshot;
-3. execute Issue `#6` to prove a minimal AI Studio frontend can call a public Cloud Run endpoint under the required browser-origin and CORS policy;
-4. execute Issue `#7` to define and verify the browser authentication and session handoff for GitHub sign-in and GitHub App installation without exposing tokens to the frontend;
-5. execute Issue `#8` to record the final go/no-go implementation recommendation before explicitly changing the product phase.
+1. execute Issue `#6` to prove a minimal AI Studio frontend can call a public Cloud Run endpoint under the required browser-origin and CORS policy;
+2. execute Issue `#7` to define and verify the browser authentication and session handoff for GitHub sign-in and GitHub App installation without exposing tokens to the frontend;
+3. execute Issue `#8` to record the final go/no-go implementation recommendation before explicitly changing the product phase.
 
 Do not execute the document-extraction benchmark during the MVP phase. Revisit it only if the user explicitly begins the optional Phase 2 Project Understanding capability and accepts the required consent, privacy, safety, and operational contract.
 

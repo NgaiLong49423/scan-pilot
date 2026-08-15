@@ -1,6 +1,6 @@
 > **Document:** AI Riser Vietnam 2026 Submission Context
 > **File:** `docs/research/submission/AI-RISER-VIETNAM-2026.md`
-> **Version:** v0.4.0
+> **Version:** v0.6.0
 > **Created:** 2026-08-13
 > **Last Updated:** 2026-08-16
 > **Status:** Under Review
@@ -24,6 +24,10 @@ It is a required review source before proposing a relevant direction-setting cha
 | [Google AI & Vibe Coding Handbook](https://docs.google.com/presentation/d/e/2PACX-1vT5FmgwnjE8Q2FhcWx7Cg89PrW6CujORX4bzUacuABBg1oeFrn6kXkPKhFXGxcVcbfkfUrF5tOxgrDx/pub?start=false&loop=false&delayms=60000&slide=id.g3c46f2f9e31_0_54) | Public 47-slide deck (`goo.gle/itsvibecoding`) describing Think, Build, and Publish workflows across AI Studio, Antigravity, and Cloud Run | 2026-08-15 |
 
 The official public event page was verified on 2026-08-16. It states that the Completion Form is sent in the instruction email rather than exposing the final form URL publicly. The public page confirms the core submission contract, while the exact emailed form schema remains unverified. See [AI Riser Submission Contract Verification](AI-RISER-SUBMISSION-CONTRACT-VERIFICATION.md).
+
+The AI Studio share link was tested in an Incognito browser with a separate Google account on 2026-08-16. Signed-out access redirects to Google Sign In; after sign-in, that account could view Preview and Code but did not see prompt/project information or the original creation conversation. The tested view exposed no sensitive data. See [AI Studio Signed-Out Access Verification](AI-STUDIO-SIGNED-OUT-ACCESS-VERIFICATION.md).
+
+The AI Studio project export was also verified on 2026-08-16. The standard ZIP export is the frozen, secret-safe evidence artifact; Antigravity export transfers local workspace state and one configured secret, so it remains internal-only. See [AI Studio Export and Frozen Evidence Verification](AI-STUDIO-EXPORT-VERIFICATION.md).
 
 The public Google AI & Vibe Coding Handbook deck was reviewed as a 47-slide intermediate resource. It presents a workflow of thinking through the product, building with either Google AI Studio or Antigravity, and publishing to Cloud Run. It positions AI Studio for rapid app prototyping and Antigravity or its CLI for broader agentic engineering work. This supports a hybrid toolchain; it does not prove that a mock-only AI Studio link is sufficient, that local tools can directly edit the AI Studio workspace, or that a separate source-code submission is required.
 
@@ -86,6 +90,4 @@ These implications are recorded as accepted decisions in `docs/DECISIONS.md`. Th
 
 - Confirm the official ten program topics and whether Scan Pilot is eligible as an independent problem framing.
 - Open the emailed Completion Form and confirm its exact fields, validators, Facebook-versus-LinkedIn behavior, and any separate source-code field rather than inferring one.
-- Verify the current AI Studio public-link and judge-visible-code behavior in a signed-out browser session.
 - Verify that the AI Studio frontend can call the external Cloud Run API with the required CORS and authentication behavior.
-- Verify the exact export or transfer mechanism and preserve a frozen, reproducible AI Studio evidence snapshot.

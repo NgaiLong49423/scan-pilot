@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.17.0
+> **Version:** v2.19.0
 > **Created:** 2026-08-11
 > **Last Updated:** 2026-08-16
 > **Status:** Active
@@ -10,6 +10,35 @@
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
+
+## 2026-08-16 — AI Studio Export and Frozen Evidence Verification
+
+**Status:** Working tree — not committed
+
+**Scope:** Completed the Issue `#5` Eligibility Spike verification without starting implementation or copying sensitive Antigravity workspace state into the repository.
+
+### Added
+
+- Added a secret-safe export evidence record for the standard AI Studio ZIP, including its project identity, capture timestamp, and SHA-256 integrity digest.
+
+### Changed
+
+- Distinguished the standard ZIP snapshot from the sensitive Antigravity workspace transfer, which includes a configured secret and local workspace state.
+- Recorded GitHub production source as the only post-handoff production source of truth and rejected continuous manual copy-paste synchronization.
+
+## 2026-08-16 — AI Studio Signed-Out Access Verification
+
+**Status:** Working tree — not committed
+
+**Scope:** Completed and accepted the user-run Incognito access test for Issue `#4` without changing AI Studio sharing settings or beginning implementation.
+
+### Added
+
+- Added a structured AI Studio access evidence record: Google authentication is required; the tested separate account could view Preview and Code, while prompt/project information and original creation conversation were not observed.
+
+### Changed
+
+- Updated the submission context and current status to distinguish authenticated link access from anonymous public access and to record the accepted `PASS` result.
 
 ## 2026-08-16 — AI Riser Live Submission Contract Verification
 
