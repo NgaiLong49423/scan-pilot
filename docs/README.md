@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Documentation Index  
 > **File:** `docs/README.md`  
-> **Version:** v1.9.0  
+> **Version:** v1.10.0  
 > **Created:** 2026-08-11  
-> **Last Updated:** 2026-08-14  
+> **Last Updated:** 2026-08-15  
 > **Status:** Active  
 
 # Scan Pilot Documentation
@@ -40,6 +40,7 @@ This directory is the canonical source of product, research, and specification c
 - [Research Sources](RESEARCH-SOURCES.md)
 - [Secret Scanning Content Scope Benchmark](research/benchmarks/SECRET-SCANNING-CONTENT-SCOPE.md)
 - [Gitleaks Adapter Trust and Verification Benchmark](research/benchmarks/GITLEAKS-ADAPTER.md)
+- [Secret Detection Validation Research](research/benchmarks/SECRET-DETECTION-VALIDATION.md) — separates independent detector evidence, Scan Pilot integration verification, and the controlled end-to-end security-lab journey.
 - [Configuration Awareness Research](research/benchmarks/CONFIGURATION-AWARENESS.md)
 - [Deferred Document Extraction Adapter Benchmark Plan](research/benchmarks/DOCUMENT-EXTRACTION-ADAPTER.md) — retained for optional Phase 2; do not execute for the MVP.
 - [A01 Broken Access Control](research/security/A01-BROKEN-ACCESS-CONTROL.md)

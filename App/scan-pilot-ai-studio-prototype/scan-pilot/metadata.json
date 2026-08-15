@@ -1,0 +1,6 @@
+{
+  "name": "Scan Pilot",
+  "description": "Monitor security risks in AI-generated and AI-assisted GitHub repositories.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

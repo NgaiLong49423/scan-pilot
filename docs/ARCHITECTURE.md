@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Architecture Direction  
 > **File:** `docs/ARCHITECTURE.md`  
-> **Version:** v0.14.0  
+> **Version:** v0.15.0  
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-14  
+> **Last Updated:** 2026-08-15  
 > **Status:** Under Review  
 
 # Scan Pilot Architecture Direction
@@ -30,6 +30,40 @@ Spring Boot API
 GitHub → Webhooks → API → Scan Job → Isolated Scan Worker
 PostgreSQL stores application state
 ```
+
+## Submission Topology and Workspace Boundary
+
+The accepted submission architecture combines Google AI Studio with the production system instead of replacing one with the other:
+
+```text
+Google AI Studio frontend
+        ↓ HTTPS REST
+Public production API on Cloud Run
+        ├── GitHub App integration
+        ├── PostgreSQL application state
+        ├── isolated Gitleaks scan worker
+        └── Gemini provider adapter
+```
+
+The AI Studio workspace and local Git workspace are separate trust and editing boundaries. The AI Studio agent is confirmed only for editing the open AI Studio project. Local Codex and Antigravity operate on exported/local source and must not be assumed to mutate the AI Studio workspace directly.
+
+Handoff is one-way for the submission checkpoint: approve and freeze the AI Studio prototype, export or selectively transfer it, refactor it for production, and make GitHub the source of truth. Scan Pilot does not maintain two independently evolving production frontends. The frozen AI Studio snapshot remains evidence of the required AI Studio build stage.
+
+Before implementation, an Eligibility Spike must verify public-link accessibility, the judge-visible surface, external REST calls and CORS behavior, a stable browser authentication handoff, export fidelity, and a minimal Cloud Run endpoint. A successful spike validates the workflow; it does not authorize general product implementation by itself.
+
+## Submission GitHub Onboarding Boundary
+
+The submission flow signs the user in before GitHub App installation or linking, then allows explicit selection of one repository. MVP submission accounts are personal GitHub accounts. Explicitly selected public and private repositories are supported; organization installation and policy complexity are deferred.
+
+GitHub remains the source of repository authorization and default-branch identity. Exact OAuth or GitHub App session mechanics, installation-token storage, token refresh, callback routing, and browser-session protection remain technical design work. Private repository source may exist only in the isolated temporary scan workspace for the bounded job; persistent product records retain redacted evidence, fingerprints, coverage, and metadata rather than raw private source.
+
+## Submission Gemini Boundary
+
+Gemini receives bounded, redacted context and may explain evidence, remediation guidance, and why a verified state changed. Deterministic application logic and validated scan evidence own Finding identity, lifecycle, remediation quality, and coverage. Gemini has no authority to edit source, generate an applied patch, commit, push, rewrite history, revoke a credential, or close a Finding.
+
+## Verification Evidence Boundary
+
+Submission evidence separates detector quality from Scan Pilot orchestration. An independent safe benchmark measures secret-detection behavior; adapter and integration tests verify redaction, normalization, coverage, and checkpoint rules; a controlled user-owned security-lab repository verifies the complete deployed journey. Gitleaks' own fixtures are useful regression inputs but are not independent proof of product effectiveness.
 
 ## Repository Profile and Persistent State
 
@@ -146,6 +180,8 @@ Keep the backend as one deployable modular monolith unless worker isolation requ
 ## Unresolved Architecture Decisions
 
 - exact authentication mechanism;
+- exact public AI Studio origin, sharing, CORS, callback, and browser-session contract;
+- exact safe independent benchmark battery, licenses, metrics, and execution protocol;
 - optional Phase 2 document-extraction consent, privacy, implementation, format/OCR scope, and parser resource limits;
 - GitHub App installation and token lifecycle details;
 - queue/cache technology and whether Redis is necessary for V1;

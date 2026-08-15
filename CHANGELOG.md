@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Changelog  
 > **File:** `CHANGELOG.md`  
-> **Version:** v2.13.0  
+> **Version:** v2.14.0  
 > **Created:** 2026-08-11  
-> **Last Updated:** 2026-08-14  
+> **Last Updated:** 2026-08-15  
 > **Status:** Active  
 
 # Scan Pilot Changelog
@@ -10,6 +10,41 @@
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
+
+## 2026-08-15 — AI Riser Submission Architecture and Validation
+
+**Status:** Working tree — not committed
+
+**Scope:** Converted the accepted AI Riser submission workflow, focused vertical slice, GitHub onboarding, Gemini authority, independent validation, controlled demonstration, Product Owner decision boundary, and internal deadline into canonical documentation without starting implementation.
+
+### Added
+
+- Added `DEC-044` through `DEC-051` and `FR-045` through `FR-051` for the accepted submission contract.
+- Added a source-attributed validation research note separating independent detector evidence, Scan Pilot integration verification, and the deployed security-lab journey.
+- Added an Eligibility Spike gate for AI Studio public access, Cloud Run REST/CORS, authentication handoff, export fidelity, and final submission-source verification.
+
+### Changed
+
+- Defined a one-way AI Studio-to-production handoff and kept GitHub production source as the post-handoff source of truth.
+- Narrowed the submission MVP to a real `SP-CONFIG-001` flow using a personal GitHub repository, Gitleaks, redacted evidence, Gemini explanation, re-scan, and remediation-quality transitions.
+- Recorded 2026-08-30 as the internal complete-and-stable gate and 2026-08-31 at 23:59 as the user-reported external deadline pending live-form and timezone verification.
+- Routed the next task to the submission Eligibility Spike before implementation or further Configuration Awareness expansion.
+
+### Affected files
+
+- `AGENTS.md`
+- `CHANGELOG.md`
+- `docs/PROJECT-CONTEXT.md`
+- `docs/DECISIONS.md`
+- `docs/CURRENT-STATUS.md`
+- `docs/PRODUCT.md`
+- `docs/REQUIREMENTS.md`
+- `docs/ARCHITECTURE.md`
+- `docs/RESEARCH-SOURCES.md`
+- `docs/README.md`
+- `docs/research/submission/AI-RISER-VIETNAM-2026.md`
+- `docs/research/benchmarks/SECRET-DETECTION-VALIDATION.md`
+- `.agents/outputs/reports/DOCUMENT_METADATA_REPORT.md`
 
 ## 2026-08-14 — Configuration Awareness Direction
 

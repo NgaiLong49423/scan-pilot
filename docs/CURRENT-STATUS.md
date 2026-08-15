@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Current Status  
 > **File:** `docs/CURRENT-STATUS.md`  
-> **Version:** v1.21.0  
+> **Version:** v1.22.0  
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-14  
+> **Last Updated:** 2026-08-15  
 > **Status:** Active  
 
 # Scan Pilot Current Status
@@ -11,18 +11,24 @@
 
 **Research and specification.** Documentation migration from the original template is complete.
 
-Product code has not started. Do not begin implementation without an explicit user instruction changing the phase.
+Production product implementation has not started. A downloaded AI Studio prototype exists locally for inspection, but it has not been adopted as tracked production source. Do not begin implementation without an explicit user instruction changing the phase.
 
 ## Submission Context
 
 - Target: a working product submission for a Google-oriented event.
 - Team structure: one solo developer. The previously recorded two-person team belongs to a different project.
 - User availability: the user is currently on a break between semesters and can invest substantial time.
-- Target window: end of August 2026.
-- Exact submission date: not yet recorded in canonical documentation.
+- User-reported external deadline: 2026-08-31 at 23:59; live form and timezone still require verification.
+- Internal complete-and-stable gate: 2026-08-30, reserving the final day for verification and submission.
 
 ## Completed
 
+- AI Riser submission architecture accepted: Google AI Studio is the submission-facing frontend, the approved snapshot is frozen as evidence after a one-way handoff, and GitHub production source becomes the source of truth rather than maintaining two active codebases.
+- Submission MVP accepted as a narrower Product V1 vertical slice: one real personal-account repository, current and history secret scan, redacted `SP-CONFIG-001`, Gemini explanation, re-scan lifecycle, and public Cloud Run operation.
+- Submission onboarding accepted: sign in first, then install or link the GitHub App, then explicitly select one public or private personal-account repository; organization support is deferred.
+- Gemini's submission authority is bounded to explanation and guidance from redacted context. Repository mutation, credential actions, and Finding lifecycle decisions remain outside Gemini.
+- Independent validation evidence and a separate user-owned security-lab repository are accepted. Detector quality, Scan Pilot adapter/orchestration behavior, and end-to-end product behavior must be evidenced separately.
+- Product Owner decision altitude accepted: the user decides outcome, scope, value, cost, privacy, permissions, and UI/UX; agents own ordinary technical mechanisms within accepted constraints and escalate material impact.
 - Product direction and dashboard-first workflow accepted.
 - Core technology and GitHub integration direction accepted.
 - Apache Maven accepted as the canonical Java backend build and dependency-management tool; exact Wrapper, module, plugin, dependency, profile, and CI details remain for implementation design.
@@ -57,6 +63,10 @@ Product code has not started. Do not begin implementation without an explicit us
 
 ## In Progress
 
+- Converting the accepted AI Riser submission architecture into canonical specifications without beginning product implementation.
+- Preparing the bounded Eligibility Spike for AI Studio public access, external REST/CORS, authentication handoff, export fidelity, and a minimal Cloud Run endpoint.
+- Selecting a safe independent secret-detection benchmark battery and reproducible publication protocol.
+- Resolving the pending `DEC-037` revision before the Gitleaks adapter benchmark so repository-controlled suppression behavior matches the user's newer simplification direction; no replacement policy is accepted yet.
 - A02 Security Misconfiguration research.
 - Selecting and specifying the first family-specific Configuration Awareness slice among Spring Boot, GitHub Actions, and Docker.
 - Converting accepted decisions into canonical product and inspection specifications.
@@ -67,17 +77,18 @@ Product code has not started. Do not begin implementation without an explicit us
 
 ## Next Logical Task
 
-Start the next Configuration Awareness checkpoint without reopening the completed general contract:
+Complete the AI Riser Eligibility Spike specification before changing the implementation phase:
 
-1. compare Spring Boot, GitHub Actions, and Docker against MVP demo value, available standards and mature detectors, false-positive risk, implementation size, and relevance to Scan Pilot's own stack;
-2. select one first family and define its deterministic fixtures, parser boundary, declared/override scenario support, initial rules, and verification limits;
-3. keep unsupported families inventoried without implying semantic coverage;
-4. separately resolve the pending revision to `DEC-037` before the Gitleaks adapter benchmark, because repository suppression behavior must match the user's newer simplification direction;
-5. preserve redaction, fingerprint, backfill, and Release Assessment questions as separate checkpoints.
+1. verify the AI Studio link in a signed-out browser and record exactly what judges can open and inspect;
+2. prove a minimal AI Studio frontend can call a public Cloud Run endpoint under the required browser-origin and CORS policy;
+3. define and verify the browser authentication and session handoff for GitHub sign-in and GitHub App installation without exposing tokens to the frontend;
+4. verify the supported AI Studio export or transfer workflow and the frozen evidence snapshot;
+5. re-check the live completion form, external deadline and timezone, link formats, and source-access expectations;
+6. convert successful spike results into the final submission implementation specification and GitHub Issues before explicitly beginning product implementation.
 
 Do not execute the document-extraction benchmark during the MVP phase. Revisit it only if the user explicitly begins the optional Phase 2 Project Understanding capability and accepts the required consent, privacy, safety, and operational contract.
 
-**Reason:** The general Configuration Awareness contract is now coherent enough to stop broad decomposition. Selecting one first family is the next boundary because it converts that general model into deterministic fixtures, parser behavior, scenario semantics, and real security rules without prematurely designing every configuration ecosystem. The Gitleaks adapter benchmark remains a separate later checkpoint after the pending `DEC-037` revision is resolved.
+**Reason:** These checks determine whether the accepted AI Studio-plus-Cloud-Run workflow can satisfy the event and the real security product flow before substantial code is built. Configuration Awareness family selection remains queued after the submission-critical vertical slice is technically eligible.
 
 ## Current Research Checkpoints
 
@@ -90,6 +101,8 @@ Do not execute the document-extraction benchmark during the MVP phase. Revisit i
 | Finding tracking model | Accepted and active | `docs/FINDING-TRACKING.md` |
 | Document extraction adapter | Deferred to optional Phase 2; MVP benchmark stopped | `docs/research/benchmarks/DOCUMENT-EXTRACTION-ADAPTER.md` |
 | Cloud budget | Accepted and active; credit details require pre-deployment verification | `docs/CLOUD-BUDGET.md` |
+| AI Riser submission architecture | Accepted; Eligibility Spike not yet executed | `docs/research/submission/AI-RISER-VIETNAM-2026.md` |
+| Secret detection validation | Independent evidence model accepted; safe battery not yet selected or run | `docs/research/benchmarks/SECRET-DETECTION-VALIDATION.md` |
 
 ## Constraints for the Next Agent
 

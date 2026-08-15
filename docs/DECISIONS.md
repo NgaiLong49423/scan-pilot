@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Accepted Decisions  
 > **File:** `docs/DECISIONS.md`  
-> **Version:** v1.21.0  
+> **Version:** v1.22.0  
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-14  
+> **Last Updated:** 2026-08-15  
 > **Status:** Active  
 
 # Scan Pilot Accepted Decisions
@@ -569,6 +569,121 @@ Ambiguous, unsupported, or parse-failed artifacts are represented in neutral cov
 
 **Reason:** Users must distinguish a confirmed security problem from an ordinary change and from missing verification. The benefit is an action-first dashboard that remains understandable to a security beginner while retaining audit detail. The trade-off is layered summary and detail views rather than one flat alert table. The verification limit is that exact wireframes, labels, filters, accessibility behavior, and final scoring remain unresolved.
 
+## DEC-044 — Submission uses a one-way AI Studio-to-production handoff
+
+**Status:** Accepted
+
+Google AI Studio is the origin and submission workspace for a functional Scan Pilot frontend prototype. The user approves its UI/UX, then a captured export is retained as submission evidence and selectively promoted into the production React frontend. After implementation starts, the GitHub production repository is the source of truth and the AI Studio and production codebases are not developed in parallel as competing sources.
+
+AI Studio's workspace agent may edit the open AI Studio project. Local Codex and Antigravity tools operate on the local Git repository and must not be assumed to access the AI Studio filesystem directly. Transfer requires a verified export, GitHub, or another explicitly tested handoff. A final controlled submission snapshot may be refreshed from production-compatible frontend work, but continuous manual `App.tsx` copy-paste is not the development workflow.
+
+**Reason:** The handoff preserves meaningful AI Studio provenance without forcing a security product's Spring Boot, PostgreSQL, GitHub, and isolated-worker architecture into a prototype workspace. The benefit is one production source of truth and traceable submission evidence. The trade-off is that the frozen AI Studio snapshot may not contain every production implementation detail. The verification limit is that round-trip import and final public-link behavior still require the Eligibility Spike.
+
+## DEC-045 — AI Studio is a real submission frontend, not a separate mock product
+
+**Status:** Accepted
+
+The intended submission shape is:
+
+```text
+AI Studio submission frontend
+        ↓ HTTPS REST
+Google Cloud production backend
+├── Spring Boot API
+├── isolated scan worker
+├── Gemini provider integration
+└── PostgreSQL through the accepted database direction
+```
+
+The AI Studio project must represent the same Scan Pilot product and may call the production backend when the cross-origin and authentication contract is verified. It does not need to contain the Java backend, database, or scanner worker. Scan Pilot does not create a judge-only anonymous demo mode or bypass normal product authorization. The public AI Studio link, demo video, production Cloud Run link, and production source are distinct submission evidence surfaces.
+
+**Reason:** A functional frontend makes AI Studio use material while Cloud Run preserves production-grade boundaries. Requiring judges who choose to test the product to follow the normal GitHub workflow avoids a costly, abusable anonymous scanning path. The benefit is one product behavior rather than a special contest-only product. The trade-off is higher evaluator friction than an anonymous demo. The verification limit is that public sharing, exact judge visibility, external REST access, CORS, authentication handoff, and live-form acceptance are not yet proven.
+
+## DEC-046 — Submission MVP is narrower than Product V1
+
+**Status:** Accepted
+
+The August 2026 submission prioritizes one complete real vertical slice:
+
+1. AI Studio submission frontend and public Cloud Run production deployment;
+2. GitHub sign-in, GitHub App installation, and one selected repository;
+3. current default-branch snapshot plus validated reachable-history scanning through the accepted Gitleaks adapter;
+4. redacted `SP-CONFIG-001` evidence;
+5. bounded Gemini explanation and remediation guidance;
+6. external remediation followed by re-scan and real lifecycle progression; and
+7. independent secret-detection benchmark evidence.
+
+Broader Product V1 capabilities remain accepted directions but cannot displace completion of this slice. Secondary branches, broad multi-project behavior, GitHub Issue creation, full Project Discovery, human review, Configuration Awareness families, A01 rules, and complete Release Assessment enter the submission only after the core is stable and verified.
+
+**Reason:** A solo project with a fixed August deadline needs depth and reliability before breadth. The benefit is a defensible scanner, AI explanation, lifecycle, and deployment story rather than several unfinished subsystems. The trade-off is that the submitted product may expose less of the full vision. The verification limit is that actual GitHub, worker, benchmark, and Cloud Run measurements may require further scope reduction rather than unverified claims.
+
+## DEC-047 — GitHub onboarding signs in before installing the app
+
+**Status:** Accepted
+
+Submission onboarding uses this order:
+
+```text
+Sign in with GitHub
+→ create a Scan Pilot user session
+→ install or select the GitHub App installation
+→ grant only selected repository access
+→ select a repository in Scan Pilot
+→ begin repository onboarding
+```
+
+Submission MVP officially supports personal GitHub accounts and public or private personal repositories explicitly selected through the GitHub App. Organization installation and admin-approval behavior are Product V1 scope until verified. User identity and installation authorization remain separate. Background repository operations use short-lived installation authorization rather than a browser credential, and callback, token, session, and CORS mechanics are technical design responsibilities constrained by least privilege.
+
+**Reason:** Sign-in first creates an attributable session before installation linkage, while selected-repository access matches the solo-builder audience and avoids unbounded account access. Supporting private repositories demonstrates real product value. The trade-off is that organization teams are not officially supported in the submission and private-source handling raises the isolation bar. The verification limit includes revocation, repository transfer, token expiry, user isolation, temporary-workspace deletion, and AI Studio authentication compatibility.
+
+## DEC-048 — Gemini explains evidence but does not mutate repositories
+
+**Status:** Accepted
+
+For the submission slice, Gemini receives only bounded, normalized, secret-redacted evidence. It explains what was detected, why it matters, what the evidence proves and cannot prove, the ordered remediation plan, and why a re-scan changed remediation state. Detector evidence and backend rules remain responsible for lifecycle and coverage.
+
+Gemini and Scan Pilot do not generate a patch for automatic application, edit source, create a branch, commit, push, rewrite Git history, revoke a credential, or mark a Finding resolved. A developer or external coding agent performs remediation outside Scan Pilot. Scan Pilot then re-scans repository truth.
+
+**Reason:** Explanation and contextual remediation are useful to security beginners and visibly use Gemini without making AI the security authority. The benefit is meaningful Google AI integration with a bounded trust surface. The trade-off is no one-click autofix. The verification limit is that structured output still requires schema validation, safety review, fallback content, and prompt/evidence tests.
+
+## DEC-049 — Submission quality includes independent benchmark evidence
+
+**Status:** Accepted
+
+`SP-CONFIG-001` quality evidence separates detector accuracy from Scan Pilot orchestration. The submission uses an independent safe secret-test battery where licensing and data handling permit, records the detector version and trusted configuration, and reports true positives, false negatives, and false positives only for the benchmark scope. Gitleaks-owned fixtures remain internal regression evidence and are not represented as independent validation.
+
+Academic SecretBench data containing secrets mined from real repositories is not used without the required access agreement and an accepted sensitive-data protocol. It is not sent to Gemini, committed to Scan Pilot, or used in the public demo. OWASP Benchmark and NIST SARD remain candidates for later rule families rather than evidence for `SP-CONFIG-001`.
+
+**Reason:** Ground-truth comparison is more credible than self-selected success cases, while attribution prevents Scan Pilot from claiming Gitleaks detection performance as proprietary accuracy. The benefit is measurable and reproducible quality evidence. The trade-off is benchmark-adapter and reporting work. The verification limit is that no benchmark run, pinned detector, or final safe battery has yet been completed.
+
+## DEC-050 — The end-to-end story uses a controlled security-lab repository
+
+**Status:** Accepted
+
+The submission video and end-to-end verification use a separate repository owned by the user. It contains non-functional synthetic secret candidates and a controlled Git history with ground truth. It is scanned through the normal GitHub App workflow; findings are produced by the real detector and backend rather than mocked by the frontend. The lab remains private during development unless a later review proves a public sanitized form is useful and safe.
+
+The target story is:
+
+```text
+OPEN / ACTION_REQUIRED
+→ external source and credential remediation
+→ RESOLVED / RISK_CONTAINED while reachable history remains
+→ external history cleanup
+→ RESOLVED / VERIFIED_COMPLETE within recorded scan coverage
+```
+
+Scan Pilot never rewrites or force-pushes the lab repository itself. Ground truth is stored separately from the scanned target. `VERIFIED_COMPLETE` remains bounded by scanned Git scope, detector, rules, and coverage; it never proves that an earlier credential was not copied.
+
+**Reason:** A controlled lab makes the real pipeline repeatable without contaminating the Scan Pilot repository or using a live credential. The benefit is one fixture for video, lifecycle, redaction, history, and end-to-end regression. The trade-off is that it is an intentionally vulnerable test target and must be described honestly. The verification limit is that synthetic candidates cannot represent every real credential family and therefore do not replace independent benchmarks.
+
+## DEC-051 — Submission planning uses an internal August 30 completion gate
+
+**Status:** Accepted planning constraint
+
+The user-reported external submission deadline is `2026-08-31 23:59` in the event's applicable local time. Scan Pilot uses `2026-08-30` as the internal complete-and-deployed deadline; August 31 is reserved for final verification, video/link checks, and contingency only. The live completion form remains the authoritative external source and must be rechecked before submission.
+
+**Reason:** A one-day safety margin reduces the risk that deployment, sharing permissions, video, or form problems consume the final submission window. The benefit is a clear delivery gate. The trade-off is one fewer implementation day. The verification limit is that the completion-form URL and authoritative timezone have not yet been recorded in the repository.
+
 ## Intentionally Open Decisions
 
 - exact scoring formula and status thresholds;
@@ -594,3 +709,6 @@ Ambiguous, unsupported, or parse-failed artifacts are represented in neutral cov
 - exact MVP delivery scope, triggers, evidence-validity rules, build or artifact checks, and full completion contract for Release Assessment beyond `DEC-036`;
 - final deployment topology within the accepted Google Cloud direction.
 - exact regional deployment prices and post-promotional-credit continuity plan.
+- exact AI Studio public-link permissions, judge-visible source/prompt surface, external API origin, CORS, and authenticated-session handoff;
+- exact personal-account GitHub session mechanism, callback routing, installation-token lifecycle, revocation handling, and private-source deletion verification;
+- exact independent safe secret benchmark battery, adapter, metrics report, and accepted accuracy thresholds;

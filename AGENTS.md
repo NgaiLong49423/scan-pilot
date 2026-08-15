@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Agent Instructions  
 > **File:** `AGENTS.md`  
-> **Version:** v1.7.0  
+> **Version:** v1.8.0  
 > **Created:** 2026-08-11  
-> **Last Updated:** 2026-08-14  
+> **Last Updated:** 2026-08-15  
 > **Status:** Active  
 
 # Agent Instructions
@@ -84,6 +84,14 @@ Submission-context documents describe external event constraints and evaluation 
 - The user is new to application security. Explain one decision at a time using a concrete example.
 - Every recommendation or decision must include the reason, expected benefit, trade-off, and verification limit.
 - Do not expect the user to read an entire security standard before making progress; provide official links as supporting material.
+
+## Decision Altitude
+
+- Treat the user as the product owner with some technical background. Ask for decisions about user-visible behavior, product value, scope, deadline, cost, privacy, permissions, material risk, submission evidence, and UI/UX.
+- The agent owns routine technical decomposition and implementation choices within accepted product, architecture, security, budget, and phase boundaries. Examples include OAuth callback handling, session mechanisms, CORS, internal API shape, module structure, database mapping, retry policy, and test strategy.
+- Report important technical decisions with their reason, benefit, trade-off, and verification limit, but do not force the user to choose among low-level mechanisms that do not change the product contract.
+- Return a technical choice to the user when it materially changes user behavior, accepted scope, cost, privacy, permissions, vendor lock-in, deadline risk, external state, or an irreversible action.
+- UI/UX remains user-controlled. Technical work may identify constraints or accessibility and security requirements, but it must not silently treat a generated prototype design as approved production UX.
 
 ## Security Rule Policy
 

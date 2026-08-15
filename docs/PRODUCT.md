@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Product Definition  
 > **File:** `docs/PRODUCT.md`  
-> **Version:** v0.11.0  
+> **Version:** v0.12.0  
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-14  
+> **Last Updated:** 2026-08-15  
 > **Status:** Under Review  
 
 # Scan Pilot Product Definition
@@ -32,6 +32,39 @@ Connect repository
 ## MVP Outcome
 
 The MVP succeeds when a user can complete the core loop against a real repository and understand the result without specialist security knowledge.
+
+## AI Riser Submission MVP
+
+The submission MVP is a focused vertical slice of Product V1:
+
+```text
+AI Studio frontend
+→ GitHub sign-in and GitHub App installation
+→ select one personal-account repository
+→ scan current source and reachable Git history
+→ show redacted SP-CONFIG-001 evidence
+→ use Gemini for explanation and remediation guidance
+→ re-scan
+→ show Finding lifecycle and remediation quality
+```
+
+The frontend submitted through Google AI Studio must connect to the real production backend on Google Cloud Run. Scan Pilot will not create a separate judge-only mock mode or bypass the normal GitHub onboarding flow. Public and private repositories owned by personal GitHub accounts are eligible only when explicitly selected and authorized; organization support is deferred.
+
+The approved AI Studio prototype is frozen as submission evidence after its one-way handoff. Production source then evolves in GitHub as the source of truth. The two workspaces are not maintained as parallel production codebases.
+
+Submission evidence must include the AI Studio link, the public Cloud Run deployment when available, a public demo video, source access through the actual submission mechanism, and independent validation evidence. Broader Product V1 capabilities are included only after the real end-to-end secret-scanning loop is stable.
+
+Gemini explains redacted findings, remediation steps, and lifecycle transitions. It does not modify repositories, create patches, commit or push code, rewrite Git history, revoke credentials, or decide Finding lifecycle state.
+
+A separate user-owned security-lab repository supplies nonfunctional synthetic secret candidates and known ground truth. The intended real-pipeline demonstration is:
+
+```text
+OPEN / ACTION_REQUIRED
+→ source removed and credential response recorded
+→ RESOLVED / RISK_CONTAINED
+→ reachable history cleaned and re-verified
+→ RESOLVED / VERIFIED_COMPLETE
+```
 
 Required product capabilities currently accepted:
 

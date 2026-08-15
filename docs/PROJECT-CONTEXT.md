@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Project Context  
 > **File:** `docs/PROJECT-CONTEXT.md`  
-> **Version:** v1.8.0  
+> **Version:** v1.9.0  
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-14  
+> **Last Updated:** 2026-08-15  
 > **Status:** Active  
 
 # Scan Pilot Project Context
@@ -54,9 +54,23 @@ Primary users are solo builders, students, small teams, and developers managing 
 
 Scan Pilot itself is currently built by one solo developer. References to a two-person team belong to a different project and must not be used for Scan Pilot planning, architecture justification, or delivery estimates.
 
+Scan Pilot is being prepared for AI Riser Vietnam 2026. The user-reported external submission deadline is 2026-08-31 at 23:59; the internal completion gate is 2026-08-30 so the final day is reserved for verification and submission. The live form, timezone, and any early-submission availability still require direct verification.
+
+The submission MVP is intentionally narrower than the broader Product V1. It must demonstrate one strong, real repository-security loop rather than presenting unfinished breadth.
+
 The accepted two-month cloud planning envelope is USD 250, with at most USD 180 expected operating spend and USD 70 protected reserve. Google Cloud promotional credit is the only currently recorded funding source. Architecture and external-service proposals must use the canonical constraints in `docs/CLOUD-BUDGET.md`; nominal credit that has not been verified for expiry and service eligibility is not guaranteed funding.
 
 The repository uses a lightweight branch workflow: `main` remains stable, while each coherent large workstream uses a working branch. Pull requests are optional self-review checkpoints for large changes, not a requirement for every small documentation edit.
+
+## Submission Tool and Workspace Roles
+
+Google AI Studio is the origin and required submission-facing frontend environment. The user controls UI and UX decisions there. The accepted workflow is a one-way handoff: freeze an approved AI Studio snapshot as evidence, export or transfer selected frontend source into the production repository, then continue production development from GitHub as the source of truth.
+
+The Google AI Studio workspace and local workspace are separate until a concrete synchronization mechanism is verified. The AI Studio agent may edit the open AI Studio project; local Codex and Antigravity must not be assumed to edit that remote workspace directly. Scan Pilot will not maintain two independently evolving production codebases.
+
+The production solution uses the GitHub repository, local engineering tools, and Google Cloud. The AI Studio frontend is expected to call the real production API on Cloud Run rather than remain a mock-only judge demo. Public access, browser-origin/CORS behavior, authentication handoff, and export fidelity must pass an Eligibility Spike before implementation workflow is finalized.
+
+Product decisions are discussed with the user at Product Owner altitude: outcome, scope, user value, cost, privacy, permissions, and UI/UX. Agents may choose ordinary technical mechanisms within accepted architecture and constraints, but must escalate choices that materially change those Product Owner concerns. Final UI/UX authority remains with the user.
 
 Their problem is not merely finding one vulnerability. They need to understand:
 
@@ -169,4 +183,7 @@ Do not invent answers for:
 - exact ASVS coverage UI;
 - exact BYOK encryption and storage design;
 - exact V1 queue technology;
-- exact project status thresholds.
+- exact project status thresholds;
+- exact public-sharing and external-API behavior of the AI Studio submission link;
+- exact browser authentication and session handoff between AI Studio and the production API;
+- the safe independent benchmark battery and execution protocol for submission evidence.

@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Research Sources  
 > **File:** `docs/RESEARCH-SOURCES.md`  
-> **Version:** v1.8.0  
+> **Version:** v1.9.0  
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-14  
+> **Last Updated:** 2026-08-15  
 > **Status:** Active  
 
 # Scan Pilot Research Sources
@@ -123,6 +123,11 @@ These are benchmarks, not security standards.
 | Terraform | configuration-change planning versus current state and speculative-result limits | Reviewed on 2026-08-14 as a non-MVP benchmark for separating text change from runtime effect |
 | GitLab IaC | supported configuration scope and linked finding/report UX | Reviewed on 2026-08-14 for attention, coverage, and change separation |
 | Snyk IaC | per-configuration issue presentation and explicit support boundaries | Reviewed on 2026-08-14 for Configuration Map and Finding separation |
+| Academic SecretBench | large labeled secret dataset and research-grounded detector evaluation | Reviewed on 2026-08-15; real-secret data requires an agreement and is excluded from the public MVP protocol |
+| SecretBench false-negative battery | independent recall-oriented credential-format variations | Candidate safe battery reviewed on 2026-08-15; fixtures require safety and license audit before execution |
+| OWASP SEDATED | explicit positive/negative secret-regex fixtures and documented limitations | Historical supplemental source reviewed on 2026-08-15 |
+| OWASP Benchmark | runnable known-ground-truth applications and reproducible scorecards | Future non-secret rule benchmark; not evidence for `SP-CONFIG-001` |
+| NIST SARD / Juliet | documented weakness test programs for static-analysis evaluation | Future rule-family source; not evidence for secret scanning |
 
 Official links:
 
@@ -158,6 +163,13 @@ Official links:
 - https://semgrep.dev/docs/
 - https://docs.sonarsource.com/sonarqube-server/
 - https://docs.snyk.io/
+- https://github.com/setu1421/SecretBench
+- https://doi.org/10.1109/MSR59073.2023.00053
+- https://github.com/brendtmcfeeley/SecretBench
+- https://github.com/OWASP/SEDATED
+- https://owasp.org/www-project-benchmark/
+- https://www.nist.gov/itl/csd/secure-systems-and-applications/samate/software-assurance-reference-dataset-sard
+- https://samate.nist.gov/SARD/test-suites
 
 ## Tier 4 — Secure Development Lifecycle
 

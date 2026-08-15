@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Document Metadata Report  
 > **File:** `.agents/outputs/reports/DOCUMENT_METADATA_REPORT.md`  
-> **Version:** v1.21.0  
+> **Version:** v1.22.0  
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-14  
+> **Last Updated:** 2026-08-15  
 > **Status:** Active  
 
 # Document Metadata Report
@@ -10,18 +10,18 @@
 ## Summary
 
 - Repository: Scan Pilot
-- Audit date: 2026-08-14
-- Files reviewed: 33 maintained project Markdown documents
-- Files with complete metadata: 33
+- Audit date: 2026-08-15
+- Files reviewed: 34 maintained project Markdown documents
+- Files with complete metadata: 34
 - Files missing metadata: 0
 - Files with invalid metadata: 0
 - Version updates still needed: 0
 - Date issues: 0
 - Overall status: Ready
 
-The 33-file count excludes repository skill packages and `.github/pull_request_template.md`. Skill packages use YAML frontmatter required by the skill system; the pull-request template is copied into PR bodies and should not display document metadata.
+The 34-file count excludes repository skill packages and `.github/pull_request_template.md`. Skill packages use YAML frontmatter required by the skill system; the pull-request template is copied into PR bodies and should not display document metadata.
 
-This report was refreshed after the completed general Configuration Awareness checkpoint synchronized artifact, classification, scenario, change, UX, architecture, lifecycle, and research contracts.
+This report was refreshed after the AI Riser submission-architecture checkpoint synchronized the accepted tool roles, submission MVP, onboarding, Gemini boundary, validation evidence, deadline, and Eligibility Spike across canonical documentation.
 
 ## Overall Status
 
@@ -33,7 +33,7 @@ This report was refreshed after the completed general Configuration Awareness ch
 |---|---:|---|---|
 | Root project documents | 4 | Complete | `AGENTS.md`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md` |
 | Canonical `docs/` documents | 13 | Complete | Includes the active Evidence, Finding Tracking, and Cloud Budget models; active context is separated from draft/under-review specifications |
-| Research and submission context | 7 | Complete | Security research, product benchmarks, and submission context are correctly marked `Under Review` |
+| Research and submission context | 8 | Complete | Security research, product benchmarks, validation research, and submission context are correctly marked `Under Review` |
 | Legacy/template documentation | 6 | Complete | Correctly marked `Deprecated` or `Template` |
 | Source/database folder notices | 2 | Complete | Legacy app folder deprecated; database status remains draft |
 | Metadata audit report | 1 | Complete | Automatically created because more than five files were modified |
@@ -69,20 +69,21 @@ The following table records the versions assigned during the original documentat
 
 | File | Previous | Current | Reason |
 |---|---:|---:|---|
-| `docs/PROJECT-CONTEXT.md` | v1.0.0 | v1.8.0 | Added persistent context, solo delivery context, cloud budget, inventory-only binary-document scope, and Maven backend direction. |
-| `AGENTS.md` | v1.0.0 | v1.7.0 | Added Git checkpoints, research and cost boundaries, canonical `.agents/`, and Maven to the accepted architecture direction. |
+| `docs/PROJECT-CONTEXT.md` | v1.0.0 | v1.9.0 | Added persistent context, solo delivery and budget constraints, submission tool roles, deadline, and Product Owner decision altitude. |
+| `AGENTS.md` | v1.0.0 | v1.8.0 | Added Git checkpoints, research and cost boundaries, canonical `.agents/`, Maven, and the Product Owner versus technical decision boundary. |
 | `CONTRIBUTING.md` | v1.0.0 | v1.2.0 | Documented coherent checkpoints and practical branch and PR behavior for the solo project. |
-| `docs/DECISIONS.md` | v1.1.0 | v1.21.0 | Recorded DEC-019 through DEC-043, including the complete general Configuration Awareness contract. |
-| `docs/CURRENT-STATUS.md` | v1.1.0 | v1.21.0 | Closed the general Configuration Awareness checkpoint and routed next work to first-family selection. |
-| `docs/PRODUCT.md` | v0.1.0 | v0.11.0 | Added Project Discovery, honest coverage, and the artifact, scenario, change, and UX Configuration Awareness direction. |
-| `docs/REQUIREMENTS.md` | v0.1.0 | v0.19.0 | Added FR-039 through FR-044 for the accepted general Configuration Awareness contract. |
-| `docs/ARCHITECTURE.md` | v0.1.0 | v0.14.0 | Added trusted boundaries, configuration classification and relationship state, product-owned coverage, budget-aware deployment, and Maven. |
+| `docs/DECISIONS.md` | v1.1.0 | v1.22.0 | Recorded DEC-019 through DEC-051, including the accepted AI Riser submission architecture and validation contract. |
+| `docs/CURRENT-STATUS.md` | v1.1.0 | v1.22.0 | Recorded the submission checkpoint and routed next work to the bounded Eligibility Spike. |
+| `docs/PRODUCT.md` | v0.1.0 | v0.12.0 | Added the focused real submission vertical slice, one-way handoff, Gemini role, and security-lab story. |
+| `docs/REQUIREMENTS.md` | v0.1.0 | v0.20.0 | Added FR-045 through FR-051 for the accepted submission contract. |
+| `docs/ARCHITECTURE.md` | v0.1.0 | v0.15.0 | Added submission topology, workspace separation, GitHub onboarding, Gemini authority, and validation boundaries. |
 | `docs/SCAN-LIFECYCLE.md` | v0.1.0 | v0.15.0 | Added configuration discovery, scenario, change invalidation, and evidence-reuse lifecycle behavior. |
 | `docs/INSPECTION-SPEC.md` | v0.2.0 | v0.12.0 | Applied the trusted Gitleaks policy, coverage, content eligibility, binary-document skips, and size limits to `SP-CONFIG-001`. |
 | `docs/EVIDENCE-MODEL.md` | New | v1.0.0 | Created the accepted canonical Evidence Model. |
 | `docs/FINDING-TRACKING.md` | New | v1.3.0 | Added product-owned scan coverage and compatible checkpoint behavior. |
-| `docs/RESEARCH-SOURCES.md` | v1.0.0 | v1.8.0 | Added comparative research rules and configuration-family, scenario, change, and UX benchmark sources. |
-| `docs/research/submission/AI-RISER-VIETNAM-2026.md` | New | v0.1.0 | Added the external event context as an under-review planning source. |
+| `docs/RESEARCH-SOURCES.md` | v1.0.0 | v1.9.0 | Added independent secret-detection, OWASP Benchmark, and NIST SARD validation sources. |
+| `docs/research/submission/AI-RISER-VIETNAM-2026.md` | New | v0.2.0 | Added the reviewed hybrid toolchain, accepted submission implications, deadline, and remaining live checks. |
+| `docs/research/benchmarks/SECRET-DETECTION-VALIDATION.md` | New | v0.1.0 | Added the source-attributed independent validation and controlled security-lab research contract. |
 | `docs/research/benchmarks/SECRET-SCANNING-CONTENT-SCOPE.md` | New | v0.4.0 | Added comparative evidence for eligibility and the accepted two-tier full-file size policy under `DEC-036`. |
 | `docs/research/benchmarks/GITLEAKS-ADAPTER.md` | New | v0.1.0 | Added the source-attributed trust, command, coverage, safety, and cleanup benchmark contract for `DEC-037`. |
 | `docs/research/benchmarks/CONFIGURATION-AWARENESS.md` | New | v0.2.0 | Recorded the accepted general contract and routed the next checkpoint to first-family selection. |
@@ -90,14 +91,14 @@ The following table records the versions assigned during the original documentat
 | `docs/CLOUD-BUDGET.md` | New | v1.1.0 | Added the accepted envelope and removed deferred document-parser capacity from current allocation. |
 | `README.md` | v1.0.0 | v1.1.0 | Added Maven to the backend technology direction. |
 | `docs/research/security/A02-SECURITY-MISCONFIGURATION.md` | v0.1.0 | v0.5.0 | Closed the general contract and routed A02 research to first-family comparison. |
-| `docs/README.md` | v1.0.0 | v1.9.0 | Added the Configuration Awareness research entry. |
-| `CHANGELOG.md` | v1.0.0 | v2.13.0 | Recorded the current documentation checkpoint, Maven, file-size, detector trust, and completed general Configuration Awareness direction. |
+| `docs/README.md` | v1.0.0 | v1.10.0 | Added the secret-detection validation research entry. |
+| `CHANGELOG.md` | v1.0.0 | v2.14.0 | Recorded the AI Riser submission architecture and validation checkpoint. |
 
 ## Date Checks
 
 - Existing template-derived documents use `Created: 2026-08-11`, verified from the earliest file-specific Git commit.
 - Documents created during migration use `Created: 2026-08-12`.
-- Documents edited for the Maven backend decision use `Last Updated: 2026-08-14`; unchanged documents retain their prior date.
+- Documents edited for the AI Riser submission checkpoint use `Last Updated: 2026-08-15`; unchanged documents retain their prior date.
 - No `Created` date occurs after `Last Updated`.
 
 ## Final Recommendation
