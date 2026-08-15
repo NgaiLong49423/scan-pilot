@@ -1,9 +1,9 @@
-> **Document:** Scan Pilot Agent Instructions  
-> **File:** `AGENTS.md`  
-> **Version:** v1.8.0  
-> **Created:** 2026-08-11  
-> **Last Updated:** 2026-08-15  
-> **Status:** Active  
+> **Document:** Scan Pilot Agent Instructions
+> **File:** `AGENTS.md`
+> **Version:** v1.9.0
+> **Created:** 2026-08-11
+> **Last Updated:** 2026-08-16
+> **Status:** Active
 
 # Agent Instructions
 
@@ -20,10 +20,11 @@ Before proposing work, read:
 1. `docs/PROJECT-CONTEXT.md`
 2. `docs/DECISIONS.md`
 3. `docs/CURRENT-STATUS.md`
-4. `docs/CLOUD-BUDGET.md` when a task may affect architecture, deployment, external services, resource sizing, benchmarking cost, Gemini usage, or public operation
-5. relevant submission-context documents under `docs/research/submission/` when a task may affect product direction, MVP scope, Google technology integration, deployment, demo, or submission material
-6. the canonical specification relevant to the task
-7. relevant files under `docs/research/`
+4. `docs/DELIVERY-WORKFLOW.md` when a task involves GitHub Issue planning, assignment, execution, review, acceptance, or closure
+5. `docs/CLOUD-BUDGET.md` when a task may affect architecture, deployment, external services, resource sizing, benchmarking cost, Gemini usage, or public operation
+6. relevant submission-context documents under `docs/research/submission/` when a task may affect product direction, MVP scope, Google technology integration, deployment, demo, or submission material
+7. the canonical specification relevant to the task
+8. relevant files under `docs/research/`
 
 Do not ask the user to repeat information already recorded in these documents.
 
@@ -155,6 +156,14 @@ Exact infrastructure choices listed as open in `docs/DECISIONS.md` remain unreso
 - A proposal is not authorization. Commit only after explicit user permission to commit. Push only after explicit user permission to push; permission to commit alone does not imply permission to push.
 - Do not split one coherent checkpoint into noisy per-file commits, and do not combine unrelated work merely to reduce commit count.
 - Important checkpoints should be pushed to GitHub after authorization so the repository has an off-device copy outside the laptop.
+
+## Issue-Driven Delivery
+
+- Use GitHub Issues as executable work contracts and GitHub Project #13 as the operational view for status, priority, dates, workstream, and progress. Canonical repository documents remain the product source of truth.
+- Use `.agents/skill/srs-to-github-issues/SKILL.md` to decompose accepted requirements into Issues. Use `.agents/skill/github-issue-delivery/SKILL.md` to execute an authorized Issue.
+- A user instruction such as `work on #N` authorizes the agent to inspect and perform only that Issue's accepted scope and to move that item to `In Progress`. It does not authorize creating or closing Issues, committing, pushing, opening or merging pull requests, deploying, or changing product scope or UI/UX.
+- Move completed work to `Review` with evidence and known limits. Move it to `Done` and close it only after explicit Product Owner acceptance.
+- Follow the complete state, traceability, approval, and automation contract in `docs/DELIVERY-WORKFLOW.md`.
 
 ## Current Checkpoint
 

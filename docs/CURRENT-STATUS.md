@@ -1,9 +1,9 @@
-> **Document:** Scan Pilot Current Status  
-> **File:** `docs/CURRENT-STATUS.md`  
-> **Version:** v1.22.0  
-> **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-15  
-> **Status:** Active  
+> **Document:** Scan Pilot Current Status
+> **File:** `docs/CURRENT-STATUS.md`
+> **Version:** v1.25.0
+> **Created:** 2026-08-12
+> **Last Updated:** 2026-08-16
+> **Status:** Active
 
 # Scan Pilot Current Status
 
@@ -18,11 +18,24 @@ Production product implementation has not started. A downloaded AI Studio protot
 - Target: a working product submission for a Google-oriented event.
 - Team structure: one solo developer. The previously recorded two-person team belongs to a different project.
 - User availability: the user is currently on a break between semesters and can invest substantial time.
-- User-reported external deadline: 2026-08-31 at 23:59; live form and timezone still require verification.
-- Internal complete-and-stable gate: 2026-08-30, reserving the final day for verification and submission.
+- Official public deadline verified on 2026-08-16: 2026-08-30 at 23:59 GMT+7.
+- Accepted internal complete-and-stable gate: 2026-08-30. The Product Owner explicitly accepts that no separate contingency day is reserved.
+
+## Delivery Tracking
+
+- GitHub Project: [Scan Pilot Project #13](https://github.com/users/NgaiLong49423/projects/13)
+- Milestone: `AI Riser 2026 — Stable Submission`
+- Parent Eligibility Spike: Issue `#2`
+- Spike work items: Issues `#3` through `#8`
+- Delivery states: `Backlog → Planning → In Progress → Review → Done`; `Blocked` is a separate label.
+- Current schedule signal on 2026-08-16: Issue `#3` is complete after its 2026-08-15 target, Issue `#4` has not started, and no separate contingency day exists. The Eligibility Spike remains **at risk** until Issue `#4` and the remaining spike work recover the schedule.
 
 ## Completed
 
+- GitHub Project #13, the submission milestone, and Eligibility Spike Issues `#2` through `#8` are established as the operational delivery plan.
+- Issue `#3` verified the official live submission contract with a `PASS` result: deadline `2026-08-30 23:59 GMT+7`, required core links distinguished from optional deployment, and exact emailed Completion Form limitations recorded.
+- Issue-driven delivery governance is accepted: GitHub Issues define executable work, Project #13 tracks operational fields, completed work enters `Review`, and only explicit Product Owner acceptance permits `Done` and closure.
+- Submission rule delivery is bounded to one required end-to-end rule, `SP-CONFIG-001`, with a second rule as stretch scope and a third only if the project becomes stable early.
 - AI Riser submission architecture accepted: Google AI Studio is the submission-facing frontend, the approved snapshot is frozen as evidence after a one-way handoff, and GitHub production source becomes the source of truth rather than maintaining two active codebases.
 - Submission MVP accepted as a narrower Product V1 vertical slice: one real personal-account repository, current and history secret scan, redacted `SP-CONFIG-001`, Gemini explanation, re-scan lifecycle, and public Cloud Run operation.
 - Submission onboarding accepted: sign in first, then install or link the GitHub App, then explicitly select one public or private personal-account repository; organization support is deferred.
@@ -63,8 +76,7 @@ Production product implementation has not started. A downloaded AI Studio protot
 
 ## In Progress
 
-- Converting the accepted AI Riser submission architecture into canonical specifications without beginning product implementation.
-- Preparing the bounded Eligibility Spike for AI Studio public access, external REST/CORS, authentication handoff, export fidelity, and a minimal Cloud Run endpoint.
+- Recovering the initial spike schedule: Issue `#4` (signed-out AI Studio access) is overdue as of 2026-08-16.
 - Selecting a safe independent secret-detection benchmark battery and reproducible publication protocol.
 - Resolving the pending `DEC-037` revision before the Gitleaks adapter benchmark so repository-controlled suppression behavior matches the user's newer simplification direction; no replacement policy is accepted yet.
 - A02 Security Misconfiguration research.
@@ -79,12 +91,11 @@ Production product implementation has not started. A downloaded AI Studio protot
 
 Complete the AI Riser Eligibility Spike specification before changing the implementation phase:
 
-1. verify the AI Studio link in a signed-out browser and record exactly what judges can open and inspect;
-2. prove a minimal AI Studio frontend can call a public Cloud Run endpoint under the required browser-origin and CORS policy;
-3. define and verify the browser authentication and session handoff for GitHub sign-in and GitHub App installation without exposing tokens to the frontend;
-4. verify the supported AI Studio export or transfer workflow and the frozen evidence snapshot;
-5. re-check the live completion form, external deadline and timezone, link formats, and source-access expectations;
-6. convert successful spike results into the final submission implementation specification and GitHub Issues before explicitly beginning product implementation.
+1. execute Issue `#4` to verify the AI Studio link in a signed-out browser and record exactly what judges can open and inspect;
+2. execute Issue `#5` to verify the supported AI Studio export or transfer workflow and the frozen evidence snapshot;
+3. execute Issue `#6` to prove a minimal AI Studio frontend can call a public Cloud Run endpoint under the required browser-origin and CORS policy;
+4. execute Issue `#7` to define and verify the browser authentication and session handoff for GitHub sign-in and GitHub App installation without exposing tokens to the frontend;
+5. execute Issue `#8` to record the final go/no-go implementation recommendation before explicitly changing the product phase.
 
 Do not execute the document-extraction benchmark during the MVP phase. Revisit it only if the user explicitly begins the optional Phase 2 Project Understanding capability and accepts the required consent, privacy, safety, and operational contract.
 

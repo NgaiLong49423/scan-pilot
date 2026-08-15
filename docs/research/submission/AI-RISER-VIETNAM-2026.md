@@ -1,9 +1,9 @@
-> **Document:** AI Riser Vietnam 2026 Submission Context  
-> **File:** `docs/research/submission/AI-RISER-VIETNAM-2026.md`  
-> **Version:** v0.2.0  
-> **Created:** 2026-08-13  
-> **Last Updated:** 2026-08-15  
-> **Status:** Under Review  
+> **Document:** AI Riser Vietnam 2026 Submission Context
+> **File:** `docs/research/submission/AI-RISER-VIETNAM-2026.md`
+> **Version:** v0.4.0
+> **Created:** 2026-08-13
+> **Last Updated:** 2026-08-16
+> **Status:** Under Review
 
 # AI Riser Vietnam 2026 Submission Context
 
@@ -17,12 +17,13 @@ It is a required review source before proposing a relevant direction-setting cha
 
 | Source | Purpose | Retrieved |
 |---|---|---:|
+| [Official AI Riser Vietnam event page](https://rsvp.withgoogle.com/events/airiservietnam) | Live event deadline, timezone, core deliverables, tiers, scoring, and deployment condition | 2026-08-16 |
 | Completion-form text provided by the user (no direct form URL supplied) | Submission deliverables, scoring, and bonus conditions | 2026-08-13 |
 | [AI Riser Vietnam - Suggested Partner Challenges](https://docs.google.com/presentation/d/1n0tQyXDO3BVnisXfhO_RRJvAsu95pTm2-clKgpxPn2Y/edit) | Optional partner-provided problem references | 2026-08-13 |
 | [AI Riser Vietnam 2026 Participant Handbook](https://docs.google.com/document/d/1_zaaLs-FW3-9epNl_nER5VawSp4EOEmy6tpDrbn3p6c/edit) | Google AI Studio build and publishing guidance | 2026-08-13 |
 | [Google AI & Vibe Coding Handbook](https://docs.google.com/presentation/d/e/2PACX-1vT5FmgwnjE8Q2FhcWx7Cg89PrW6CujORX4bzUacuABBg1oeFrn6kXkPKhFXGxcVcbfkfUrF5tOxgrDx/pub?start=false&loop=false&delayms=60000&slide=id.g3c46f2f9e31_0_54) | Public 47-slide deck (`goo.gle/itsvibecoding`) describing Think, Build, and Publish workflows across AI Studio, Antigravity, and Cloud Run | 2026-08-15 |
 
-The completion-form URL is not available in the supplied material; the summary below preserves the text provided by the user and must be checked against the live form before final submission.
+The official public event page was verified on 2026-08-16. It states that the Completion Form is sent in the instruction email rather than exposing the final form URL publicly. The public page confirms the core submission contract, while the exact emailed form schema remains unverified. See [AI Riser Submission Contract Verification](AI-RISER-SUBMISSION-CONTRACT-VERIFICATION.md).
 
 The public Google AI & Vibe Coding Handbook deck was reviewed as a 47-slide intermediate resource. It presents a workflow of thinking through the product, building with either Google AI Studio or Antigravity, and publishing to Cloud Run. It positions AI Studio for rapid app prototyping and Antigravity or its CLI for broader agentic engineering work. This supports a hybrid toolchain; it does not prove that a mock-only AI Studio link is sufficient, that local tools can directly edit the AI Studio workspace, or that a separate source-code submission is required.
 
@@ -46,9 +47,9 @@ The handbook distinguishes the public AI Studio project link, which gives judges
 | Public deployment | 10 bonus points | For a web application, the completion-form text requires a public Google Cloud Run deployment. |
 | Early form submission | 3 points | The first 200 submitted projects reportedly receive the bonus. |
 
-The reported maximum is 123 points. The official live form remains the final source for evaluation details.
+The reported maximum is 123 points. The official public event page confirms the `100 + 10 + 10 + 3` structure, while the final emailed Completion Form remains authoritative for its exact fields and validators.
 
-The user reports an external deadline of 2026-08-31 at 23:59 and has accepted 2026-08-30 as the internal complete-and-stable gate. The live form, deadline timezone, and whether early submission remains available have not yet been verified from an official public form.
+The official live event page confirms the external deadline as `2026-08-30 23:59 GMT+7`, replacing the earlier unverified August 31 assumption. On 2026-08-16, the Product Owner explicitly retained `2026-08-30` as the internal complete-and-stable gate and accepted that no separate contingency day exists. Whether the early-submission bonus remains available cannot be independently measured.
 
 ## Partner Challenge Interpretation
 
@@ -83,9 +84,8 @@ These implications are recorded as accepted decisions in `docs/DECISIONS.md`. Th
 
 ## Open Verification Items
 
-- Confirm the exact final submission deadline and timezone from the official live source.
 - Confirm the official ten program topics and whether Scan Pilot is eligible as an independent problem framing.
-- Confirm the exact source-code field or source-access mechanism in the final submission form rather than inferring one.
+- Open the emailed Completion Form and confirm its exact fields, validators, Facebook-versus-LinkedIn behavior, and any separate source-code field rather than inferring one.
 - Verify the current AI Studio public-link and judge-visible-code behavior in a signed-out browser session.
 - Verify that the AI Studio frontend can call the external Cloud Run API with the required CORS and authentication behavior.
 - Verify the exact export or transfer mechanism and preserve a frozen, reproducible AI Studio evidence snapshot.

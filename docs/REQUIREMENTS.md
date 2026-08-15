@@ -1,9 +1,9 @@
-> **Document:** Scan Pilot Requirements  
-> **File:** `docs/REQUIREMENTS.md`  
-> **Version:** v0.20.0  
-> **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-15  
-> **Status:** Under Review  
+> **Document:** Scan Pilot Requirements
+> **File:** `docs/REQUIREMENTS.md`
+> **Version:** v0.22.0
+> **Created:** 2026-08-12
+> **Last Updated:** 2026-08-16
+> **Status:** Under Review
 
 # Scan Pilot Requirements
 
@@ -116,7 +116,7 @@ This document records accepted high-level requirements and explicitly marks unre
 - Cloud architecture and operation must fit a two-month USD 250 planning envelope, target no more than USD 180 expected spend, and preserve a USD 70 reserve unless a later explicit user decision changes the budget.
 - Paid services must expose cost attribution and bounded usage controls; initial controls include scale-to-zero where compatible, maximum one scan-worker instance, and billing notifications at USD 25, 50, 100, 150, 180, and 220.
 - Promotional-credit value, expiry, and service eligibility must be verified before deployment and must not be treated as guaranteed cash or as justification for additional scope.
-- The submission vertical slice must be complete and deployed by the internal `2026-08-30` gate; `2026-08-31` is reserved for final verification and contingency against the user-reported `23:59` external deadline.
+- The official external deadline is `2026-08-30 23:59 GMT+7`. The internal complete-and-stable gate remains `2026-08-30`; the Product Owner explicitly accepts that no separate contingency day is reserved.
 
 ## Unresolved Requirements
 

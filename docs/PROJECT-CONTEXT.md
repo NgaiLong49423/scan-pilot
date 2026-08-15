@@ -1,9 +1,9 @@
-> **Document:** Scan Pilot Project Context  
-> **File:** `docs/PROJECT-CONTEXT.md`  
-> **Version:** v1.9.0  
-> **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-15  
-> **Status:** Active  
+> **Document:** Scan Pilot Project Context
+> **File:** `docs/PROJECT-CONTEXT.md`
+> **Version:** v1.12.0
+> **Created:** 2026-08-12
+> **Last Updated:** 2026-08-16
+> **Status:** Active
 
 # Scan Pilot Project Context
 
@@ -54,13 +54,15 @@ Primary users are solo builders, students, small teams, and developers managing 
 
 Scan Pilot itself is currently built by one solo developer. References to a two-person team belong to a different project and must not be used for Scan Pilot planning, architecture justification, or delivery estimates.
 
-Scan Pilot is being prepared for AI Riser Vietnam 2026. The user-reported external submission deadline is 2026-08-31 at 23:59; the internal completion gate is 2026-08-30 so the final day is reserved for verification and submission. The live form, timezone, and any early-submission availability still require direct verification.
+Scan Pilot is being prepared for AI Riser Vietnam 2026. The official public event page was verified on 2026-08-16 and gives the external deadline as 2026-08-30 at 23:59 GMT+7. The Product Owner explicitly retains 2026-08-30 as the internal complete-and-stable gate and accepts that no separate contingency day exists. The exact emailed Completion Form schema and current early-submission availability remain unverified.
 
 The submission MVP is intentionally narrower than the broader Product V1. It must demonstrate one strong, real repository-security loop rather than presenting unfinished breadth.
 
 The accepted two-month cloud planning envelope is USD 250, with at most USD 180 expected operating spend and USD 70 protected reserve. Google Cloud promotional credit is the only currently recorded funding source. Architecture and external-service proposals must use the canonical constraints in `docs/CLOUD-BUDGET.md`; nominal credit that has not been verified for expiry and service eligibility is not guaranteed funding.
 
 The repository uses a lightweight branch workflow: `main` remains stable, while each coherent large workstream uses a working branch. Pull requests are optional self-review checkpoints for large changes, not a requirement for every small documentation edit.
+
+Delivery is Issue-driven. GitHub Issues define executable work, while GitHub Project #13 tracks operational status, priority, target date, workstream, and progress. Accepted decisions and specifications in the repository remain the product source of truth. Agent-completed work must enter `Review`; only explicit Product Owner acceptance permits `Done` and Issue closure. Git commit, push, pull-request, merge, and deployment permissions remain separate explicit approvals. See `DELIVERY-WORKFLOW.md`.
 
 ## Submission Tool and Workspace Roles
 

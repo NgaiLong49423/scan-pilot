@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub Issue Delivery"
+  short_description: "Execute Scan Pilot issues with gated review"
+  default_prompt: "Use $github-issue-delivery to execute an approved Scan Pilot GitHub Issue through planning, implementation, verification, and review."

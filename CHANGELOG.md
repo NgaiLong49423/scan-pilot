@@ -1,9 +1,9 @@
-> **Document:** Scan Pilot Changelog  
-> **File:** `CHANGELOG.md`  
-> **Version:** v2.14.0  
-> **Created:** 2026-08-11  
-> **Last Updated:** 2026-08-15  
-> **Status:** Active  
+> **Document:** Scan Pilot Changelog
+> **File:** `CHANGELOG.md`
+> **Version:** v2.17.0
+> **Created:** 2026-08-11
+> **Last Updated:** 2026-08-16
+> **Status:** Active
 
 # Scan Pilot Changelog
 
@@ -11,9 +11,46 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
-## 2026-08-15 — AI Riser Submission Architecture and Validation
+## 2026-08-16 — AI Riser Live Submission Contract Verification
 
 **Status:** Working tree — not committed
+
+**Scope:** Completed and accepted Issue `#3` live-source research without beginning product implementation; corrected the official deadline and retained the same-day internal gate by explicit Product Owner decision.
+
+### Added
+
+- Added an evidence-backed submission-contract verification record with a `PASS` result and explicit Completion Form access limitation.
+
+### Changed
+
+- Corrected the factual official deadline to `2026-08-30 23:59 GMT+7` across research and current context.
+- Marked the previous requirements-level safety-gate wording as unresolved rather than preserving the invalid August 31 contingency assumption.
+- Distinguished required AI Studio, YouTube, and LinkedIn deliverables from the optional base-submission deployment link and the Cloud Run deployment bonus condition.
+- Recorded that no separate source-code field is verified from the public page and that the exact emailed Completion Form remains unavailable.
+- Revised `DEC-051` after Product Owner acceptance: the official and internal dates both remain August 30, with no separate contingency day.
+
+## 2026-08-16 — Issue-Driven Delivery Governance
+
+**Status:** Working tree — not committed
+
+**Scope:** Established the professional GitHub Issue and Project workflow for a solo Product Owner, project manager, and developer without beginning product implementation.
+
+### Added
+
+- Added `docs/DELIVERY-WORKFLOW.md` as the canonical state, authorization, traceability, review, and acceptance contract.
+- Added `.agents/skill/github-issue-delivery/` for executing an authorized Issue through planning, verification, and Product Owner review.
+- Added retrospective traceability for Eligibility Spike Issues `#2` through `#8` in `.agents/outputs/drafts/github-issues/ISSUE_INDEX.md`.
+- Added `DEC-052` for Issue-driven delivery and `DEC-053` for the one-core-rule plus bounded-stretch policy.
+
+### Changed
+
+- Synchronized agent instructions, contribution guidance, repository contract, project context, current status, and documentation index with GitHub Project #13.
+- Recorded the current Eligibility Spike schedule risk and made Issue `#4` the next executable task after Issue `#3` acceptance.
+- Reconciled earlier changelog working-tree entries with their verified commits.
+
+## 2026-08-15 — AI Riser Submission Architecture and Validation
+
+**Status:** Committed — `80fef25` (`docs: define AI Riser submission architecture`)
 
 **Scope:** Converted the accepted AI Riser submission workflow, focused vertical slice, GitHub onboarding, Gemini authority, independent validation, controlled demonstration, Product Owner decision boundary, and internal deadline into canonical documentation without starting implementation.
 
@@ -48,7 +85,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-14 — Configuration Awareness Direction
 
-**Status:** Working tree — not committed
+**Status:** Committed — `63849fc` (`docs: consolidate configuration awareness decisions`)
 
 **Scope:** Completed the general Configuration Awareness checkpoint: multi-dimensional artifacts, deterministic classification and coverage separation, scenario-bounded environment and override semantics, change tracking and evidence invalidation, and action-first UX without starting implementation.
 
@@ -79,7 +116,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-14 — Trusted Gitleaks Detector Policy
 
-**Status:** Working tree — not committed
+**Status:** Committed — `63849fc` (`docs: consolidate configuration awareness decisions`)
 
 **Scope:** Accepted Scan Pilot ownership of the Gitleaks baseline policy so an untrusted repository cannot silently redefine rules or suppress findings.
 
@@ -106,7 +143,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-14 — Two-Tier Full-File Size Policy
 
-**Status:** Working tree — not committed
+**Status:** Committed — `63849fc` (`docs: consolidate configuration awareness decisions`)
 
 **Scope:** Accepted `10 MiB` Continuous Monitoring and `50 MiB` release-oriented full-file limits for eligible text without introducing chunk checkpoints or starting implementation.
 
@@ -135,7 +172,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-14 — Maven Backend Build Direction
 
-**Status:** Working tree — not committed
+**Status:** Committed — `63849fc` (`docs: consolidate configuration awareness decisions`)
 
 **Scope:** Accepted Apache Maven as the canonical build and dependency-management tool for the Java 21 and Spring Boot 3 backend without starting implementation.
 
@@ -161,7 +198,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-13 — Submission Context and Documentation Traceability
 
-**Status:** Working tree — not committed
+**Status:** Committed — `63849fc` (`docs: consolidate configuration awareness decisions`)
 
 **Scope:** Recorded AI Riser Vietnam 2026 material, added comparative product-research and attribution rules, accepted content eligibility, deferred binary document extraction beyond the MVP, established the canonical two-month Google Cloud budget, and reworked this changelog into dated, traceable entries.
 

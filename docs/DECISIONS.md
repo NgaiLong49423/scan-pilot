@@ -1,9 +1,9 @@
-> **Document:** Scan Pilot Accepted Decisions  
-> **File:** `docs/DECISIONS.md`  
-> **Version:** v1.22.0  
-> **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-15  
-> **Status:** Active  
+> **Document:** Scan Pilot Accepted Decisions
+> **File:** `docs/DECISIONS.md`
+> **Version:** v1.25.0
+> **Created:** 2026-08-12
+> **Last Updated:** 2026-08-16
+> **Status:** Active
 
 # Scan Pilot Accepted Decisions
 
@@ -676,19 +676,39 @@ Scan Pilot never rewrites or force-pushes the lab repository itself. Ground trut
 
 **Reason:** A controlled lab makes the real pipeline repeatable without contaminating the Scan Pilot repository or using a live credential. The benefit is one fixture for video, lifecycle, redaction, history, and end-to-end regression. The trade-off is that it is an intentionally vulnerable test target and must be described honestly. The verification limit is that synthetic candidates cannot represent every real credential family and therefore do not replace independent benchmarks.
 
-## DEC-051 — Submission planning uses an internal August 30 completion gate
+## DEC-051 — Submission planning uses the official August 30 deadline as the internal gate
 
 **Status:** Accepted planning constraint
 
-The user-reported external submission deadline is `2026-08-31 23:59` in the event's applicable local time. Scan Pilot uses `2026-08-30` as the internal complete-and-deployed deadline; August 31 is reserved for final verification, video/link checks, and contingency only. The live completion form remains the authoritative external source and must be rechecked before submission.
+The official public AI Riser event page confirms the external submission deadline as `2026-08-30 23:59 GMT+7`. Scan Pilot retains `2026-08-30` as its internal complete-and-stable gate. The Product Owner explicitly accepts that there is no separate calendar day reserved for final verification or contingency.
 
-**Reason:** A one-day safety margin reduces the risk that deployment, sharing permissions, video, or form problems consume the final submission window. The benefit is a clear delivery gate. The trade-off is one fewer implementation day. The verification limit is that the completion-form URL and authoritative timezone have not yet been recorded in the repository.
+**Reason:** The Product Owner prefers to retain the full available development schedule rather than reserve August 30 solely for contingency. The benefit is one additional development day. The trade-off is reduced recovery time for deployment, sharing, video, or form failures discovered on the final day. The verification limit is that the exact emailed Completion Form may impose an earlier operational cutoff or change its fields and must still be checked before submission.
+
+## DEC-052 — Delivery is Issue-driven with an explicit Product Owner review gate
+
+**Status:** Accepted
+
+GitHub Issues are the executable work contracts for specification, implementation, verification, and submission work. GitHub Project #13 is the operational source for status, priority, target dates, workstream, and progress; canonical repository documents remain the source of truth for accepted product decisions and requirements.
+
+The delivery states are `Backlog`, `Planning`, `In Progress`, `Review`, and `Done`. `Blocked` is a separate label. A direct instruction to work on Issue `#N` authorizes inspection, execution within that Issue's accepted scope, movement of only that item to `In Progress`, and durable progress comments. It does not authorize creating or closing Issues, commit, push, pull-request, merge, deployment, product-scope changes, or UI/UX decisions. Completed work enters `Review` with verification evidence and known limits. Only explicit Product Owner acceptance permits `Done` and Issue closure.
+
+**Reason:** The solo developer also acts as Product Owner and project manager and needs one visible delivery contract without surrendering control to agents or automation. The benefit is auditable scope, progress, and acceptance for every meaningful feature. The trade-off is small Issue-maintenance overhead. The verification limit is that GitHub Project automation cannot independently prove acceptance or completion quality, so auto-close and premature archive behavior must remain disabled or otherwise constrained.
+
+## DEC-053 — Submission rule delivery uses one core rule and bounded stretch rules
+
+**Status:** Accepted
+
+The submission-critical security path commits to one strong end-to-end rule: `SP-CONFIG-001 — Source Code Secret Exposure`. It must work on real repositories, cover multiple supported secret families through the accepted detector path, produce redacted evidence, support current-snapshot and Git-history findings, and demonstrate re-scan lifecycle behavior.
+
+A second security rule is stretch scope and begins only after the core vertical slice, deployment path, benchmark evidence, and submission gates are stable. A third rule is the submission maximum and may begin only if the project is stable early enough to avoid deadline risk. The exact second and third rule families remain unresolved decisions.
+
+**Reason:** One production-quality rule can generate many real findings and demonstrates more product depth than several incomplete rule screens. The benefit is a credible security workflow with controlled stretch value. The trade-off is narrower category breadth in the initial demo. The verification limit is that the core detector, benchmark battery, and end-to-end Cloud Run flow have not yet been implemented or measured.
 
 ## Intentionally Open Decisions
 
 - exact scoring formula and status thresholds;
 - exact optional confidence scale beyond the accepted verification statuses;
-- exact final V1 rule count;
+- exact broader Product V1 rule count and the identity of any submission stretch rules beyond `SP-CONFIG-001`;
 - exact detectors for rule families beyond the accepted Gitleaks-backed `SP-CONFIG-001` path;
 - optional Phase 2 document-extraction consent, privacy, implementation, format, OCR, resource, retention, and fallback policies;
 - exact eligibility reason-code taxonomy and policies for non-document binary families, archived, linked, generated, dependency, and user-excluded content beyond the accepted size reason codes;
