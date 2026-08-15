@@ -1,3 +1,10 @@
+> **Document:** Scan Pilot Contribution Guide  
+> **File:** `CONTRIBUTING.md`  
+> **Version:** v1.2.0  
+> **Created:** 2026-08-11  
+> **Last Updated:** 2026-08-13  
+> **Status:** Active  
+
 # Hướng Dẫn Đóng Góp
 
 Tài liệu này cung cấp các quy định và hướng dẫn chi tiết về cách đóng góp mã nguồn (code), cách viết thông điệp ghi nhận thay đổi (commit message), cách đặt tên nhánh (branch) và quy trình gửi yêu cầu gộp mã nguồn (pull request) cho dự án. Việc tuân thủ các quy tắc này giúp dự án luôn sạch sẽ, dễ bảo trì và làm việc nhóm hiệu quả hơn.
@@ -44,9 +51,50 @@ refactor/user-service
 chore/project-setup
 ```
 
+### Quy Trình Branch Nhẹ Cho Dự Án Solo
+
+Scan Pilot do một lập trình viên phát triển. Dự án dùng quy trình Git nhẹ để giữ `main` ổn định mà không tạo thủ tục làm việc nhóm không cần thiết:
+
+```text
+main
+  ↓
+một branch cho một nhóm công việc lớn
+  ↓
+tự kiểm tra
+  ↓
+merge vào main sau khi được cho phép
+```
+
+- Công việc nghiên cứu và đặc tả tài liệu có thể dùng chung branch `codex/docs-research-specification`.
+- Một feature lớn nên có branch riêng, ví dụ `codex/secret-scanning`.
+- Sửa chính tả hoặc tài liệu rất nhỏ có thể thực hiện trên branch đang làm.
+- `main` phải giữ trạng thái ổn định trước demo hoặc release.
+- Pull Request hữu ích để tự review diff của feature hoặc checkpoint lớn, nhưng không bắt buộc cho mọi chỉnh sửa tài liệu nhỏ.
+- Không dùng mô hình `develop`, `release`, `hotfix` khi chưa có nhu cầu được chấp nhận rõ ràng.
+
+Branch tạo vùng thử nghiệm an toàn cho agent và người dùng: thay đổi chưa được kiểm tra không ảnh hưởng đến `main`.
+
 ---
 
 ## Quy Tắc Viết Commit Message
+
+### Commit Theo Checkpoint Có Ý Nghĩa
+
+Không tạo commit sau mỗi lần sửa một file hoặc chốt một ý nhỏ. Các thay đổi liên quan nên được gom thành một **checkpoint** — một mốc hoàn chỉnh, có thể review và khôi phục như một đơn vị có ý nghĩa.
+
+Một checkpoint được xem là sẵn sàng để đề xuất khi:
+
+- phạm vi đã định của nhóm thay đổi đã hoàn thành;
+- tài liệu, metadata và specification liên quan đã đồng bộ;
+- các kiểm tra phù hợp đã được thực hiện hoặc giới hạn chưa kiểm tra đã được nêu rõ;
+- diff đã được xem lại để loại trừ file ngoài phạm vi và secret;
+- có thể mô tả checkpoint bằng một Conventional Commit rõ ràng.
+
+Agent có thể chủ động đề xuất commit hoặc push khi checkpoint đã sẵn sàng hoặc cần tạo bản sao ngoài laptop. Đề xuất phải nêu phạm vi, lý do, kết quả kiểm tra, giới hạn, file liên quan và commit message dự kiến.
+
+Đề xuất không phải là sự cho phép. Agent chỉ được commit khi người dùng cho phép rõ ràng và chỉ được push khi người dùng cho phép push rõ ràng. Quyền commit không tự động bao gồm quyền push.
+
+Các checkpoint quan trọng nên được push lên GitHub sau khi được cho phép để tạo bản sao lưu ngoài máy tính cá nhân.
 
 Dự án này sử dụng tiêu chuẩn **Conventional Commits** để quản lý lịch sử commit. Định dạng chuẩn của một commit message như sau:
 
@@ -200,7 +248,7 @@ chore: cập nhật .gitignore
 
 ## Quy Tắc Pull Request
 
-**Pull Request** (yêu cầu gộp code / PR) là cách bạn yêu cầu những người quản lý dự án xem xét và gộp mã nguồn từ nhánh của bạn vào nhánh chính.
+**Pull Request** (yêu cầu gộp code / PR) là nơi xem lại và gộp mã nguồn từ branch làm việc vào branch chính. Trong Scan Pilot, PR là tùy chọn cho feature hoặc checkpoint lớn; dự án solo không cần PR cho mọi chỉnh sửa tài liệu nhỏ.
 
 Để gửi một pull request thành công:
 1. **Đặt tiêu đề rõ ràng:** Tiêu đề PR nên tuân theo định dạng tương tự commit message (ví dụ: `feat(auth): thêm trang đăng nhập`).

@@ -1,3 +1,10 @@
+> **Document:** Activity Diagram Template  
+> **File:** `docs/diagrams/Activity/README.md`  
+> **Version:** v1.0.0  
+> **Created:** 2026-08-11  
+> **Last Updated:** 2026-08-12  
+> **Status:** Template  
+
 # Activity Diagram - Sơ Đồ Hoạt Động
 
 ## Mục Đích

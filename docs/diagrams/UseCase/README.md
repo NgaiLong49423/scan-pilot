@@ -1,3 +1,10 @@
+> **Document:** Use Case Diagram Template  
+> **File:** `docs/diagrams/UseCase/README.md`  
+> **Version:** v1.0.0  
+> **Created:** 2026-08-11  
+> **Last Updated:** 2026-08-12  
+> **Status:** Template  
+
 # Use Case Diagram - Sơ Đồ Ca Sử Dụng
 
 ## Mục Đích

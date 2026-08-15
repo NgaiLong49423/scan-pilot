@@ -1,3 +1,10 @@
+> **Document:** Entity Relationship Diagram Template  
+> **File:** `docs/diagrams/ERD/README.md`  
+> **Version:** v1.0.0  
+> **Created:** 2026-08-11  
+> **Last Updated:** 2026-08-12  
+> **Status:** Template  
+
 # ERD - Entity Relationship Diagram
 
 ## Mục Đích
@@ -6,7 +13,7 @@
 * Thiết kế cấu trúc cơ sở dữ liệu (Database) một cách rõ ràng và khoa học.
 * Xác định chính xác cách thức các bảng liên kết với nhau (quan hệ 1-1, 1-N, N-N).
 * Hạn chế tối đa việc dư thừa dữ liệu hoặc bất thường khi truy vấn.
-* Làm tài liệu hướng dẫn trực tiếp để lập trình viên viết file kịch bản tạo bảng [database/schema.sql](file:///d:/Github-Projects/java-webapp-project-template/database/schema.sql).
+* Làm tài liệu hướng dẫn trực tiếp để lập trình viên viết file kịch bản tạo bảng [`database/schema.sql`](../../../database/schema.sql).
 
 ## Thành Phần Cơ Bản
 
@@ -47,5 +54,5 @@ Mô tả vai trò của bảng: Lưu thông tin chi tiết lịch hẹn của kh
 ## Liên Kết Với Database
 
 > [!IMPORTANT]
-> * Mỗi khi thay đổi cấu trúc bảng hoặc thêm bảng mới trên sơ đồ ERD, bạn **bắt buộc** phải cập nhật lại file kịch bản SQL tương ứng tại [database/schema.sql](file:///d:/Github-Projects/java-webapp-project-template/database/schema.sql).
+> * Mỗi khi thay đổi cấu trúc bảng hoặc thêm bảng mới trên sơ đồ ERD, bạn **bắt buộc** phải cập nhật lại file kịch bản SQL tương ứng tại [`database/schema.sql`](../../../database/schema.sql).
 > * Hãy ghi chú rõ các thay đổi trong phần mô tả bảng của file này để nhóm phát triển dễ dàng theo dõi.

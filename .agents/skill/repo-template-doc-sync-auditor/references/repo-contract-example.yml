@@ -1,0 +1,63 @@
+project_type: java-webapp-template
+
+canonical_docs:
+  overview: README.md
+  requirements: docs/requirements/SRS.md
+  product_requirements: docs/requirements/PRD.md
+  changelog: CHANGELOG.md
+  contribution: CONTRIBUTING.md
+  database_schema: database/schema.sql
+  database_readme: database/README.md
+  agent_instructions: AGENTS.md
+
+agent_paths:
+  skills_active: .agents/skills/active
+  skills_reference: .agents/skills/reference
+  skills_archive: .agents/skills/archive
+  reports: .agents/outputs/reports
+  drafts: .agents/outputs/drafts
+  logs: .agents/outputs/logs
+
+document_rules:
+  v0_means_draft: true
+  require_metadata: true
+  default_language: vi
+  use_relative_links: true
+
+sync_rules:
+  - when: docs/requirements/SRS.md changes
+    check:
+      - README.md
+      - docs/requirements/PRD.md
+      - CHANGELOG.md
+      - database/schema.sql
+      - .github/ISSUE_TEMPLATE
+
+  - when: docs/requirements/PRD.md changes
+    check:
+      - README.md
+      - docs/requirements/SRS.md
+      - CHANGELOG.md
+
+  - when: database/schema.sql changes
+    check:
+      - database/README.md
+      - docs/requirements/SRS.md
+      - docs/diagrams
+      - CHANGELOG.md
+
+  - when: .github/labels.yml changes
+    check:
+      - .github/ISSUE_TEMPLATE
+      - CONTRIBUTING.md
+
+  - when: AGENTS.md changes
+    check:
+      - .agents/repo-contract.yml
+      - .agents/skills/active
+
+  - when: .agents/repo-contract.yml changes
+    check:
+      - AGENTS.md
+      - README.md
+      - .agents/skills/active
