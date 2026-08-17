@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Agent Instructions
 > **File:** `AGENTS.md`
-> **Version:** v2.1.0
+> **Version:** v2.2.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-16
+> **Last Updated:** 2026-08-17
 > **Status:** Active
 
 # Agent Instructions
@@ -169,9 +169,9 @@ Exact infrastructure choices listed as open in `docs/DECISIONS.md` remain unreso
 
 ## Agent Delivery Governance
 
-> **Status:** Pending Integration Check
+> **Status:** Active (`FULL_TRACKED`)
 > **Installed skill:** `.agents/skill/agent-delivery-governance/` v1.0.0
-> **Delivery mode:** `FULL_TRACKED` after activation
+> **Delivery mode:** `FULL_TRACKED` (Integration Check passed on 2026-08-17)
 > **Product Owner / final acceptance:** User
 > **Technical Manager / reviewer:** Codex
 > **Primary Implementer:** Antigravity
@@ -180,9 +180,12 @@ Exact infrastructure choices listed as open in `docs/DECISIONS.md` remain unreso
 > **Branch convention:** `codex/<issue-number>-<short-kebab-name>`
 > **Local coordination directory:** `.agent-work/` (Git-ignored; no secrets)
 
-When active, use the installed skill for every Git-tracked implementation: Issue contract, project-defined branch, mandatory pull request, Codex PR review, and Product Owner decision in the Issue. Keep detailed briefs, reports, intermediate discussion, and long logs in `.agent-work/`; keep only durable decisions and review evidence in GitHub.
+The Integration Check **PASSED** on 2026-08-17:
+- Codex successfully accessed and reviewed the branch/PR handed off by Antigravity;
+- `.agent-work/` is properly Git-ignored;
+- No secrets, tokens, or private credentials were detected in the review scope.
 
-The Integration Check is not yet passed because the observed Antigravity export workspace was not a Git checkout. Do not claim `FULL_TRACKED` is active until Antigravity can produce a Scan Pilot branch/PR that Codex can inspect, and the local coordination directory remains excluded from Git.
+`FULL_TRACKED` is now active for all Git-tracked implementation tasks following this checkpoint. Use the installed skill for every Git-tracked implementation: Issue contract, project-defined branch, mandatory pull request, Codex PR review, and Product Owner decision in the Issue. Keep detailed briefs, reports, intermediate discussion, and long logs in `.agent-work/`; keep only durable decisions and review evidence in GitHub.
 
 ## Current Checkpoint
 
