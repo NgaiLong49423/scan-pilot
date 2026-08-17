@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.19.0
+> **Version:** v2.25.0
 > **Created:** 2026-08-11
 > **Last Updated:** 2026-08-16
 > **Status:** Active
@@ -10,6 +10,111 @@
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
+
+## 2026-08-17 — Production Foundation Established (Issue #9)
+
+**Status:** Working tree — not committed
+
+**Scope:** Established the production workspace layout for React/Vite frontend and Spring Boot 3 / Java 21 / Maven backend under Issue `#9`.
+
+### Added
+
+- Added `frontend/` containing React 19, TypeScript, Vite, and Tailwind CSS production workspace with the approved UI/UX prototype transferred cleanly.
+- Added `backend/` containing Spring Boot 3.4.3, Java 21, and Maven modular monolith skeleton with `SystemStatusController` and unit/context tests.
+
+### Changed
+
+- Updated `.gitignore` with node/frontend build patterns.
+- Updated `docs/CURRENT-STATUS.md` to reflect implementation foundation phase.
+
+## 2026-08-16 — Hybrid Agent Delivery Governance Installed
+
+**Status:** Working tree — not committed
+
+**Scope:** Installed the reusable `agent-delivery-governance` v1.0.0 skill and recorded Scan Pilot's accepted hybrid local/GitHub handoff contract under `DEC-055`.
+
+### Added
+
+- Added `.agents/skill/agent-delivery-governance/` with activation, brief, implementation-report, PR-handoff, technical-review, and Product Owner decision templates.
+- Added `.agent-work/` to `.gitignore` for local coordination artifacts.
+
+### Changed
+
+- Updated agent instructions and delivery workflow to require a PR for Git-tracked implementation only after the `FULL_TRACKED` Integration Check passes.
+- Recorded that the observed Antigravity export workspace is not a Git checkout, so strict activation remains pending rather than being claimed prematurely.
+
+## 2026-08-16 — Conditional Implementation Start Accepted
+
+**Status:** Working tree — not committed
+
+**Scope:** Recorded Product Owner acceptance of the Eligibility Spike `CONDITIONAL GO` and transitioned the project from research/specification into Issue-driven implementation under `DEC-054`.
+
+### Added
+
+- Added `DEC-054`, preserving Completion Form verification, Cloud Billing alert, production authentication/private-source lifecycle, and Issue-delivery conditions.
+
+### Changed
+
+- Updated agent instructions, project context, architecture direction, status, and Eligibility Spike record to distinguish authorized implementation from unconditional production readiness.
+
+## 2026-08-16 — Eligibility Spike Conditional-Go Recommendation
+
+**Status:** Working tree — not committed
+
+**Scope:** Consolidated Issues `#3` through `#7` into an evidence-backed `CONDITIONAL GO` recommendation for Issue `#8`; no implementation-phase change was made.
+
+### Added
+
+- Added the Eligibility Spike result, evidence summary, carried risks, explicit preconditions, owners, and verification limits.
+
+### Changed
+
+- Updated the submission context, current status, and documentation index to distinguish a technical eligibility recommendation from Product Owner authorization to begin product implementation.
+
+## 2026-08-16 — Production GitHub OAuth and Session Verification
+
+**Status:** Working tree — not committed
+
+**Scope:** Recorded the successful Issue `#7` production-origin OAuth/session Eligibility Spike without starting the Spring Boot product implementation.
+
+### Added
+
+- Added the source and evidence record for a same-origin Cloud Run GitHub authorization-code flow with PKCE, a short-lived HttpOnly cookie, and server-side-only token exchange.
+- Added defined production outcomes for logout, denied authorization, expired or revoked user authorization, and lost selected-repository installation access.
+
+### Changed
+
+- Recorded that the private GitHub App is scoped to the selected `scan-pilot` repository with read-only contents access and no webhooks.
+- Recorded the narrow request-log exclusion that prevents OAuth callback query parameters from being retained by the temporary auth spike.
+- Advanced the Eligibility Spike from browser-authentication verification to Product Owner review of Issue `#7` and final go/no-go Issue `#8`.
+
+## 2026-08-16 — Submission Runtime Boundary Revision
+
+**Status:** Working tree — not committed
+
+**Scope:** Revised the accepted AI Riser submission topology after confirming the distinction between an AI Studio project link and a public deployed application.
+
+### Changed
+
+- Reclassified the Google AI Studio project as frozen submission evidence rather than the production authentication origin.
+- Established GitHub-managed source deployed to Cloud Run as the real Scan Pilot frontend and backend runtime.
+- Redirected the remaining browser-authentication spike toward the production origin; the completed AI Studio-to-Cloud-Run CORS result remains limited connectivity evidence.
+
+## 2026-08-16 — AI Studio to Cloud Run CORS Verification
+
+**Status:** Working tree — not committed
+
+**Scope:** Completed and accepted the credential-free Cloud Run connectivity spike for Issue `#6` without starting the production backend or browser authentication.
+
+### Added
+
+- Added evidence for actual AI Studio browser success and third-party-origin CORS failure against a temporary Cloud Run endpoint.
+- Added the isolated temporary spike source under `spikes/issue-006-ai-studio-cors/`.
+
+### Changed
+
+- Recorded use of the Product Owner's existing shared MVP Google Cloud project while preserving strict separation from IoT credentials and resources.
+- Advanced the Eligibility Spike's next task to browser authentication and session handoff.
 
 ## 2026-08-16 — AI Studio Export and Frozen Evidence Verification
 

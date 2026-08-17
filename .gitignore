@@ -19,9 +19,26 @@ Thumbs.db
 # Logs
 *.log
 
+# Local agent coordination artifacts
+.agent-work/
+
 # Environment files
 .env
+.env.*
+!.env.example
 application-local.properties
+application-local.yml
+
+# Node / Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+*.tsbuildinfo
+
+# Python / Spikes
+__pycache__/
+*.py[cod]
 
 # Maven wrapper generated files
 .mvn/wrapper/maven-wrapper.jar

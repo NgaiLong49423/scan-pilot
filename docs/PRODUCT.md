@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Product Definition  
 > **File:** `docs/PRODUCT.md`  
-> **Version:** v0.12.0  
+> **Version:** v0.13.0  
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-15  
+> **Last Updated:** 2026-08-16  
 > **Status:** Under Review  
 
 # Scan Pilot Product Definition
@@ -38,7 +38,8 @@ The MVP succeeds when a user can complete the core loop against a real repositor
 The submission MVP is a focused vertical slice of Product V1:
 
 ```text
-AI Studio frontend
+AI Studio evidence snapshot
+→ public Cloud Run production frontend
 → GitHub sign-in and GitHub App installation
 → select one personal-account repository
 → scan current source and reachable Git history
@@ -48,7 +49,7 @@ AI Studio frontend
 → show Finding lifecycle and remediation quality
 ```
 
-The frontend submitted through Google AI Studio must connect to the real production backend on Google Cloud Run. Scan Pilot will not create a separate judge-only mock mode or bypass the normal GitHub onboarding flow. Public and private repositories owned by personal GitHub accounts are eligible only when explicitly selected and authorized; organization support is deferred.
+The Google AI Studio project remains submission evidence for the build stage. The public Scan Pilot frontend and backend run as the real Cloud Run application from GitHub-managed production source. Scan Pilot will not create a separate judge-only mock mode or bypass the normal GitHub onboarding flow. Public and private repositories owned by personal GitHub accounts are eligible only when explicitly selected and authorized; organization support is deferred.
 
 The approved AI Studio prototype is frozen as submission evidence after its one-way handoff. Production source then evolves in GitHub as the source of truth. The two workspaces are not maintained as parallel production codebases.
 

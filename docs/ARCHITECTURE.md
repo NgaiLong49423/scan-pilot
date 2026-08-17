@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Architecture Direction  
 > **File:** `docs/ARCHITECTURE.md`  
-> **Version:** v0.15.0  
+> **Version:** v0.17.0  
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-15  
+> **Last Updated:** 2026-08-16  
 > **Status:** Under Review  
 
 # Scan Pilot Architecture Direction
@@ -33,13 +33,17 @@ PostgreSQL stores application state
 
 ## Submission Topology and Workspace Boundary
 
-The accepted submission architecture combines Google AI Studio with the production system instead of replacing one with the other:
+The accepted submission architecture separates AI Studio evidence from the production runtime:
 
 ```text
-Google AI Studio frontend
-        ↓ HTTPS REST
-Public production API on Cloud Run
-        ├── GitHub App integration
+Google AI Studio project
+→ frozen provenance, prototype, and code/preview evidence
+
+GitHub production repository
+        ↓ deploy
+Public Scan Pilot application on Cloud Run
+        ├── production React frontend
+        ├── Spring Boot API and GitHub App integration
         ├── PostgreSQL application state
         ├── isolated Gitleaks scan worker
         └── Gemini provider adapter
@@ -47,9 +51,9 @@ Public production API on Cloud Run
 
 The AI Studio workspace and local Git workspace are separate trust and editing boundaries. The AI Studio agent is confirmed only for editing the open AI Studio project. Local Codex and Antigravity operate on exported/local source and must not be assumed to mutate the AI Studio workspace directly.
 
-Handoff is one-way for the submission checkpoint: approve and freeze the AI Studio prototype, export or selectively transfer it, refactor it for production, and make GitHub the source of truth. Scan Pilot does not maintain two independently evolving production frontends. The frozen AI Studio snapshot remains evidence of the required AI Studio build stage.
+Handoff is one-way for the submission checkpoint: approve and freeze the AI Studio prototype, export or selectively transfer it, refactor it for production, and make GitHub the source of truth. Scan Pilot does not maintain two independently evolving production frontends. The frozen AI Studio snapshot remains evidence of the required AI Studio build stage, not the production authentication origin.
 
-Before implementation, an Eligibility Spike must verify public-link accessibility, the judge-visible surface, external REST calls and CORS behavior, a stable browser authentication handoff, export fidelity, and a minimal Cloud Run endpoint. A successful spike validates the workflow; it does not authorize general product implementation by itself.
+The Eligibility Spike verified public-link accessibility, the judge-visible AI Studio surface, export fidelity, the production deployment path, and a bounded production browser authentication/session handoff. The completed AI Studio-to-Cloud-Run CORS test remains evidence for optional prototype connectivity only; it is not proof of production authentication. On 2026-08-16, the Product Owner accepted the resulting `CONDITIONAL GO` and explicitly authorized implementation under `DEC-054`; this does not remove the remaining production lifecycle and cost conditions.
 
 ## Submission GitHub Onboarding Boundary
 
@@ -180,7 +184,7 @@ Keep the backend as one deployable modular monolith unless worker isolation requ
 ## Unresolved Architecture Decisions
 
 - exact authentication mechanism;
-- exact public AI Studio origin, sharing, CORS, callback, and browser-session contract;
+- exact production frontend/API origin, callback, and browser-session contract;
 - exact safe independent benchmark battery, licenses, metrics, and execution protocol;
 - optional Phase 2 document-extraction consent, privacy, implementation, format/OCR scope, and parser resource limits;
 - GitHub App installation and token lifecycle details;

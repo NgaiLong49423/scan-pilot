@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Project Context
 > **File:** `docs/PROJECT-CONTEXT.md`
-> **Version:** v1.12.0
+> **Version:** v2.1.0
 > **Created:** 2026-08-12
 > **Last Updated:** 2026-08-16
 > **Status:** Active
@@ -66,11 +66,11 @@ Delivery is Issue-driven. GitHub Issues define executable work, while GitHub Pro
 
 ## Submission Tool and Workspace Roles
 
-Google AI Studio is the origin and required submission-facing frontend environment. The user controls UI and UX decisions there. The accepted workflow is a one-way handoff: freeze an approved AI Studio snapshot as evidence, export or transfer selected frontend source into the production repository, then continue production development from GitHub as the source of truth.
+Google AI Studio is the origin and required submission-evidence environment. The user controls UI and UX decisions there. The accepted workflow is a one-way handoff: freeze an approved AI Studio snapshot as evidence, export or transfer selected frontend source into the production repository, then continue production development from GitHub as the source of truth.
 
 The Google AI Studio workspace and local workspace are separate until a concrete synchronization mechanism is verified. The AI Studio agent may edit the open AI Studio project; local Codex and Antigravity must not be assumed to edit that remote workspace directly. Scan Pilot will not maintain two independently evolving production codebases.
 
-The production solution uses the GitHub repository, local engineering tools, and Google Cloud. The AI Studio frontend is expected to call the real production API on Cloud Run rather than remain a mock-only judge demo. Public access, browser-origin/CORS behavior, authentication handoff, and export fidelity must pass an Eligibility Spike before implementation workflow is finalized.
+The production solution uses the GitHub repository, local engineering tools, and Google Cloud. The public Cloud Run application hosts the real Scan Pilot frontend and API; AI Studio is not the production browser origin or a mock-only alternative product. The Eligibility Spike passed at the bounded level and the Product Owner accepted a conditional implementation start on 2026-08-16. The remaining Completion Form, cost-alert, production authentication lifecycle, and Issue-delivery conditions remain mandatory under `DEC-054`.
 
 Product decisions are discussed with the user at Product Owner altitude: outcome, scope, user value, cost, privacy, permissions, and UI/UX. Agents may choose ordinary technical mechanisms within accepted architecture and constraints, but must escalate choices that materially change those Product Owner concerns. Final UI/UX authority remains with the user.
 
@@ -187,5 +187,5 @@ Do not invent answers for:
 - exact V1 queue technology;
 - exact project status thresholds;
 - exact public-sharing and external-API behavior of the AI Studio submission link;
-- exact browser authentication and session handoff between AI Studio and the production API;
+- exact production browser authentication and session behavior for GitHub onboarding;
 - the safe independent benchmark battery and execution protocol for submission evidence.

@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Documentation Index
 > **File:** `docs/README.md`
-> **Version:** v1.14.0
+> **Version:** v1.18.0
 > **Created:** 2026-08-11
 > **Last Updated:** 2026-08-16
 > **Status:** Active
@@ -41,6 +41,9 @@ This directory is the canonical source of product, research, and specification c
 - [AI Riser Submission Contract Verification](research/submission/AI-RISER-SUBMISSION-CONTRACT-VERIFICATION.md) — live official deadline, deliverables, access limitation, and Issue `#3` evidence.
 - [AI Studio Signed-Out Access Verification](research/submission/AI-STUDIO-SIGNED-OUT-ACCESS-VERIFICATION.md) — Issue `#4` evidence for required Google sign-in and judge-visible surfaces.
 - [AI Studio Export and Frozen Evidence Verification](research/submission/AI-STUDIO-EXPORT-VERIFICATION.md) — Issue `#5` evidence for the one-way handoff and safe ZIP snapshot boundary.
+- [AI Studio to Cloud Run CORS Verification](research/submission/AI-STUDIO-CLOUD-RUN-CORS-VERIFICATION.md) — Issue `#6` evidence for an actual browser CORS pass/fail path.
+- [Production GitHub OAuth and Session Verification](research/submission/PRODUCTION-GITHUB-OAUTH-SESSION-VERIFICATION.md) — Issue `#7` evidence for the bounded same-origin OAuth callback and server-side token boundary.
+- [AI Riser Eligibility Spike Result](research/submission/ELIGIBILITY-SPIKE-RESULT.md) — Issue `#8` accepted `CONDITIONAL GO` and mandatory implementation conditions.
 - [Research Sources](RESEARCH-SOURCES.md)
 - [Secret Scanning Content Scope Benchmark](research/benchmarks/SECRET-SCANNING-CONTENT-SCOPE.md)
 - [Gitleaks Adapter Trust and Verification Benchmark](research/benchmarks/GITLEAKS-ADAPTER.md)

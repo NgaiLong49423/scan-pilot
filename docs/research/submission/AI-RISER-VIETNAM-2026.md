@@ -1,6 +1,6 @@
 > **Document:** AI Riser Vietnam 2026 Submission Context
 > **File:** `docs/research/submission/AI-RISER-VIETNAM-2026.md`
-> **Version:** v0.6.0
+> **Version:** v0.11.0  
 > **Created:** 2026-08-13
 > **Last Updated:** 2026-08-16
 > **Status:** Under Review
@@ -29,6 +29,12 @@ The AI Studio share link was tested in an Incognito browser with a separate Goog
 
 The AI Studio project export was also verified on 2026-08-16. The standard ZIP export is the frozen, secret-safe evidence artifact; Antigravity export transfers local workspace state and one configured secret, so it remains internal-only. See [AI Studio Export and Frozen Evidence Verification](AI-STUDIO-EXPORT-VERIFICATION.md).
 
+The AI Studio browser-to-Cloud-Run CORS path was verified on 2026-08-16 through a credential-free temporary endpoint. The actual AI Studio origin received a successful response, while `example.com` was blocked by the explicit CORS policy. See [AI Studio to Cloud Run CORS Verification](AI-STUDIO-CLOUD-RUN-CORS-VERIFICATION.md).
+
+The production-origin GitHub OAuth and browser-session spike was verified on 2026-08-16. A real browser completed the GitHub authorization-code callback and server-side exchange without displaying or persisting a token in frontend JavaScript. The GitHub App is limited to the selected `NgaiLong49423/scan-pilot` repository. See [Production GitHub OAuth and Session Verification](PRODUCTION-GITHUB-OAUTH-SESSION-VERIFICATION.md).
+
+The Product Owner accepted the consolidated Eligibility Spike `CONDITIONAL GO` on 2026-08-16 and authorized implementation under `DEC-054`. Completion Form review, cost-alert setup, and production lifecycle implementation remain mandatory conditions. See [AI Riser Eligibility Spike Result](ELIGIBILITY-SPIKE-RESULT.md).
+
 The public Google AI & Vibe Coding Handbook deck was reviewed as a 47-slide intermediate resource. It presents a workflow of thinking through the product, building with either Google AI Studio or Antigravity, and publishing to Cloud Run. It positions AI Studio for rapid app prototyping and Antigravity or its CLI for broader agentic engineering work. This supports a hybrid toolchain; it does not prove that a mock-only AI Studio link is sufficient, that local tools can directly edit the AI Studio workspace, or that a separate source-code submission is required.
 
 ## Reported Submission Deliverables
@@ -40,7 +46,7 @@ The completion-form text provided by the user states that a submission needs:
 - a public LinkedIn or Facebook social post sharing the video and project journey; and
 - optionally, a public deployed application link.
 
-The handbook distinguishes the public AI Studio project link, which gives judges access to the project code and prompt information, from a deployed link, which gives users access to the application.
+The handbook distinguishes the public AI Studio project link, which is submission evidence for the AI Studio project and may expose a project code surface, from a deployed link, which gives users access to the application. The exact judge-visible prompt surface remains unverified.
 
 ## Reported Evaluation Signals
 
@@ -76,8 +82,8 @@ The review must state the expected benefit, trade-off, and verification limit. I
 ## Accepted Scan Pilot Implications
 
 - The submission MVP is narrower than Product V1 and demonstrates one real repository-security vertical slice.
-- Google AI Studio provides the submission-facing frontend and frozen evidence snapshot; after a one-way handoff, GitHub production source becomes the engineering source of truth.
-- The AI Studio frontend calls the real production backend on Cloud Run. There is no judge-only mock mode or alternate onboarding bypass.
+- Google AI Studio provides a frozen submission-evidence snapshot; after a one-way handoff, GitHub production source becomes the engineering source of truth.
+- The public Cloud Run application hosts the real Scan Pilot frontend and backend. AI Studio is not the production authentication origin. There is no judge-only mock mode or alternate onboarding bypass.
 - The submission flow uses GitHub sign-in, GitHub App installation or linking, and explicit selection of one public or private personal-account repository. Organization accounts are deferred.
 - Gemini has a visible but bounded role: it explains redacted findings, remediation, and lifecycle transitions. Deterministic evidence and application logic retain security authority.
 - Independent benchmark evidence is required and remains distinct from Gitleaks' own regression fixtures and from the deployed end-to-end demonstration.
@@ -90,4 +96,3 @@ These implications are recorded as accepted decisions in `docs/DECISIONS.md`. Th
 
 - Confirm the official ten program topics and whether Scan Pilot is eligible as an independent problem framing.
 - Open the emailed Completion Form and confirm its exact fields, validators, Facebook-versus-LinkedIn behavior, and any separate source-code field rather than inferring one.
-- Verify that the AI Studio frontend can call the external Cloud Run API with the required CORS and authentication behavior.
