@@ -11,6 +11,22 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-17 — Production Foundation Established (Issue #9)
+
+**Status:** Committed — `eb43426`
+
+**Scope:** Established the production workspace layout for React/Vite frontend and Spring Boot 3 / Java 21 / Maven backend under Issue `#9`.
+
+### Added
+
+- Added `frontend/` containing React 19, TypeScript, Vite, and Tailwind CSS production workspace with the approved UI/UX prototype transferred cleanly.
+- Added `backend/` containing Spring Boot 3.4.3, Java 21, and Maven modular monolith skeleton with `SystemStatusController` and unit/context tests.
+
+### Changed
+
+- Updated `.gitignore` with node/frontend build patterns.
+- Updated `docs/CURRENT-STATUS.md` to reflect implementation foundation phase under review.
+
 ## 2026-08-17 — Agent Delivery Governance Integration Check Passed
 
 **Status:** Committed — `494c167`

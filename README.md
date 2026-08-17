@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Project README  
 > **File:** `README.md`  
-> **Version:** v1.1.0  
+> **Version:** v1.2.0  
 > **Created:** 2026-08-11  
-> **Last Updated:** 2026-08-14  
+> **Last Updated:** 2026-08-17  
 > **Status:** Active  
 
 # Scan Pilot
@@ -79,9 +79,9 @@ Agents must begin with [AGENTS.md](AGENTS.md).
 
 ## Current Phase
 
-The project is in research and specification. Product implementation has not started.
+The project is in **Implementation**. On 2026-08-16, the Product Owner accepted the Eligibility Spike `CONDITIONAL GO` and explicitly authorized implementation under `DEC-054`.
 
-The target submission window ends in August 2026. The exact external deadline has not been independently recorded, so agents must not invent a more precise date without user confirmation.
+The official external submission deadline for AI Riser Vietnam 2026 is **2026-08-30 at 23:59 GMT+7**.
 
 ## Contributing
 
