@@ -29,6 +29,13 @@ Thumbs.db
 application-local.properties
 application-local.yml
 
+# Node / Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+*.tsbuildinfo
+
 # Python / Spikes
 __pycache__/
 *.py[cod]

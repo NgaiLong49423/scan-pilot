@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot GitHub Issue Index
 > **File:** `.agents/outputs/drafts/github-issues/ISSUE_INDEX.md`
-> **Version:** v1.0.0
+> **Version:** v1.1.0
 > **Created:** 2026-08-16
-> **Last Updated:** 2026-08-16
+> **Last Updated:** 2026-08-17
 > **Status:** Active
 
 # Scan Pilot GitHub Issue Index
@@ -30,6 +30,7 @@ This index backfills local traceability for the first approved operational Issue
 | [#6](https://github.com/NgaiLong49423/scan-pilot/issues/6) Prove AI Studio to Cloud Run call | Child of #2 | `DEC-045`; `docs/ARCHITECTURE.md` Eligibility Spike | 3 | Critical | Cloud | Planning |
 | [#7](https://github.com/NgaiLong49423/scan-pilot/issues/7) Verify GitHub authentication handoff | Child of #2 | `DEC-047`; `FR-046`; `docs/ARCHITECTURE.md` Eligibility Spike | 5 | Critical | GitHub | Planning |
 | [#8](https://github.com/NgaiLong49423/scan-pilot/issues/8) Record go/no-go result | Child of #2 | `docs/CURRENT-STATUS.md` Next Logical Task | 2 | Critical | Submission | Planning |
+| [#9](https://github.com/NgaiLong49423/scan-pilot/issues/9) Establish production foundation and Antigravity handoff | Requirement-derived Issue | `DEC-044`, `DEC-045`, `DEC-054`, `DEC-055`; `FR-036`, `FR-045`–`FR-046` | 5 | High | Frontend + Backend + Documentation | Created 2026-08-17 |
 
 ## Retrospective Note
 
