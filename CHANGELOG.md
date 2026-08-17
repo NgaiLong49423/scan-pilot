@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.25.0
+> **Version:** v2.26.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-16
+> **Last Updated:** 2026-08-17
 > **Status:** Active
 
 # Scan Pilot Changelog
@@ -10,6 +10,16 @@
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
+
+## 2026-08-17 — Agent Delivery Governance Integration Check Passed
+
+**Status:** Working tree — not committed
+
+**Scope:** Verified that Antigravity branch and pull request handoffs are accessible to Codex, `.agent-work/` is Git-ignored, and activated `FULL_TRACKED` mode for implementation work under `DEC-055`.
+
+### Changed
+
+- Updated `AGENTS.md` and `docs/CURRENT-STATUS.md` to record Integration Check PASS and activate `FULL_TRACKED`.
 
 ## 2026-08-16 — Hybrid Agent Delivery Governance Installed
 

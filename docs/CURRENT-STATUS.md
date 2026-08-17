@@ -29,7 +29,7 @@ Production product implementation has been authorized, but the production founda
 - Spike work items: Issues `#3` through `#8`
 - Delivery states: `Backlog → Planning → In Progress → Review → Done`; `Blocked` is a separate label.
 - Current schedule signal on 2026-08-16: Eligibility Spike Issues `#3` through `#8` are complete. The Product Owner authorized a conditional implementation start; no separate contingency day exists and the remaining `DEC-054` conditions must be scheduled before their relevant gates.
-- `agent-delivery-governance` v1.0.0 is installed locally. Its `FULL_TRACKED` mode remains pending an Integration Check because the observed Antigravity export workspace is not a Git checkout yet.
+- `agent-delivery-governance` v1.0.0 is active under `FULL_TRACKED`: the Integration Check passed on 2026-08-17 (Codex accessed the branch/PR handoff, `.agent-work/` is Git-ignored, no secrets detected). Final Product Owner acceptance and merge remain pending.
 
 ## Completed
 
@@ -42,6 +42,7 @@ Production product implementation has been authorized, but the production founda
 - Issue `#8` consolidated the Eligibility Spike as `CONDITIONAL GO`. The Product Owner accepted it and explicitly authorized implementation under `DEC-054`; this preserves Completion Form, billing-alert, production lifecycle, and Issue-delivery gates.
 - Issue-driven delivery governance is accepted: GitHub Issues define executable work, Project #13 tracks operational fields, completed work enters `Review`, and only explicit Product Owner acceptance permits `Done` and closure.
 - Hybrid agent delivery governance is accepted under `DEC-055`: local `.agent-work/` holds detailed coordination artifacts while GitHub holds work contracts, PR diffs, compact evidence, technical review, Product Owner decisions, and status.
+- Governance Integration Check passed on 2026-08-17: Antigravity produced reviewable branch/PR handoffs (PR #11, PR #12), `.agent-work/` is excluded from Git tracking, and `FULL_TRACKED` is activated for subsequent implementation work. Product Owner acceptance and merge remain pending.
 - Submission rule delivery is bounded to one required end-to-end rule, `SP-CONFIG-001`, with a second rule as stretch scope and a third only if the project becomes stable early.
 - AI Riser submission architecture accepted: Google AI Studio is frozen submission evidence after a one-way handoff; GitHub production source deploys the real public Cloud Run frontend and backend rather than maintaining two active codebases.
 - Submission MVP accepted as a narrower Product V1 vertical slice: one real personal-account repository, current and history secret scan, redacted `SP-CONFIG-001`, Gemini explanation, re-scan lifecycle, and public Cloud Run operation.
@@ -83,7 +84,7 @@ Production product implementation has been authorized, but the production founda
 
 ## In Progress
 
-- Establish a reviewable Antigravity branch/PR handoff and complete the `FULL_TRACKED` Integration Check before assigning the first implementation Issue to Antigravity.
+- Issue `#9` (Production Foundation and Antigravity Handoff) is under technical review on PR #12; Product Owner acceptance and merge remain pending.
 - Selecting and starting the first Issue-driven production implementation slice within the accepted submission MVP.
 - Selecting a safe independent secret-detection benchmark battery and reproducible publication protocol.
 - Resolving the pending `DEC-037` revision before the Gitleaks adapter benchmark so repository-controlled suppression behavior matches the user's newer simplification direction; no replacement policy is accepted yet.
