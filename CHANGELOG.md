@@ -13,7 +13,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-17 — Delivery Automation Staging Policy
 
-**Status:** Working tree — not committed
+**Status:** Committed — `299b257`
 
 **Scope:** Recorded the accepted CI-first, CD-deferred delivery-automation policy and reconciled workflow/status documents after the merged production-foundation pull requests.
 
