@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Current Status
 > **File:** `docs/CURRENT-STATUS.md`
-> **Version:** v1.27.0
+> **Version:** v2.1.0
 > **Created:** 2026-08-12
 > **Last Updated:** 2026-08-16
 > **Status:** Active
@@ -28,7 +28,8 @@ Production product implementation has been authorized, but the production founda
 - Parent Eligibility Spike: Issue `#2`
 - Spike work items: Issues `#3` through `#8`
 - Delivery states: `Backlog → Planning → In Progress → Review → Done`; `Blocked` is a separate label.
-- Current schedule signal on 2026-08-16: Issues `#3` through `#5` are complete, and no separate contingency day exists. The Eligibility Spike remains **at risk** until the Cloud Run and authentication work recovers the schedule.
+- Current schedule signal on 2026-08-16: Eligibility Spike Issues `#3` through `#8` are complete. The Product Owner authorized a conditional implementation start; no separate contingency day exists and the remaining `DEC-054` conditions must be scheduled before their relevant gates.
+- `agent-delivery-governance` v1.0.0 is installed locally. Its `FULL_TRACKED` mode remains pending an Integration Check because the observed Antigravity export workspace is not a Git checkout yet.
 
 ## Completed
 
@@ -36,9 +37,13 @@ Production product implementation has been authorized, but the production founda
 - Issue `#3` verified the official live submission contract with a `PASS` result: deadline `2026-08-30 23:59 GMT+7`, required core links distinguished from optional deployment, and exact emailed Completion Form limitations recorded.
 - Issue `#4` verified signed-out AI Studio access with a `PASS` result: Google authentication is required; a separate signed-in account could view Preview and Code, while prompt/project information and the original creation conversation were not observed.
 - Issue `#5` verified the AI Studio handoff with a `PASS` result: the standard ZIP is a secret-safe frozen evidence snapshot, while Antigravity export includes local workspace state and a configured secret and is internal-only.
+- Issue `#6` verified `PASS` for actual AI Studio browser-to-Cloud-Run CORS: the temporary credential-free endpoint permitted AI Studio and blocked `example.com`. The Product Owner accepted use of the existing shared `IotS4` Google Cloud project for the submission MVP, while retaining IoT-resource and secret separation.
+- Issue `#7` verified `PASS` for the bounded production-origin GitHub OAuth flow: a same-origin Cloud Run browser session and GitHub authorization-code exchange completed without exposing or persisting tokens in frontend JavaScript. The private GitHub App is limited to read-only content access for the selected `scan-pilot` repository; token/revocation lifecycle outcomes are defined, while full production implementation remains deferred.
+- Issue `#8` consolidated the Eligibility Spike as `CONDITIONAL GO`. The Product Owner accepted it and explicitly authorized implementation under `DEC-054`; this preserves Completion Form, billing-alert, production lifecycle, and Issue-delivery gates.
 - Issue-driven delivery governance is accepted: GitHub Issues define executable work, Project #13 tracks operational fields, completed work enters `Review`, and only explicit Product Owner acceptance permits `Done` and closure.
+- Hybrid agent delivery governance is accepted under `DEC-055`: local `.agent-work/` holds detailed coordination artifacts while GitHub holds work contracts, PR diffs, compact evidence, technical review, Product Owner decisions, and status.
 - Submission rule delivery is bounded to one required end-to-end rule, `SP-CONFIG-001`, with a second rule as stretch scope and a third only if the project becomes stable early.
-- AI Riser submission architecture accepted: Google AI Studio is the submission-facing frontend, the approved snapshot is frozen as evidence after a one-way handoff, and GitHub production source becomes the source of truth rather than maintaining two active codebases.
+- AI Riser submission architecture accepted: Google AI Studio is frozen submission evidence after a one-way handoff; GitHub production source deploys the real public Cloud Run frontend and backend rather than maintaining two active codebases.
 - Submission MVP accepted as a narrower Product V1 vertical slice: one real personal-account repository, current and history secret scan, redacted `SP-CONFIG-001`, Gemini explanation, re-scan lifecycle, and public Cloud Run operation.
 - Submission onboarding accepted: sign in first, then install or link the GitHub App, then explicitly select one public or private personal-account repository; organization support is deferred.
 - Gemini's submission authority is bounded to explanation and guidance from redacted context. Repository mutation, credential actions, and Finding lifecycle decisions remain outside Gemini.
@@ -78,7 +83,8 @@ Production product implementation has been authorized, but the production founda
 
 ## In Progress
 
-- Recovering the initial spike schedule: Issues `#6` and `#7` remain pending after their planned start dates.
+- Establish a reviewable Antigravity branch/PR handoff and complete the `FULL_TRACKED` Integration Check before assigning the first implementation Issue to Antigravity.
+- Selecting and starting the first Issue-driven production implementation slice within the accepted submission MVP.
 - Selecting a safe independent secret-detection benchmark battery and reproducible publication protocol.
 - Resolving the pending `DEC-037` revision before the Gitleaks adapter benchmark so repository-controlled suppression behavior matches the user's newer simplification direction; no replacement policy is accepted yet.
 - A02 Security Misconfiguration research.
@@ -91,11 +97,7 @@ Production product implementation has been authorized, but the production founda
 
 ## Next Logical Task
 
-Complete the AI Riser Eligibility Spike specification before changing the implementation phase:
-
-1. execute Issue `#6` to prove a minimal AI Studio frontend can call a public Cloud Run endpoint under the required browser-origin and CORS policy;
-2. execute Issue `#7` to define and verify the browser authentication and session handoff for GitHub sign-in and GitHub App installation without exposing tokens to the frontend;
-3. execute Issue `#8` to record the final go/no-go implementation recommendation before explicitly changing the product phase.
+Start the first Issue-driven production implementation slice for the accepted submission MVP. Before ongoing public deployment, schedule Cloud Billing alert verification; before final submission, inspect the actual Completion Form; before any real private-repository scan, satisfy the production lifecycle condition in `DEC-054`.
 
 Do not execute the document-extraction benchmark during the MVP phase. Revisit it only if the user explicitly begins the optional Phase 2 Project Understanding capability and accepts the required consent, privacy, safety, and operational contract.
 
@@ -112,7 +114,7 @@ Do not execute the document-extraction benchmark during the MVP phase. Revisit i
 | Finding tracking model | Accepted and active | `docs/FINDING-TRACKING.md` |
 | Document extraction adapter | Deferred to optional Phase 2; MVP benchmark stopped | `docs/research/benchmarks/DOCUMENT-EXTRACTION-ADAPTER.md` |
 | Cloud budget | Accepted and active; credit details require pre-deployment verification | `docs/CLOUD-BUDGET.md` |
-| AI Riser submission architecture | Accepted; Eligibility Spike not yet executed | `docs/research/submission/AI-RISER-VIETNAM-2026.md` |
+| AI Riser submission architecture | Conditional implementation start accepted; Eligibility Spike complete | `docs/research/submission/ELIGIBILITY-SPIKE-RESULT.md` |
 | Secret detection validation | Independent evidence model accepted; safe battery not yet selected or run | `docs/research/benchmarks/SECRET-DETECTION-VALIDATION.md` |
 
 ## Constraints for the Next Agent
