@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Delivery Governance"
+  short_description: "Govern work across a product owner, reviewer, and coding agent."
+  default_prompt: "Apply the delivery-governance workflow to this project and work item."

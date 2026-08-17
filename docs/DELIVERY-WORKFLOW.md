@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Delivery Workflow
 > **File:** `docs/DELIVERY-WORKFLOW.md`
-> **Version:** v1.0.0
+> **Version:** v1.1.0
 > **Created:** 2026-08-16
 > **Last Updated:** 2026-08-16
 > **Status:** Active
@@ -10,6 +10,18 @@
 ## Purpose
 
 This document defines how accepted requirements become GitHub work items and how agents move an approved Issue through implementation, verification, Product Owner review, and closure.
+
+## Agent Delivery Governance
+
+When the `agent-delivery-governance` skill is active for this project, use these roles:
+
+| Role | Responsibility |
+|---|---|
+| Product Owner | product scope, UI/UX, cost, permissions, final acceptance, and merge authority |
+| Codex | technical decomposition, implementation brief, PR review, risk escalation |
+| Antigravity | scoped implementation, tests, local implementation report, and PR handoff |
+
+The `FULL_TRACKED` workflow is installed but remains pending its Integration Check. Activation requires a reviewable Antigravity branch/PR and confirmation that `.agent-work/` is Git-ignored and secret-free. Until then, the general Issue delivery policy remains in force.
 
 ## Operational Sources of Truth
 
@@ -59,24 +71,38 @@ The instruction does not authorize creating unrelated Issues, closing the Issue,
 
 - Keep `main` stable.
 - Prefer one branch per coherent checkpoint or large workstream rather than one branch for every small child task.
-- When an Issue-specific branch is useful, use `codex/<issue-number>-<short-kebab-name>`.
+- Use the project-defined branch convention. Scan Pilot currently uses `codex/<issue-number>-<short-kebab-name>`; the reusable skill does not prescribe a prefix.
 - Do not combine unrelated Issues merely to reduce branch or commit count.
 - Reference the active Issue in progress reports and checkpoint proposals.
 
-Use `Refs #N` while a pull request provides partial or reviewable progress. Use `Closes #N` only when merging into the default branch will satisfy every acceptance criterion for that Issue.
+When `FULL_TRACKED` is active, every Git-tracked implementation needs a pull request. The PR is the reviewable handoff artifact; use `Refs #N` until its merge will satisfy every acceptance criterion, then use `Closes #N` only with Product Owner merge authority.
+
+## Handoff Channel Contract
+
+| Channel | Required content |
+|---|---|
+| Issue | requirements, acceptance criteria, scope/exclusions, source links, and Product Owner decisions |
+| `.agent-work/` | detailed Codex brief, detailed Antigravity report, long logs, and intermediate analysis; never secrets |
+| Branch | Antigravity implementation according to the project branch convention |
+| Pull request | exact diff, `Refs #N`, compact scope/verification/limitation summary |
+| PR review | Codex outcome and code-specific comments |
+| Project #13 | status, priority, dates, workstream, and progress only |
+
+Do not duplicate agent discussion on GitHub. A shared local file is never sole approval evidence: if Codex cannot access it, the PR summary and reviewed head SHA must still establish the minimum handoff.
 
 ## Review and Completion Gate
 
-Before moving an Issue to `Review`, the agent must:
+Before moving an Issue to `Review`, the implementer must provide the required PR and compact handoff summary. Codex then reviews the PR and must:
 
 - compare the result with every acceptance criterion;
 - run the narrowest relevant tests, then broader checks when practical;
 - inspect the final diff for unrelated files, secrets, credentials, generated artifacts, and accidental contract changes;
 - synchronize affected documentation, metadata, schema, and changelog entries;
 - report failed, skipped, and unavailable verification honestly; and
-- add a concise Issue comment containing the result, evidence, known limitations, and remaining Product Owner decisions.
+- record one PR review outcome: `CHANGES_NEEDED`, `BLOCKED`, or `APPROVED_FOR_PO_ACCEPTANCE`; and
+- add a concise Issue comment linking to the approved PR only when Product Owner acceptance is requested.
 
-`Review` is the default agent handoff state. Only explicit user acceptance authorizes manual Issue closure or a manual move to `Done`. A correctly linked pull request may close the Issue automatically when the user authorizes and completes the merge.
+`Review` is the default agent handoff state. `CHANGES_NEEDED` returns the work to `In Progress`; `BLOCKED` retains `Review` with the `Blocked` label; `APPROVED_FOR_PO_ACCEPTANCE` remains in `Review` until the Product Owner comments `PO ACCEPTED` or `PO RETURNED` in the Issue. Only explicit Product Owner acceptance plus explicit merge authority permits merge or closure. A correctly linked pull request may close the Issue automatically after the authorized merge.
 
 ## Git and External-Action Boundary
 
