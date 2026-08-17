@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Agent Instructions
 > **File:** `AGENTS.md`
-> **Version:** v2.2.0
+> **Version:** v2.3.0
 > **Created:** 2026-08-11
 > **Last Updated:** 2026-08-17
 > **Status:** Active
@@ -186,6 +186,16 @@ The Integration Check **PASSED** on 2026-08-17:
 - No secrets, tokens, or private credentials were detected in the review scope.
 
 `FULL_TRACKED` is now active for all Git-tracked implementation tasks following this checkpoint. Use the installed skill for every Git-tracked implementation: Issue contract, project-defined branch, mandatory pull request, Codex PR review, and Product Owner decision in the Issue. Keep detailed briefs, reports, intermediate discussion, and long logs in `.agent-work/`; keep only durable decisions and review evidence in GitHub.
+
+## Delivery Automation Policy
+
+The Product Owner accepted a staged delivery-automation direction on 2026-08-17. It does not authorize implementation of a workflow by itself.
+
+- **CI first:** a separate authorized Issue must introduce repeatable frontend and backend checks for pull requests and `main`. Once CI is active, a passing required check is a prerequisite for Codex technical review; before that point, agents must retain manual verification evidence.
+- **Branch protection later:** require CI checks for `main` only after the new workflow has produced reliable green evidence on one or more real pull requests. Do not configure a required check that has not run successfully.
+- **CD deferred:** production deployment is a separate release/deployment work item. It requires explicit Product Owner authorization and must not be triggered automatically merely because CI passes or a pull request merges.
+- **Human gates remain:** CI reports repeatable build/test evidence. It does not replace Codex scope/security review or Product Owner acceptance and merge authority.
+- **Current state:** no GitHub Actions CI/CD workflow is configured in this repository yet.
 
 ## Current Checkpoint
 

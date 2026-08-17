@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Current Status
 > **File:** `docs/CURRENT-STATUS.md`
-> **Version:** v2.1.0
+> **Version:** v2.2.0
 > **Created:** 2026-08-12
-> **Last Updated:** 2026-08-16
+> **Last Updated:** 2026-08-17
 > **Status:** Active
 
 # Scan Pilot Current Status
@@ -11,9 +11,11 @@
 
 **Implementation.** Documentation migration from the original template is complete. The Product Owner accepted the Eligibility Spike `CONDITIONAL GO` on 2026-08-16 and explicitly authorized implementation under `DEC-054`.
 
-Production foundation is established and under review for Issue `#9`:
+Production foundation is merged into `main` through PR `#12` (`b85d37d`) for Issue `#9`:
 - `frontend/`: React + TypeScript + Vite production workspace hosting the approved prototype UI/UX.
 - `backend/`: Spring Boot 3 + Java 21 + Maven modular monolith skeleton with successful test and build verification.
+
+Issue `#9` remains open until the Product Owner records final Issue acceptance and authorizes closure.
 
 ## Submission Context
 
@@ -31,7 +33,8 @@ Production foundation is established and under review for Issue `#9`:
 - Spike work items: Issues `#3` through `#8`
 - Delivery states: `Backlog → Planning → In Progress → Review → Done`; `Blocked` is a separate label.
 - Current schedule signal on 2026-08-16: Eligibility Spike Issues `#3` through `#8` are complete. The Product Owner authorized a conditional implementation start; no separate contingency day exists and the remaining `DEC-054` conditions must be scheduled before their relevant gates.
-- `agent-delivery-governance` v1.0.0 is active under `FULL_TRACKED`: the Integration Check passed on 2026-08-17 (Codex accessed the branch/PR handoff, `.agent-work/` is Git-ignored, no secrets detected). Final Product Owner acceptance and merge remain pending.
+- `agent-delivery-governance` v1.0.0 is active under `FULL_TRACKED`: the Integration Check passed on 2026-08-17 (Codex accessed the branch/PR handoff, `.agent-work/` is Git-ignored, no secrets detected).
+- Delivery automation follows an accepted staged direction: CI is the next automation candidate; required `main` checks follow verified CI evidence; CD/public deployment remains deferred to a separately authorized release work item. No GitHub Actions workflow is configured yet.
 
 ## Completed
 
@@ -44,7 +47,8 @@ Production foundation is established and under review for Issue `#9`:
 - Issue `#8` consolidated the Eligibility Spike as `CONDITIONAL GO`. The Product Owner accepted it and explicitly authorized implementation under `DEC-054`; this preserves Completion Form, billing-alert, production lifecycle, and Issue-delivery gates.
 - Issue-driven delivery governance is accepted: GitHub Issues define executable work, Project #13 tracks operational fields, completed work enters `Review`, and only explicit Product Owner acceptance permits `Done` and closure.
 - Hybrid agent delivery governance is accepted under `DEC-055`: local `.agent-work/` holds detailed coordination artifacts while GitHub holds work contracts, PR diffs, compact evidence, technical review, Product Owner decisions, and status.
-- Governance Integration Check passed on 2026-08-17: Antigravity produced reviewable branch/PR handoffs (PR #11, PR #12), `.agent-work/` is excluded from Git tracking, and `FULL_TRACKED` is activated for subsequent implementation work. Product Owner acceptance and merge remain pending.
+- Governance Integration Check passed on 2026-08-17: Antigravity produced reviewable branch/PR handoffs (PR #11, PR #12), `.agent-work/` is excluded from Git tracking, and `FULL_TRACKED` is activated for subsequent implementation work.
+- Production Foundation for Issue `#9` was merged into `main` through PR `#12` (`b85d37d`) after Codex technical review. The foundation establishes the production React/Vite frontend and Spring Boot/Java 21/Maven backend; product integrations remain deferred.
 - Submission rule delivery is bounded to one required end-to-end rule, `SP-CONFIG-001`, with a second rule as stretch scope and a third only if the project becomes stable early.
 - AI Riser submission architecture accepted: Google AI Studio is frozen submission evidence after a one-way handoff; GitHub production source deploys the real public Cloud Run frontend and backend rather than maintaining two active codebases.
 - Submission MVP accepted as a narrower Product V1 vertical slice: one real personal-account repository, current and history secret scan, redacted `SP-CONFIG-001`, Gemini explanation, re-scan lifecycle, and public Cloud Run operation.
@@ -86,7 +90,8 @@ Production foundation is established and under review for Issue `#9`:
 
 ## In Progress
 
-- Issue `#9` (Production Foundation and Antigravity Handoff) is under technical review on PR #12; Product Owner acceptance and merge remain pending.
+- Issue `#9` final closeout is pending: its reviewed production foundation is merged, but the Issue needs explicit Product Owner acceptance and closure.
+- CI workflow design is accepted as the next delivery-automation direction but no workflow, required check, or deployment automation has been implemented.
 - Selecting and starting the first Issue-driven production implementation slice within the accepted submission MVP.
 - Selecting a safe independent secret-detection benchmark battery and reproducible publication protocol.
 - Resolving the pending `DEC-037` revision before the Gitleaks adapter benchmark so repository-controlled suppression behavior matches the user's newer simplification direction; no replacement policy is accepted yet.
@@ -100,7 +105,7 @@ Production foundation is established and under review for Issue `#9`:
 
 ## Next Logical Task
 
-Start the first Issue-driven production implementation slice for the accepted submission MVP. Before ongoing public deployment, schedule Cloud Billing alert verification; before final submission, inspect the actual Completion Form; before any real private-repository scan, satisfy the production lifecycle condition in `DEC-054`.
+Record final Product Owner acceptance and closeout for Issue `#9`, then create a separate Issue for the first Continuous Integration workflow: frontend lint/build and backend Java 21 Maven verification on pull requests and `main`. Do not enable required branch checks until the workflow has produced reliable green evidence. Defer Continuous Delivery and public deployment to a separately authorized release/deployment Issue.
 
 Do not execute the document-extraction benchmark during the MVP phase. Revisit it only if the user explicitly begins the optional Phase 2 Project Understanding capability and accepts the required consent, privacy, safety, and operational contract.
 

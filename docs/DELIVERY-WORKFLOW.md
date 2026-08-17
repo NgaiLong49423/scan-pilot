@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Delivery Workflow
 > **File:** `docs/DELIVERY-WORKFLOW.md`
-> **Version:** v1.1.0
+> **Version:** v1.2.0
 > **Created:** 2026-08-16
-> **Last Updated:** 2026-08-16
+> **Last Updated:** 2026-08-17
 > **Status:** Active
 
 # Scan Pilot Delivery Workflow
@@ -21,7 +21,7 @@ When the `agent-delivery-governance` skill is active for this project, use these
 | Codex | technical decomposition, implementation brief, PR review, risk escalation |
 | Antigravity | scoped implementation, tests, local implementation report, and PR handoff |
 
-The `FULL_TRACKED` workflow is installed but remains pending its Integration Check. Activation requires a reviewable Antigravity branch/PR and confirmation that `.agent-work/` is Git-ignored and secret-free. Until then, the general Issue delivery policy remains in force.
+The `FULL_TRACKED` workflow is active. Its Integration Check passed on 2026-08-17: Codex reviewed Antigravity branch/PR handoffs, and `.agent-work/` was confirmed Git-ignored and free of detected secrets in the reviewed scope. Every Git-tracked implementation now requires the full Issue → branch → PR → Codex review → Product Owner decision path.
 
 ## Operational Sources of Truth
 
@@ -107,6 +107,28 @@ Before moving an Issue to `Review`, the implementer must provide the required PR
 ## Git and External-Action Boundary
 
 Issue assignment and routine status updates do not authorize Git or deployment actions. Commit, push, pull request creation, merge, history rewrite, production deployment, paid-resource creation, credential changes, and destructive actions retain their separate approval requirements in `AGENTS.md`.
+
+## Delivery Automation Policy
+
+Delivery automation is staged so repeatable checks reduce manual review effort without allowing an unreviewed change to reach a public environment.
+
+### Current State
+
+No GitHub Actions CI/CD workflow is configured yet. Until a CI workflow is implemented and verified, the implementer must provide applicable local test/build evidence and Codex must review it manually.
+
+### Continuous Integration First
+
+A separately authorized CI Issue must introduce the smallest relevant automated checks for both production workspaces. The initial target is frontend dependency installation, lint, and production build plus backend Java 21 Maven verification. It should run for pull requests targeting `main` and for updates to `main`.
+
+Once that workflow has produced reliable green evidence on real pull requests, a later authorized repository-settings task may make its named checks required for `main`. Do not make a check required before it has run successfully, because a missing or skipped required check can block all pull requests.
+
+### Continuous Delivery Is Deferred
+
+CI success is not deployment authorization. Cloud Run deployment, credentials, database migration, release validation, cost controls, and public availability remain a separate deployment/release Issue. A production deploy requires explicit Product Owner authorization for that release, even if all CI checks pass.
+
+### Review Boundary
+
+Automated checks provide repeatable build and test evidence only. Codex still reviews scope, security, architecture, documentation, known limitations, and the Issue acceptance criteria. The Product Owner still controls final acceptance, merge, and public deployment.
 
 ## GitHub Project Automation
 
