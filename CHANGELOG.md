@@ -1,9 +1,9 @@
-> **Document:** Scan Pilot Changelog  
-> **File:** `CHANGELOG.md`  
-> **Version:** v2.14.0  
-> **Created:** 2026-08-11  
-> **Last Updated:** 2026-08-15  
-> **Status:** Active  
+> **Document:** Scan Pilot Changelog
+> **File:** `CHANGELOG.md`
+> **Version:** v2.26.0
+> **Created:** 2026-08-11
+> **Last Updated:** 2026-08-17
+> **Status:** Active
 
 # Scan Pilot Changelog
 
@@ -11,9 +11,174 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-17 — Agent Delivery Governance Integration Check Passed
+
+**Status:** Committed — `494c167`
+
+**Scope:** Verified that Antigravity branch and pull request handoffs are accessible to Codex, `.agent-work/` is Git-ignored, and activated `FULL_TRACKED` mode for implementation work under `DEC-055`.
+
+### Changed
+
+- Updated `AGENTS.md` and `docs/CURRENT-STATUS.md` to record Integration Check PASS and activate `FULL_TRACKED`.
+
+## 2026-08-16 — Hybrid Agent Delivery Governance Installed
+
+**Status:** Committed — `52011ad`
+
+**Scope:** Installed the reusable `agent-delivery-governance` v1.0.0 skill and recorded Scan Pilot's accepted hybrid local/GitHub handoff contract under `DEC-055`.
+
+### Added
+
+- Added `.agents/skill/agent-delivery-governance/` with activation, brief, implementation-report, PR-handoff, technical-review, and Product Owner decision templates.
+- Added `.agent-work/` to `.gitignore` for local coordination artifacts.
+
+### Changed
+
+- Updated agent instructions and delivery workflow to require a PR for Git-tracked implementation only after the `FULL_TRACKED` Integration Check passes.
+- Recorded that the observed Antigravity export workspace is not a Git checkout, so strict activation remains pending rather than being claimed prematurely.
+
+## 2026-08-16 — Conditional Implementation Start Accepted
+
+**Status:** Committed — `52011ad`
+
+**Scope:** Recorded Product Owner acceptance of the Eligibility Spike `CONDITIONAL GO` and transitioned the project from research/specification into Issue-driven implementation under `DEC-054`.
+
+### Added
+
+- Added `DEC-054`, preserving Completion Form verification, Cloud Billing alert, production authentication/private-source lifecycle, and Issue-delivery conditions.
+
+### Changed
+
+- Updated agent instructions, project context, architecture direction, status, and Eligibility Spike record to distinguish authorized implementation from unconditional production readiness.
+
+## 2026-08-16 — Eligibility Spike Conditional-Go Recommendation
+
+**Status:** Committed — `52011ad`
+
+**Scope:** Consolidated Issues `#3` through `#7` into an evidence-backed `CONDITIONAL GO` recommendation for Issue `#8`; no implementation-phase change was made.
+
+### Added
+
+- Added the Eligibility Spike result, evidence summary, carried risks, explicit preconditions, owners, and verification limits.
+
+### Changed
+
+- Updated the submission context, current status, and documentation index to distinguish a technical eligibility recommendation from Product Owner authorization to begin product implementation.
+
+## 2026-08-16 — Production GitHub OAuth and Session Verification
+
+**Status:** Committed — `52011ad`
+
+**Scope:** Recorded the successful Issue `#7` production-origin OAuth/session Eligibility Spike without starting the Spring Boot product implementation.
+
+### Added
+
+- Added the source and evidence record for a same-origin Cloud Run GitHub authorization-code flow with PKCE, a short-lived HttpOnly cookie, and server-side-only token exchange.
+- Added defined production outcomes for logout, denied authorization, expired or revoked user authorization, and lost selected-repository installation access.
+
+### Changed
+
+- Recorded that the private GitHub App is scoped to the selected `scan-pilot` repository with read-only contents access and no webhooks.
+- Recorded the narrow request-log exclusion that prevents OAuth callback query parameters from being retained by the temporary auth spike.
+- Advanced the Eligibility Spike from browser-authentication verification to Product Owner review of Issue `#7` and final go/no-go Issue `#8`.
+
+## 2026-08-16 — Submission Runtime Boundary Revision
+
+**Status:** Committed — `52011ad`
+
+**Scope:** Revised the accepted AI Riser submission topology after confirming the distinction between an AI Studio project link and a public deployed application.
+
+### Changed
+
+- Reclassified the Google AI Studio project as frozen submission evidence rather than the production authentication origin.
+- Established GitHub-managed source deployed to Cloud Run as the real Scan Pilot frontend and backend runtime.
+- Redirected the remaining browser-authentication spike toward the production origin; the completed AI Studio-to-Cloud-Run CORS result remains limited connectivity evidence.
+
+## 2026-08-16 — AI Studio to Cloud Run CORS Verification
+
+**Status:** Committed — `52011ad`
+
+**Scope:** Completed and accepted the credential-free Cloud Run connectivity spike for Issue `#6` without starting the production backend or browser authentication.
+
+### Added
+
+- Added evidence for actual AI Studio browser success and third-party-origin CORS failure against a temporary Cloud Run endpoint.
+- Added the isolated temporary spike source under `spikes/issue-006-ai-studio-cors/`.
+
+### Changed
+
+- Recorded use of the Product Owner's existing shared MVP Google Cloud project while preserving strict separation from IoT credentials and resources.
+- Advanced the Eligibility Spike's next task to browser authentication and session handoff.
+
+## 2026-08-16 — AI Studio Export and Frozen Evidence Verification
+
+**Status:** Committed — `b2047f3`
+
+**Scope:** Completed the Issue `#5` Eligibility Spike verification without starting implementation or copying sensitive Antigravity workspace state into the repository.
+
+### Added
+
+- Added a secret-safe export evidence record for the standard AI Studio ZIP, including its project identity, capture timestamp, and SHA-256 integrity digest.
+
+### Changed
+
+- Distinguished the standard ZIP snapshot from the sensitive Antigravity workspace transfer, which includes a configured secret and local workspace state.
+- Recorded GitHub production source as the only post-handoff production source of truth and rejected continuous manual copy-paste synchronization.
+
+## 2026-08-16 — AI Studio Signed-Out Access Verification
+
+**Status:** Committed — `b2047f3`
+
+**Scope:** Completed and accepted the user-run Incognito access test for Issue `#4` without changing AI Studio sharing settings or beginning implementation.
+
+### Added
+
+- Added a structured AI Studio access evidence record: Google authentication is required; the tested separate account could view Preview and Code, while prompt/project information and original creation conversation were not observed.
+
+### Changed
+
+- Updated the submission context and current status to distinguish authenticated link access from anonymous public access and to record the accepted `PASS` result.
+
+## 2026-08-16 — AI Riser Live Submission Contract Verification
+
+**Status:** Committed — `80fef25`
+
+**Scope:** Completed and accepted Issue `#3` live-source research without beginning product implementation; corrected the official deadline and retained the same-day internal gate by explicit Product Owner decision.
+
+### Added
+
+- Added an evidence-backed submission-contract verification record with a `PASS` result and explicit Completion Form access limitation.
+
+### Changed
+
+- Corrected the factual official deadline to `2026-08-30 23:59 GMT+7` across research and current context.
+- Marked the previous requirements-level safety-gate wording as unresolved rather than preserving the invalid August 31 contingency assumption.
+- Distinguished required AI Studio, YouTube, and LinkedIn deliverables from the optional base-submission deployment link and the Cloud Run deployment bonus condition.
+- Recorded that no separate source-code field is verified from the public page and that the exact emailed Completion Form remains unavailable.
+- Revised `DEC-051` after Product Owner acceptance: the official and internal dates both remain August 30, with no separate contingency day.
+
+## 2026-08-16 — Issue-Driven Delivery Governance
+
+**Status:** Committed — `6d64327`
+
+**Scope:** Established the professional GitHub Issue and Project workflow for a solo Product Owner, project manager, and developer without beginning product implementation.
+
+### Added
+
+- Added `docs/DELIVERY-WORKFLOW.md` as the canonical state, authorization, traceability, review, and acceptance contract.
+- Added `.agents/skill/github-issue-delivery/` for executing an authorized Issue through planning, verification, and Product Owner review.
+- Added retrospective traceability for Eligibility Spike Issues `#2` through `#8` in `.agents/outputs/drafts/github-issues/ISSUE_INDEX.md`.
+- Added `DEC-052` for Issue-driven delivery and `DEC-053` for the one-core-rule plus bounded-stretch policy.
+
+### Changed
+
+- Synchronized agent instructions, contribution guidance, repository contract, project context, current status, and documentation index with GitHub Project #13.
+- Recorded the current Eligibility Spike schedule risk and made Issue `#4` the next executable task after Issue `#3` acceptance.
+- Reconciled earlier changelog working-tree entries with their verified commits.
+
 ## 2026-08-15 — AI Riser Submission Architecture and Validation
 
-**Status:** Working tree — not committed
+**Status:** Committed — `80fef25` (`docs: define AI Riser submission architecture`)
 
 **Scope:** Converted the accepted AI Riser submission workflow, focused vertical slice, GitHub onboarding, Gemini authority, independent validation, controlled demonstration, Product Owner decision boundary, and internal deadline into canonical documentation without starting implementation.
 
@@ -48,7 +213,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-14 — Configuration Awareness Direction
 
-**Status:** Working tree — not committed
+**Status:** Committed — `63849fc` (`docs: consolidate configuration awareness decisions`)
 
 **Scope:** Completed the general Configuration Awareness checkpoint: multi-dimensional artifacts, deterministic classification and coverage separation, scenario-bounded environment and override semantics, change tracking and evidence invalidation, and action-first UX without starting implementation.
 
@@ -79,7 +244,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-14 — Trusted Gitleaks Detector Policy
 
-**Status:** Working tree — not committed
+**Status:** Committed — `63849fc` (`docs: consolidate configuration awareness decisions`)
 
 **Scope:** Accepted Scan Pilot ownership of the Gitleaks baseline policy so an untrusted repository cannot silently redefine rules or suppress findings.
 
@@ -106,7 +271,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-14 — Two-Tier Full-File Size Policy
 
-**Status:** Working tree — not committed
+**Status:** Committed — `63849fc` (`docs: consolidate configuration awareness decisions`)
 
 **Scope:** Accepted `10 MiB` Continuous Monitoring and `50 MiB` release-oriented full-file limits for eligible text without introducing chunk checkpoints or starting implementation.
 
@@ -135,7 +300,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-14 — Maven Backend Build Direction
 
-**Status:** Working tree — not committed
+**Status:** Committed — `63849fc` (`docs: consolidate configuration awareness decisions`)
 
 **Scope:** Accepted Apache Maven as the canonical build and dependency-management tool for the Java 21 and Spring Boot 3 backend without starting implementation.
 
@@ -161,7 +326,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-13 — Submission Context and Documentation Traceability
 
-**Status:** Working tree — not committed
+**Status:** Committed — `63849fc` (`docs: consolidate configuration awareness decisions`)
 
 **Scope:** Recorded AI Riser Vietnam 2026 material, added comparative product-research and attribution rules, accepted content eligibility, deferred binary document extraction beyond the MVP, established the canonical two-month Google Cloud budget, and reworked this changelog into dated, traceable entries.
 

@@ -8,6 +8,7 @@ canonical_docs:
   project_context: docs/PROJECT-CONTEXT.md
   accepted_decisions: docs/DECISIONS.md
   current_status: docs/CURRENT-STATUS.md
+  delivery_workflow: docs/DELIVERY-WORKFLOW.md
   product: docs/PRODUCT.md
   requirements: docs/REQUIREMENTS.md
   inspection_spec: docs/INSPECTION-SPEC.md
@@ -31,6 +32,17 @@ source_of_truth_precedence:
   - docs/CURRENT-STATUS.md
   - research_notes
   - implementation_code
+
+delivery_management:
+  repository: NgaiLong49423/scan-pilot
+  project_owner: NgaiLong49423
+  project_number: 13
+  project_url: https://github.com/users/NgaiLong49423/projects/13
+  milestone: AI Riser 2026 - Stable Submission
+  issue_creation_skill: .agents/skill/srs-to-github-issues/SKILL.md
+  issue_delivery_skill: .agents/skill/github-issue-delivery/SKILL.md
+  issue_status_source: github_project
+  product_truth_source: canonical_docs
 
 doc_sync_rules:
   - when: docs/DECISIONS.md changes

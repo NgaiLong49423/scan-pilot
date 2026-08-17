@@ -1,9 +1,9 @@
-> **Document:** Scan Pilot Contribution Guide  
-> **File:** `CONTRIBUTING.md`  
-> **Version:** v1.2.0  
-> **Created:** 2026-08-11  
-> **Last Updated:** 2026-08-13  
-> **Status:** Active  
+> **Document:** Scan Pilot Contribution Guide
+> **File:** `CONTRIBUTING.md`
+> **Version:** v1.3.0
+> **Created:** 2026-08-11
+> **Last Updated:** 2026-08-16
+> **Status:** Active
 
 # Hướng Dẫn Đóng Góp
 
@@ -73,6 +73,28 @@ merge vào main sau khi được cho phép
 - Không dùng mô hình `develop`, `release`, `hotfix` khi chưa có nhu cầu được chấp nhận rõ ràng.
 
 Branch tạo vùng thử nghiệm an toàn cho agent và người dùng: thay đổi chưa được kiểm tra không ảnh hưởng đến `main`.
+
+---
+
+## Quy Trình Thực Hiện Theo GitHub Issue
+
+Mỗi nhóm công việc triển khai phải có một GitHub Issue mô tả phạm vi và tiêu chí chấp nhận. GitHub Project #13 quản lý trạng thái vận hành; tài liệu canonical trong repository vẫn quản lý quyết định và yêu cầu sản phẩm.
+
+```text
+Backlog → Planning → In Progress → Review → Done
+```
+
+- `Backlog`: công việc đã ghi nhận nhưng chưa sẵn sàng thực hiện.
+- `Planning`: phạm vi và tiêu chí chấp nhận đang được làm rõ.
+- `In Progress`: agent hoặc developer đang thực hiện Issue đã được cho phép.
+- `Review`: phần việc chính đã hoàn thành và có bằng chứng kiểm tra, đang chờ Product Owner nghiệm thu.
+- `Done`: Product Owner đã chấp nhận kết quả; Issue mới được phép đóng.
+
+`Blocked` là nhãn bổ sung, không phải trạng thái thay thế. Một item vẫn giữ trạng thái công việc hiện tại và ghi rõ điều kiện đang chặn.
+
+Nhánh thực thi nên có dạng `codex/<issue-number>-<short-description>`. Commit hoặc Pull Request dùng `Refs #N` khi chưa được phép đóng Issue. Chỉ dùng `Closes #N` khi Product Owner đã cho phép cơ chế đóng tự động. Agent không tự chuyển item sang `Done`, đóng Issue, commit, push, tạo hoặc merge Pull Request nếu chưa có sự cho phép tương ứng.
+
+Quy trình đầy đủ nằm tại [`docs/DELIVERY-WORKFLOW.md`](docs/DELIVERY-WORKFLOW.md).
 
 ---
 
