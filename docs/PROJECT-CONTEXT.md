@@ -1,9 +1,9 @@
-> **Document:** Scan Pilot Project Context  
-> **File:** `docs/PROJECT-CONTEXT.md`  
-> **Version:** v1.9.0  
-> **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-15  
-> **Status:** Active  
+> **Document:** Scan Pilot Project Context
+> **File:** `docs/PROJECT-CONTEXT.md`
+> **Version:** v2.1.0
+> **Created:** 2026-08-12
+> **Last Updated:** 2026-08-16
+> **Status:** Active
 
 # Scan Pilot Project Context
 
@@ -54,7 +54,7 @@ Primary users are solo builders, students, small teams, and developers managing 
 
 Scan Pilot itself is currently built by one solo developer. References to a two-person team belong to a different project and must not be used for Scan Pilot planning, architecture justification, or delivery estimates.
 
-Scan Pilot is being prepared for AI Riser Vietnam 2026. The user-reported external submission deadline is 2026-08-31 at 23:59; the internal completion gate is 2026-08-30 so the final day is reserved for verification and submission. The live form, timezone, and any early-submission availability still require direct verification.
+Scan Pilot is being prepared for AI Riser Vietnam 2026. The official public event page was verified on 2026-08-16 and gives the external deadline as 2026-08-30 at 23:59 GMT+7. The Product Owner explicitly retains 2026-08-30 as the internal complete-and-stable gate and accepts that no separate contingency day exists. The exact emailed Completion Form schema and current early-submission availability remain unverified.
 
 The submission MVP is intentionally narrower than the broader Product V1. It must demonstrate one strong, real repository-security loop rather than presenting unfinished breadth.
 
@@ -62,13 +62,15 @@ The accepted two-month cloud planning envelope is USD 250, with at most USD 180 
 
 The repository uses a lightweight branch workflow: `main` remains stable, while each coherent large workstream uses a working branch. Pull requests are optional self-review checkpoints for large changes, not a requirement for every small documentation edit.
 
+Delivery is Issue-driven. GitHub Issues define executable work, while GitHub Project #13 tracks operational status, priority, target date, workstream, and progress. Accepted decisions and specifications in the repository remain the product source of truth. Agent-completed work must enter `Review`; only explicit Product Owner acceptance permits `Done` and Issue closure. Git commit, push, pull-request, merge, and deployment permissions remain separate explicit approvals. See `DELIVERY-WORKFLOW.md`.
+
 ## Submission Tool and Workspace Roles
 
-Google AI Studio is the origin and required submission-facing frontend environment. The user controls UI and UX decisions there. The accepted workflow is a one-way handoff: freeze an approved AI Studio snapshot as evidence, export or transfer selected frontend source into the production repository, then continue production development from GitHub as the source of truth.
+Google AI Studio is the origin and required submission-evidence environment. The user controls UI and UX decisions there. The accepted workflow is a one-way handoff: freeze an approved AI Studio snapshot as evidence, export or transfer selected frontend source into the production repository, then continue production development from GitHub as the source of truth.
 
 The Google AI Studio workspace and local workspace are separate until a concrete synchronization mechanism is verified. The AI Studio agent may edit the open AI Studio project; local Codex and Antigravity must not be assumed to edit that remote workspace directly. Scan Pilot will not maintain two independently evolving production codebases.
 
-The production solution uses the GitHub repository, local engineering tools, and Google Cloud. The AI Studio frontend is expected to call the real production API on Cloud Run rather than remain a mock-only judge demo. Public access, browser-origin/CORS behavior, authentication handoff, and export fidelity must pass an Eligibility Spike before implementation workflow is finalized.
+The production solution uses the GitHub repository, local engineering tools, and Google Cloud. The public Cloud Run application hosts the real Scan Pilot frontend and API; AI Studio is not the production browser origin or a mock-only alternative product. The Eligibility Spike passed at the bounded level and the Product Owner accepted a conditional implementation start on 2026-08-16. The remaining Completion Form, cost-alert, production authentication lifecycle, and Issue-delivery conditions remain mandatory under `DEC-054`.
 
 Product decisions are discussed with the user at Product Owner altitude: outcome, scope, user value, cost, privacy, permissions, and UI/UX. Agents may choose ordinary technical mechanisms within accepted architecture and constraints, but must escalate choices that materially change those Product Owner concerns. Final UI/UX authority remains with the user.
 
@@ -185,5 +187,5 @@ Do not invent answers for:
 - exact V1 queue technology;
 - exact project status thresholds;
 - exact public-sharing and external-API behavior of the AI Studio submission link;
-- exact browser authentication and session handoff between AI Studio and the production API;
+- exact production browser authentication and session behavior for GitHub onboarding;
 - the safe independent benchmark battery and execution protocol for submission evidence.

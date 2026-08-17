@@ -1,9 +1,9 @@
-> **Document:** Scan Pilot Requirements  
-> **File:** `docs/REQUIREMENTS.md`  
-> **Version:** v0.20.0  
-> **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-15  
-> **Status:** Under Review  
+> **Document:** Scan Pilot Requirements
+> **File:** `docs/REQUIREMENTS.md`
+> **Version:** v0.23.0
+> **Created:** 2026-08-12
+> **Last Updated:** 2026-08-16
+> **Status:** Under Review
 
 # Scan Pilot Requirements
 
@@ -57,7 +57,7 @@ This document records accepted high-level requirements and explicitly marks unre
 | FR-042 | Scan Pilot preserves exact declared environment and profile labels and uses family-specific activation and precedence models. It may claim `REPOSITORY_EFFECTIVE` only for an explicit scenario with complete supported repository-visible inputs; unknown external inputs remain unresolved, User Assertions do not become Technical Evidence, and `RUNTIME_VERIFIED` is outside the MVP. | Accepted | Repository configuration does not prove the deployed environment or values that runtime and platform sources can override. |
 | FR-043 | Git changes create Configuration Change Events rather than Findings. Changed artifacts and directly related configuration evidence are reassessed, and prior evidence is reused only across compatible content, path/context, scenario, classifier, parser, analyzer, rule, and configuration versions. Rename or deletion cannot automatically preserve identity or resolve a Finding, and generic change records cannot retain raw sensitive values. | Accepted | Semantic rule evaluation, not line-level diff alone, determines security impact and lifecycle changes. |
 | FR-044 | Configuration UX separates Security Attention, Verification Coverage, and Configuration Change; the dashboard prioritizes Findings, blocked verification, and material Review Requests, while the Configuration Map inventories all artifacts and groups non-finding changes. Unsupported, ambiguous, and parse-failed artifacts remain neutral coverage limitations and do not receive a clean or critical security color. | Accepted | An action-first interface must not conflate known risk, ordinary repository activity, and lack of assessment. |
-| FR-045 | Scan Pilot provides a functional Google AI Studio submission frontend that represents the same product and, after compatibility verification, calls the production backend deployed in the accepted Google Cloud direction. The Java backend, PostgreSQL state, and isolated scan worker remain production services rather than being duplicated inside AI Studio. | Accepted | AI Studio must be a meaningful development and submission surface without replacing the production security architecture. |
+| FR-045 | Scan Pilot retains a functional Google AI Studio project as submission evidence of its AI Studio build stage, while the public production frontend and backend are deployed from the GitHub production source in the accepted Google Cloud direction. The Java backend, PostgreSQL state, and isolated scan worker remain production services rather than being duplicated inside AI Studio. | Accepted | AI Studio remains meaningful submission evidence without becoming a cross-site production authentication origin or replacing the production security architecture. |
 | FR-046 | The submission does not expose a judge-only anonymous scan bypass. A person who elects to test repository scanning follows the same GitHub sign-in, installation, repository selection, and onboarding workflow as another user. | Accepted | One authorization model avoids an abusable contest-only scanner and demonstrates the real product contract. |
 | FR-047 | Submission onboarding signs in with GitHub before linking a GitHub App installation, officially supports personal GitHub accounts, and accesses only public or private personal repositories explicitly granted to the installation and selected for monitoring. | Accepted | User identity, installation authorization, and monitored scope are distinct least-privilege decisions; organization policy is deferred until verified. |
 | FR-048 | Submission Gemini analysis consumes only bounded normalized secret-redacted evidence and returns structured explanation, evidence limits, remediation guidance, and re-scan transition explanation. It cannot edit, patch, commit, push, rewrite history, revoke credentials, or decide Finding lifecycle. | Accepted | Gemini helps a security beginner act on evidence without becoming the scanner or repository mutator. |
@@ -116,7 +116,7 @@ This document records accepted high-level requirements and explicitly marks unre
 - Cloud architecture and operation must fit a two-month USD 250 planning envelope, target no more than USD 180 expected spend, and preserve a USD 70 reserve unless a later explicit user decision changes the budget.
 - Paid services must expose cost attribution and bounded usage controls; initial controls include scale-to-zero where compatible, maximum one scan-worker instance, and billing notifications at USD 25, 50, 100, 150, 180, and 220.
 - Promotional-credit value, expiry, and service eligibility must be verified before deployment and must not be treated as guaranteed cash or as justification for additional scope.
-- The submission vertical slice must be complete and deployed by the internal `2026-08-30` gate; `2026-08-31` is reserved for final verification and contingency against the user-reported `23:59` external deadline.
+- The official external deadline is `2026-08-30 23:59 GMT+7`. The internal complete-and-stable gate remains `2026-08-30`; the Product Owner explicitly accepts that no separate contingency day is reserved.
 
 ## Unresolved Requirements
 
@@ -136,6 +136,6 @@ This document records accepted high-level requirements and explicitly marks unre
 - exact Configuration Artifact taxonomy, classification-confidence contract, supported parsers, change-impact relationships, and family-specific rules for Spring Boot, GitHub Actions, and Docker;
 - exact Configuration Map wireframe, default filters, accessibility behavior, and family-specific user-review questions;
 - exact deployment service choices within Google Cloud.
-- exact AI Studio public sharing, judge-visible project surface, stable origin, CORS, and authenticated-session handoff;
+- exact AI Studio public sharing and judge-visible project surface, plus the production frontend/API origin and authenticated-session handoff;
 - exact safe independent secret benchmark battery, result adapter, and acceptance thresholds;
 - exact public or private disposition of the sanitized security-lab repository after submission review;

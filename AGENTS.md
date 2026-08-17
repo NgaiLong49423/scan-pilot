@@ -1,9 +1,9 @@
-> **Document:** Scan Pilot Agent Instructions  
-> **File:** `AGENTS.md`  
-> **Version:** v1.8.0  
-> **Created:** 2026-08-11  
-> **Last Updated:** 2026-08-15  
-> **Status:** Active  
+> **Document:** Scan Pilot Agent Instructions
+> **File:** `AGENTS.md`
+> **Version:** v2.1.0
+> **Created:** 2026-08-11
+> **Last Updated:** 2026-08-16
+> **Status:** Active
 
 # Agent Instructions
 
@@ -20,10 +20,11 @@ Before proposing work, read:
 1. `docs/PROJECT-CONTEXT.md`
 2. `docs/DECISIONS.md`
 3. `docs/CURRENT-STATUS.md`
-4. `docs/CLOUD-BUDGET.md` when a task may affect architecture, deployment, external services, resource sizing, benchmarking cost, Gemini usage, or public operation
-5. relevant submission-context documents under `docs/research/submission/` when a task may affect product direction, MVP scope, Google technology integration, deployment, demo, or submission material
-6. the canonical specification relevant to the task
-7. relevant files under `docs/research/`
+4. `docs/DELIVERY-WORKFLOW.md` when a task involves GitHub Issue planning, assignment, execution, review, acceptance, or closure
+5. `docs/CLOUD-BUDGET.md` when a task may affect architecture, deployment, external services, resource sizing, benchmarking cost, Gemini usage, or public operation
+6. relevant submission-context documents under `docs/research/submission/` when a task may affect product direction, MVP scope, Google technology integration, deployment, demo, or submission material
+7. the canonical specification relevant to the task
+8. relevant files under `docs/research/`
 
 Do not ask the user to repeat information already recorded in these documents.
 
@@ -42,7 +43,9 @@ Report meaningful conflicts instead of silently resolving them.
 
 ## Current Phase
 
-The project is in **research and specification**. Documentation migration from the original template is complete. Do not start product implementation until the user explicitly changes the phase.
+The project is in **implementation**, following Product Owner acceptance of the Eligibility Spike `CONDITIONAL GO` recommendation on 2026-08-16. Documentation migration from the original template is complete.
+
+Implementation must preserve the accepted MVP scope and four conditions recorded in `DEC-054`: Completion Form verification before final submission, Cloud Billing alert verification before ongoing public deployment, production authentication/token/private-source lifecycle work before private-repository scanning, and explicit Issue-level authorization for individual work items. Do not treat this phase change as authorization to bypass Issue delivery, commit/push, deploy, change UI/UX, or broaden scope.
 
 Workflow:
 
@@ -146,7 +149,7 @@ Exact infrastructure choices listed as open in `docs/DECISIONS.md` remain unreso
 - Scan Pilot is a solo project. Use a lightweight workflow: keep `main` stable and use one working branch for each coherent large workstream.
 - Documentation research and specification may share a branch such as `codex/docs-research-specification`; a large implementation feature should use its own branch such as `codex/secret-scanning`.
 - Small documentation corrections may stay on the current working branch. Do not create a new branch or pull request for every minor edit.
-- A pull request is optional for a large feature or checkpoint when reviewing the complete diff would be useful. Do not introduce `develop`, `release`, or `hotfix` branches unless a later accepted need justifies them.
+- Outside active `FULL_TRACKED` governance, a pull request is optional for a large feature or checkpoint when reviewing the complete diff would be useful. Do not introduce `develop`, `release`, or `hotfix` branches unless a later accepted need justifies them.
 - Do not create a commit after each file edit, discussion, or individual accepted decision.
 - Group related decisions, specifications, or implementation changes into a coherent checkpoint that can be reviewed and restored as one meaningful unit.
 - A checkpoint is ready to propose only when its intended scope is complete, relevant documentation and metadata are synchronized, applicable verification has run, and the diff has been inspected for unrelated files and secrets.
@@ -155,6 +158,31 @@ Exact infrastructure choices listed as open in `docs/DECISIONS.md` remain unreso
 - A proposal is not authorization. Commit only after explicit user permission to commit. Push only after explicit user permission to push; permission to commit alone does not imply permission to push.
 - Do not split one coherent checkpoint into noisy per-file commits, and do not combine unrelated work merely to reduce commit count.
 - Important checkpoints should be pushed to GitHub after authorization so the repository has an off-device copy outside the laptop.
+
+## Issue-Driven Delivery
+
+- Use GitHub Issues as executable work contracts and GitHub Project #13 as the operational view for status, priority, dates, workstream, and progress. Canonical repository documents remain the product source of truth.
+- Use `.agents/skill/srs-to-github-issues/SKILL.md` to decompose accepted requirements into Issues. Use `.agents/skill/github-issue-delivery/SKILL.md` to execute an authorized Issue.
+- A user instruction such as `work on #N` authorizes the agent to inspect and perform only that Issue's accepted scope and to move that item to `In Progress`. It does not authorize creating or closing Issues, committing, pushing, opening or merging pull requests, deploying, or changing product scope or UI/UX.
+- Move completed work to `Review` with evidence and known limits. Move it to `Done` and close it only after explicit Product Owner acceptance.
+- Follow the complete state, traceability, approval, and automation contract in `docs/DELIVERY-WORKFLOW.md`.
+
+## Agent Delivery Governance
+
+> **Status:** Pending Integration Check
+> **Installed skill:** `.agents/skill/agent-delivery-governance/` v1.0.0
+> **Delivery mode:** `FULL_TRACKED` after activation
+> **Product Owner / final acceptance:** User
+> **Technical Manager / reviewer:** Codex
+> **Primary Implementer:** Antigravity
+> **Executable work tracker:** GitHub Issues in `NgaiLong49423/scan-pilot`
+> **Operational status board:** GitHub Project #13
+> **Branch convention:** `codex/<issue-number>-<short-kebab-name>`
+> **Local coordination directory:** `.agent-work/` (Git-ignored; no secrets)
+
+When active, use the installed skill for every Git-tracked implementation: Issue contract, project-defined branch, mandatory pull request, Codex PR review, and Product Owner decision in the Issue. Keep detailed briefs, reports, intermediate discussion, and long logs in `.agent-work/`; keep only durable decisions and review evidence in GitHub.
+
+The Integration Check is not yet passed because the observed Antigravity export workspace was not a Git checkout. Do not claim `FULL_TRACKED` is active until Antigravity can produce a Scan Pilot branch/PR that Codex can inspect, and the local coordination directory remains excluded from Git.
 
 ## Current Checkpoint
 

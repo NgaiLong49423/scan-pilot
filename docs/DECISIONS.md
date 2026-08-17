@@ -1,9 +1,9 @@
-> **Document:** Scan Pilot Accepted Decisions  
-> **File:** `docs/DECISIONS.md`  
-> **Version:** v1.22.0  
-> **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-15  
-> **Status:** Active  
+> **Document:** Scan Pilot Accepted Decisions
+> **File:** `docs/DECISIONS.md`
+> **Version:** v2.2.0
+> **Created:** 2026-08-12
+> **Last Updated:** 2026-08-16
+> **Status:** Active
 
 # Scan Pilot Accepted Decisions
 
@@ -579,25 +579,30 @@ AI Studio's workspace agent may edit the open AI Studio project. Local Codex and
 
 **Reason:** The handoff preserves meaningful AI Studio provenance without forcing a security product's Spring Boot, PostgreSQL, GitHub, and isolated-worker architecture into a prototype workspace. The benefit is one production source of truth and traceable submission evidence. The trade-off is that the frozen AI Studio snapshot may not contain every production implementation detail. The verification limit is that round-trip import and final public-link behavior still require the Eligibility Spike.
 
-## DEC-045 — AI Studio is a real submission frontend, not a separate mock product
+## DEC-045 — AI Studio is submission evidence; Cloud Run hosts the real product
 
 **Status:** Accepted
 
 The intended submission shape is:
 
 ```text
-AI Studio submission frontend
-        ↓ HTTPS REST
-Google Cloud production backend
-├── Spring Boot API
+Google AI Studio project link
+→ required AI Studio provenance, prototype, and code/preview evidence
+
+GitHub production repository
+→ source of truth for the production frontend and backend
+
+Public Cloud Run application
+→ real Scan Pilot frontend and API
+├── Spring Boot API and GitHub App integration
 ├── isolated scan worker
 ├── Gemini provider integration
 └── PostgreSQL through the accepted database direction
 ```
 
-The AI Studio project must represent the same Scan Pilot product and may call the production backend when the cross-origin and authentication contract is verified. It does not need to contain the Java backend, database, or scanner worker. Scan Pilot does not create a judge-only anonymous demo mode or bypass normal product authorization. The public AI Studio link, demo video, production Cloud Run link, and production source are distinct submission evidence surfaces.
+The AI Studio project represents the same Scan Pilot product direction but is not the production authentication origin or a second live production frontend. It remains a frozen evidence snapshot after the approved one-way handoff. The production application is deployed from GitHub-managed source on Google Cloud. Scan Pilot does not create a judge-only anonymous demo mode or bypass normal product authorization. The public AI Studio link, demo video, production Cloud Run link, and production source are distinct submission evidence surfaces.
 
-**Reason:** A functional frontend makes AI Studio use material while Cloud Run preserves production-grade boundaries. Requiring judges who choose to test the product to follow the normal GitHub workflow avoids a costly, abusable anonymous scanning path. The benefit is one product behavior rather than a special contest-only product. The trade-off is higher evaluator friction than an anonymous demo. The verification limit is that public sharing, exact judge visibility, external REST access, CORS, authentication handoff, and live-form acceptance are not yet proven.
+**Reason:** AI Studio can create, share, export, and deploy applications, but a Cloud Run deployment is the ordinary public application users actually run. Separating evidence from runtime preserves meaningful AI Studio provenance while avoiding a cross-site production session boundary between `aistudio.google.com` and the Scan Pilot application. The benefit is a standard, safer production authentication topology and one production source of truth. The trade-off is that the AI Studio snapshot can drift from production and must be deliberately frozen and represented honestly in the demo. The verification limit is that the exact emailed Completion Form and judge use of the AI Studio Code surface remain unverified.
 
 ## DEC-046 — Submission MVP is narrower than Product V1
 
@@ -605,7 +610,7 @@ The AI Studio project must represent the same Scan Pilot product and may call th
 
 The August 2026 submission prioritizes one complete real vertical slice:
 
-1. AI Studio submission frontend and public Cloud Run production deployment;
+1. AI Studio submission evidence plus a public Cloud Run production frontend and deployment;
 2. GitHub sign-in, GitHub App installation, and one selected repository;
 3. current default-branch snapshot plus validated reachable-history scanning through the accepted Gitleaks adapter;
 4. redacted `SP-CONFIG-001` evidence;
@@ -676,19 +681,64 @@ Scan Pilot never rewrites or force-pushes the lab repository itself. Ground trut
 
 **Reason:** A controlled lab makes the real pipeline repeatable without contaminating the Scan Pilot repository or using a live credential. The benefit is one fixture for video, lifecycle, redaction, history, and end-to-end regression. The trade-off is that it is an intentionally vulnerable test target and must be described honestly. The verification limit is that synthetic candidates cannot represent every real credential family and therefore do not replace independent benchmarks.
 
-## DEC-051 — Submission planning uses an internal August 30 completion gate
+## DEC-051 — Submission planning uses the official August 30 deadline as the internal gate
 
 **Status:** Accepted planning constraint
 
-The user-reported external submission deadline is `2026-08-31 23:59` in the event's applicable local time. Scan Pilot uses `2026-08-30` as the internal complete-and-deployed deadline; August 31 is reserved for final verification, video/link checks, and contingency only. The live completion form remains the authoritative external source and must be rechecked before submission.
+The official public AI Riser event page confirms the external submission deadline as `2026-08-30 23:59 GMT+7`. Scan Pilot retains `2026-08-30` as its internal complete-and-stable gate. The Product Owner explicitly accepts that there is no separate calendar day reserved for final verification or contingency.
 
-**Reason:** A one-day safety margin reduces the risk that deployment, sharing permissions, video, or form problems consume the final submission window. The benefit is a clear delivery gate. The trade-off is one fewer implementation day. The verification limit is that the completion-form URL and authoritative timezone have not yet been recorded in the repository.
+**Reason:** The Product Owner prefers to retain the full available development schedule rather than reserve August 30 solely for contingency. The benefit is one additional development day. The trade-off is reduced recovery time for deployment, sharing, video, or form failures discovered on the final day. The verification limit is that the exact emailed Completion Form may impose an earlier operational cutoff or change its fields and must still be checked before submission.
+
+## DEC-052 — Delivery is Issue-driven with an explicit Product Owner review gate
+
+**Status:** Accepted
+
+GitHub Issues are the executable work contracts for specification, implementation, verification, and submission work. GitHub Project #13 is the operational source for status, priority, target dates, workstream, and progress; canonical repository documents remain the source of truth for accepted product decisions and requirements.
+
+The delivery states are `Backlog`, `Planning`, `In Progress`, `Review`, and `Done`. `Blocked` is a separate label. A direct instruction to work on Issue `#N` authorizes inspection, execution within that Issue's accepted scope, movement of only that item to `In Progress`, and durable progress comments. It does not authorize creating or closing Issues, commit, push, pull-request, merge, deployment, product-scope changes, or UI/UX decisions. Completed work enters `Review` with verification evidence and known limits. Only explicit Product Owner acceptance permits `Done` and Issue closure.
+
+**Reason:** The solo developer also acts as Product Owner and project manager and needs one visible delivery contract without surrendering control to agents or automation. The benefit is auditable scope, progress, and acceptance for every meaningful feature. The trade-off is small Issue-maintenance overhead. The verification limit is that GitHub Project automation cannot independently prove acceptance or completion quality, so auto-close and premature archive behavior must remain disabled or otherwise constrained.
+
+## DEC-053 — Submission rule delivery uses one core rule and bounded stretch rules
+
+**Status:** Accepted
+
+The submission-critical security path commits to one strong end-to-end rule: `SP-CONFIG-001 — Source Code Secret Exposure`. It must work on real repositories, cover multiple supported secret families through the accepted detector path, produce redacted evidence, support current-snapshot and Git-history findings, and demonstrate re-scan lifecycle behavior.
+
+A second security rule is stretch scope and begins only after the core vertical slice, deployment path, benchmark evidence, and submission gates are stable. A third rule is the submission maximum and may begin only if the project is stable early enough to avoid deadline risk. The exact second and third rule families remain unresolved decisions.
+
+**Reason:** One production-quality rule can generate many real findings and demonstrates more product depth than several incomplete rule screens. The benefit is a credible security workflow with controlled stretch value. The trade-off is narrower category breadth in the initial demo. The verification limit is that the core detector, benchmark battery, and end-to-end Cloud Run flow have not yet been implemented or measured.
+
+## DEC-054 — Eligibility Spike permits conditional implementation start
+
+**Status:** Accepted
+
+On 2026-08-16, the Product Owner accepted the Eligibility Spike `CONDITIONAL GO` recommendation and explicitly authorized Scan Pilot to move from research/specification into implementation. The completed eligibility evidence covers the AI Studio submission surface, one-way export boundary, Cloud Run connectivity, and bounded same-origin GitHub OAuth/session path.
+
+This authorization does not expand the submission MVP, authorize a broad implementation without Issues, or make the product production-ready. Implementation remains subject to these conditions:
+
+1. The Product Owner must open and verify the actual Completion Form before final submission.
+2. Accepted Cloud Billing alerts must be configured and verified before ongoing public implementation/deployment.
+3. Before any real private-repository scan, the production Spring Boot path must implement and test server-side session storage, selected-repository installation authorization, logout, expiry, revocation, and temporary private-source cleanup.
+4. Every implementation task remains Issue-driven and retains its separate authorization, review, acceptance, Git, and deployment boundaries.
+
+**Reason:** The Eligibility Spike removed the evidence-backed architecture blockers while preserving known operational and security work. The benefit is timely progress toward the fixed submission deadline without confusing a working spike for a complete product. The trade-off is active implementation under explicit guardrails rather than an unconditional release path. The verification limit is that scanner accuracy, worker isolation, production lifecycle behavior, Gemini safety, cost behavior, and event submission remain unverified until their own work is implemented and tested.
+
+## DEC-055 — Agent delivery uses hybrid governance when FULL_TRACKED is activated
+
+**Status:** Accepted
+
+Scan Pilot installs `agent-delivery-governance` v1.0.0 as a project-local skill. After its Integration Check passes, every Git-tracked implementation uses an Issue as the work contract, a project-defined branch, a mandatory pull request as the implementation handoff, Codex PR review, and a Product Owner decision in the Issue before merge and closure. GitHub Project #13 tracks operating metadata only.
+
+Detailed briefs, implementation reports, long test logs, and intermediate agent discussion remain in Git-ignored `.agent-work/`; they must never contain secrets. GitHub retains durable requirements, reviewable code diff, compact verification summary, review conclusion, Product Owner decision, and status. The reusable skill does not prescribe a branch prefix; Scan Pilot currently defines its own convention in `AGENTS.md`.
+
+**Reason:** A PR provides durable review evidence tied to a precise code diff without turning GitHub into a duplicate of agent context. The benefit is a strict, auditable CEO/PO → Codex → Antigravity workflow with bounded token and maintenance cost. The trade-off is one PR for each coherent implementation checkpoint after activation. The verification limit is that the observed Antigravity export workspace is not yet a Git checkout, so the Integration Check and `FULL_TRACKED` activation remain pending.
 
 ## Intentionally Open Decisions
 
 - exact scoring formula and status thresholds;
 - exact optional confidence scale beyond the accepted verification statuses;
-- exact final V1 rule count;
+- exact broader Product V1 rule count and the identity of any submission stretch rules beyond `SP-CONFIG-001`;
 - exact detectors for rule families beyond the accepted Gitleaks-backed `SP-CONFIG-001` path;
 - optional Phase 2 document-extraction consent, privacy, implementation, format, OCR, resource, retention, and fallback policies;
 - exact eligibility reason-code taxonomy and policies for non-document binary families, archived, linked, generated, dependency, and user-excluded content beyond the accepted size reason codes;
@@ -709,6 +759,6 @@ The user-reported external submission deadline is `2026-08-31 23:59` in the even
 - exact MVP delivery scope, triggers, evidence-validity rules, build or artifact checks, and full completion contract for Release Assessment beyond `DEC-036`;
 - final deployment topology within the accepted Google Cloud direction.
 - exact regional deployment prices and post-promotional-credit continuity plan.
-- exact AI Studio public-link permissions, judge-visible source/prompt surface, external API origin, CORS, and authenticated-session handoff;
-- exact personal-account GitHub session mechanism, callback routing, installation-token lifecycle, revocation handling, and private-source deletion verification;
+- exact AI Studio public-link permissions and judge-visible source/prompt surface;
+- exact production Spring Boot session-store, installation-token lifecycle, revocation handling, and private-source deletion verification;
 - exact independent safe secret benchmark battery, adapter, metrics report, and accepted accuracy thresholds;
