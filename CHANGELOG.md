@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.25.0
+> **Version:** v2.26.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-16
+> **Last Updated:** 2026-08-17
 > **Status:** Active
 
 # Scan Pilot Changelog
@@ -13,7 +13,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-17 — Production Foundation Established (Issue #9)
 
-**Status:** Working tree — not committed
+**Status:** Committed — `eb43426`
 
 **Scope:** Established the production workspace layout for React/Vite frontend and Spring Boot 3 / Java 21 / Maven backend under Issue `#9`.
 
