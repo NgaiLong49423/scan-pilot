@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.26.0
+> **Version:** v2.27.0
 > **Created:** 2026-08-11
 > **Last Updated:** 2026-08-17
 > **Status:** Active
@@ -10,6 +10,19 @@
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
+
+## 2026-08-17 — Delivery Automation Staging Policy
+
+**Status:** Committed — `299b257`
+
+**Scope:** Recorded the accepted CI-first, CD-deferred delivery-automation policy and reconciled workflow/status documents after the merged production-foundation pull requests.
+
+### Changed
+
+- Updated the active `FULL_TRACKED` declaration in the delivery workflow after the passed Integration Check.
+- Defined CI as the next separately authorized automation work item, with required `main` checks only after successful workflow evidence.
+- Kept Cloud Run deployment and public release as explicit Product Owner-controlled work, not an automatic result of a green CI run.
+- Updated current status to record PR `#12` merged into `main` while retaining Issue `#9` closure as a separate Product Owner action.
 
 ## 2026-08-17 — Production Foundation Established (Issue #9)
 
