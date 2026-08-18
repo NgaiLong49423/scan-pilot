@@ -1,6 +1,21 @@
 spring:
   application:
     name: scan-pilot-backend
+  datasource:
+    url: ${JDBC_DATABASE_URL:jdbc:h2:mem:scanpilot;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE}
+    driver-class-name: ${JDBC_DATABASE_DRIVER:org.h2.Driver}
+    username: ${JDBC_DATABASE_USERNAME:sa}
+    password: ${JDBC_DATABASE_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
 
 server:
   port: 8080
