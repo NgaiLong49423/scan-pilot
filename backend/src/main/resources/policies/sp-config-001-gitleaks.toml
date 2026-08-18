@@ -1,0 +1,35 @@
+# SP-CONFIG-001 Gitleaks Trusted Rule Set
+# Baseline policy for Source Code Secret Exposure detection
+
+title = "SP-CONFIG-001 Source Code Secret Exposure Baseline"
+
+[[rules]]
+id = "google-api-key"
+description = "Google API Key"
+regex = '''AIza[0-9A-Za-z\-_]{35}'''
+keywords = ["AIza"]
+
+[[rules]]
+id = "github-pat"
+description = "GitHub Personal Access Token or OAuth/App Token"
+regex = '''(ghp_[0-9a-zA-Z]{36}|github_pat_[0-9a-zA-Z_]{82}|gho_[0-9a-zA-Z]{36}|ghs_[0-9a-zA-Z]{36}|ghr_[0-9a-zA-Z]{36})'''
+keywords = ["ghp_", "github_pat_", "gho_", "ghs_", "ghr_"]
+
+[[rules]]
+id = "aws-access-key"
+description = "AWS Access Key ID"
+regex = '''(A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}'''
+keywords = ["AKIA", "ASIA", "AGPA", "AIDA", "AROA", "AIPA", "ANPA", "ANVA", "A3T"]
+
+[[rules]]
+id = "private-key"
+description = "Private Key"
+regex = '''-----BEGIN[ A-Z0-9_-]*PRIVATE KEY-----'''
+keywords = ["-----BEGIN"]
+
+[[rules]]
+id = "generic-api-key"
+description = "Generic High-Entropy API Key or Token"
+regex = '''(?i)(?:key|api_key|apikey|secret|token|password|auth|jwt)[ \t]*[=:][ \t]*['"]([a-zA-Z0-9_\-]{20,})['"]'''
+entropy = 3.5
+keywords = ["key", "api_key", "apikey", "secret", "token", "password", "auth", "jwt"]

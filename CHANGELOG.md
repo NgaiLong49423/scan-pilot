@@ -11,6 +11,25 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-18 — Gitleaks Detector Adapter with Trusted SP-CONFIG-001 Policy (Issue #20)
+
+**Status:** Committed — `8c0d34d`
+
+**Scope:** Implemented Gitleaks detector adapter with pinned trusted `SP-CONFIG-001` policy (`sp-config-001-gitleaks.toml`), target repository anti-tamper safeguards (`FR-038`, `DEC-037`), secure temporary JSON report deletion, portable embedded regex engine, and full normalization pipeline with `RedactedEvidence` under Issue `#20`.
+
+### Added
+
+- Added `backend/src/main/resources/policies/sp-config-001-gitleaks.toml` with canonical trusted rules for Google API Keys, GitHub Tokens, AWS Keys, RSA Private Keys, and Generic API Keys.
+- Added `com.scanpilot.scanner.detector.gitleaks` package containing:
+  - Models: `GitleaksRawFinding`, `GitleaksScanRequest`, `GitleaksScanResult`, `DetectedSecretFinding`.
+  - Services: `GitleaksDetectorAdapter` (CLI process builder, trusted policy injection, secure `try-finally` cleanup, embedded fallback scanner, and `scanAndNormalize`).
+  - Configuration: `GitleaksConfigProperties` for `scanpilot.gitleaks`.
+- Added 15 comprehensive unit and integration tests in `GitleaksDetectorAdapterTest` (141/141 tests passing in total).
+
+### Changed
+
+- Updated `backend/src/main/resources/application.yml` with `scanpilot.gitleaks` configuration properties.
+
 ## 2026-08-18 — SP_SECRET_FP_V1 HMAC-SHA-256 Fingerprinting and Redaction Engine (Issue #21)
 
 **Status:** Committed — `b7d58a8`
