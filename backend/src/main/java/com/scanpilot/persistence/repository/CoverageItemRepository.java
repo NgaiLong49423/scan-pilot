@@ -1,0 +1,16 @@
+package com.scanpilot.persistence.repository;
+
+import com.scanpilot.persistence.entity.CoverageItemEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.UUID;
+
+@Repository
+public interface CoverageItemRepository extends JpaRepository<CoverageItemEntity, UUID> {
+
+    List<CoverageItemEntity> findByCoverageRecordId(UUID coverageRecordId);
+
+    List<CoverageItemEntity> findByCoverageRecordIdAndStatus(UUID coverageRecordId, String status);
+}

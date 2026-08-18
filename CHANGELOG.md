@@ -11,6 +11,25 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-18 — PostgreSQL Core Persistence and Repositories (Issue #22)
+
+**Status:** Committed — `5f6017a`
+
+**Scope:** Implemented complete PostgreSQL database schema via Flyway (`V1__init_core_schema.sql`), JPA entities without `@Data`, Spring Data JPA repositories, indexes, constraints (`UNIQUE(repository_id, fingerprint)`), and integration tests under Issue `#22`.
+
+### Added
+
+- Added Flyway migration `backend/src/main/resources/db/migration/V1__init_core_schema.sql` initializing 12 core tables: `users`, `user_sessions`, `repositories`, `monitored_branches`, `scan_jobs`, `scan_checkpoints`, `findings`, `finding_locations`, `evidence_items`, `coverage_records`, `coverage_items`, and `review_requests`.
+- Added `com.scanpilot.persistence` package containing:
+  - Entities: `UserEntity`, `UserSessionEntity`, `RepositoryEntity`, `MonitoredBranchEntity`, `ScanJobEntity`, `ScanCheckpointEntity`, `FindingEntity`, `FindingLocationEntity`, `EvidenceItemEntity`, `CoverageRecordEntity`, `CoverageItemEntity`, `ReviewRequestEntity`.
+  - Repositories: `UserRepository`, `UserSessionRepository`, `RepositoryProfileRepository`, `MonitoredBranchRepository`, `ScanJobRepository`, `ScanCheckpointRepository`, `FindingRepository`, `FindingLocationRepository`, `EvidenceItemRepository`, `CoverageRecordRepository`, `CoverageItemRepository`, `ReviewRequestRepository`.
+- Added 20 comprehensive persistence tests in `backend/src/test/java/com/scanpilot/persistence/` (161/161 tests passing in total).
+
+### Changed
+
+- Updated `backend/pom.xml` with dependencies for Spring Data JPA, PostgreSQL driver, Flyway, and H2 test database.
+- Updated `backend/src/main/resources/application.yml` with datasource and Flyway configuration.
+
 ## 2026-08-18 — Gitleaks Detector Adapter with Trusted SP-CONFIG-001 Policy (Issue #20)
 
 **Status:** Committed — `8c0d34d`
