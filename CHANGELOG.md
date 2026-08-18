@@ -11,6 +11,24 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-18 — GitHub App Linking and Repository Selection (Issue #14)
+
+**Status:** Committed — `e71b0ec`
+
+**Scope:** Implemented GitHub App installation linking, accessible personal repository querying, single repository onboarding with automatic PRIMARY branch derivation from GitHub default branch, and secondary branch slot management under Issue `#14`.
+
+### Added
+
+- Added `com.scanpilot.github` package for GitHub App RSA JWT authentication, installation token generation, install URL generation, and accessible repository fetching.
+- Added `com.scanpilot.project` package for single repository onboarding (`DEC-046`), PRIMARY branch derivation (`FR-020`, `FR-022`), max 2 secondary branches management (`FR-020`, `FR-023`), and default branch sync (`FR-022`).
+- Added `GlobalExceptionHandler` in `com.scanpilot.system` for structured REST API error handling.
+- Added 31 unit and integration tests across GitHub App and Project services and controllers (59/59 tests passing in total).
+
+### Changed
+
+- Updated `UserSession` and `SessionService` to thread-safely retain `installationId`.
+- Updated `backend/src/main/resources/application.yml` with `scanpilot.github` configuration properties.
+
 ## 2026-08-18 — GitHub OAuth Sign-In and Server-Side Session Management (Issue #19)
 
 **Status:** Committed — `51e4508`

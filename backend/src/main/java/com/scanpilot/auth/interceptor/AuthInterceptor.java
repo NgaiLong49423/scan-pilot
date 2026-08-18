@@ -7,25 +7,23 @@ import com.scanpilot.auth.service.SessionService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.util.Arrays;
-import java.util.Optional;
 
+@Slf4j
 @Component
+@RequiredArgsConstructor
 public class AuthInterceptor implements HandlerInterceptor {
 
     public static final String ATTR_USER_SESSION = "scanpilot.auth.userSession";
 
     private final SessionService sessionService;
     private final AuthConfigProperties properties;
-
-    public AuthInterceptor(SessionService sessionService, AuthConfigProperties properties) {
-        this.sessionService = sessionService;
-        this.properties = properties;
-    }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {

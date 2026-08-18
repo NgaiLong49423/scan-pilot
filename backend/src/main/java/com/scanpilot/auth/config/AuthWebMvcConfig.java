@@ -2,6 +2,7 @@ package com.scanpilot.auth.config;
 
 import com.scanpilot.auth.interceptor.AuthInterceptor;
 import com.scanpilot.auth.resolver.AuthenticatedUserArgumentResolver;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -11,21 +12,12 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import java.util.List;
 
 @Configuration
+@RequiredArgsConstructor
 public class AuthWebMvcConfig implements WebMvcConfigurer {
 
     private final AuthInterceptor authInterceptor;
     private final AuthenticatedUserArgumentResolver authenticatedUserArgumentResolver;
     private final AuthConfigProperties properties;
-
-    public AuthWebMvcConfig(
-            AuthInterceptor authInterceptor,
-            AuthenticatedUserArgumentResolver authenticatedUserArgumentResolver,
-            AuthConfigProperties properties
-    ) {
-        this.authInterceptor = authInterceptor;
-        this.authenticatedUserArgumentResolver = authenticatedUserArgumentResolver;
-        this.properties = properties;
-    }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {

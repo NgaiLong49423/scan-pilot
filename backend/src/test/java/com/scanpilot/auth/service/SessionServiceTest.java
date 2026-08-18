@@ -125,4 +125,41 @@ class SessionServiceTest {
 
         assertThat(shortLivedService.getActiveSessionCount()).isEqualTo(0);
     }
+
+    @Test
+    @DisplayName("UserSession toString excludes sensitive accessToken")
+    void testUserSessionToStringExcludesAccessToken() {
+        String sensitiveToken = "gho_super_secret_token_12345";
+        UserSession session = UserSession.builder()
+                .sessionId("sess-abc")
+                .githubUserId(42L)
+                .login("alice")
+                .name("Alice Smith")
+                .email("alice@example.com")
+                .accessToken(sensitiveToken)
+                .createdAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .build();
+
+        String toStringResult = session.toString();
+        assertThat(toStringResult).contains("alice");
+        assertThat(toStringResult).contains("42");
+        assertThat(toStringResult).doesNotContain(sensitiveToken);
+        assertThat(toStringResult).doesNotContain("accessToken");
+    }
+
+    @Test
+    @DisplayName("UserSession supports Lombok builder, setters, and no-args constructor")
+    void testUserSessionLombokBuilderAndSetters() {
+        UserSession session = new UserSession();
+        session.setSessionId("sess-xyz");
+        session.setLogin("bob");
+        session.setGithubUserId(99L);
+        session.setAccessToken("gho_tok");
+
+        assertThat(session.getSessionId()).isEqualTo("sess-xyz");
+        assertThat(session.getLogin()).isEqualTo("bob");
+        assertThat(session.getGithubUserId()).isEqualTo(99L);
+        assertThat(session.getAccessToken()).isEqualTo("gho_tok");
+    }
 }

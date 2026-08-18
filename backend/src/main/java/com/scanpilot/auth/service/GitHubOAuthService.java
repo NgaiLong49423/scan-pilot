@@ -3,6 +3,7 @@ package com.scanpilot.auth.service;
 import com.scanpilot.auth.config.AuthConfigProperties;
 import com.scanpilot.auth.dto.GitHubTokenResponse;
 import com.scanpilot.auth.dto.GitHubUserDto;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -15,6 +16,7 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Slf4j
 @Service
 public class GitHubOAuthService {
 
@@ -91,8 +93,8 @@ public class GitHubOAuthService {
 
         if (response == null || response.accessToken() == null || response.accessToken().isBlank()) {
             String errorMsg = response != null && response.errorDescription() != null
-                    ? response.errorDescription()
-                    : (response != null && response.error() != null ? response.error() : "Failed to obtain access token from GitHub");
+                ? response.errorDescription()
+                : (response != null && response.error() != null ? response.error() : "Failed to obtain access token from GitHub");
             throw new IllegalStateException("GitHub OAuth token exchange failed: " + errorMsg);
         }
 
