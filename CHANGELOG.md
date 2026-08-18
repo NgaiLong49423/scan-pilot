@@ -11,6 +11,20 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-18 — Layered Content Classifier and File Eligibility Policy (Issue #15)
+
+**Status:** Committed — `3bd1038`
+
+**Scope:** Implemented layered content classifier, memory-safe byte sampling (8KB buffer), binary document recognition (PDF/Office per `FR-034`), two-tier size ceilings (10 MiB monitoring, 50 MiB release per `FR-037`), and structured Coverage Record generation under Issue `#15`.
+
+### Added
+
+- Added `com.scanpilot.scanner.classifier` package containing:
+  - Enums: `ContentClassification`, `ScanMode`, `CoverageStatus`, `SkipReasonCode`, `CoverageImpact`.
+  - DTOs & Models: `ClassificationResult`, `CoverageItem`, `CoverageSummary`.
+  - Services: `ContentClassifierService` (magic bytes signature detection, byte sampling analysis, disguised file detection) and `FileEligibilityEngine` (size limit enforcement, binary document skipping, coverage summary aggregation).
+- Added 39 comprehensive unit tests in `ContentClassifierServiceTest` and `FileEligibilityEngineTest` (101/101 tests passing in total).
+
 ## 2026-08-18 — GitHub App Linking and Repository Selection (Issue #14)
 
 **Status:** Committed — `e71b0ec`
