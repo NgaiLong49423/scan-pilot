@@ -11,6 +11,21 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-18 — GitHub OAuth Sign-In and Server-Side Session Management (Issue #19)
+
+**Status:** Committed — `51e4508`
+
+**Scope:** Implemented complete GitHub OAuth 2.0 authorization flow and server-side session management in Spring Boot backend under Issue `#19`.
+
+### Added
+
+- Added `com.scanpilot.auth` package containing models (`UserSession`), DTOs (`UserProfileDto`, `GitHubTokenResponse`, `GitHubUserDto`), services (`SessionService`, `GitHubOAuthService`), controller (`AuthController`), interceptor (`AuthInterceptor` with `@RequireAuth`), and resolver (`AuthenticatedUserArgumentResolver` with `@CurrentUser`).
+- Added comprehensive unit and integration tests with 28/28 tests passing (`AuthControllerTest`, `SessionServiceTest`, `GitHubOAuthServiceTest`, `AuthInterceptorTest`).
+
+### Changed
+
+- Updated `backend/src/main/resources/application.yml` with `scanpilot.auth` configuration properties.
+
 ## 2026-08-18 — CI Delivery Automation and Submission MVP Issue Decomposition (Issue #18)
 
 **Status:** Committed — `feab6fa`
