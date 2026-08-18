@@ -11,9 +11,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -249,13 +251,18 @@ public class GitleaksDetectorAdapter {
     /**
      * Executes the embedded SP-CONFIG-001 regex detection engine.
      */
+    /**
+     * Executes the embedded SP-CONFIG-001 regex detection engine.
+     */
     public GitleaksScanResult scanEmbedded(GitleaksScanRequest request) {
         Path targetPath = request.targetPath();
         long startTime = System.currentTimeMillis();
         List<GitleaksRawFinding> findings = new ArrayList<>();
 
         try {
-            if (Files.isRegularFile(targetPath)) {
+            if (request.isGitScan() && Files.isDirectory(targetPath) && Files.exists(targetPath.resolve(".git"))) {
+                scanGitHistoryWithCli(targetPath, request.commitRange(), findings);
+            } else if (Files.isRegularFile(targetPath)) {
                 scanSingleFile(targetPath, targetPath.getFileName().toString(), findings);
             } else if (Files.isDirectory(targetPath)) {
                 try (Stream<Path> stream = Files.walk(targetPath)) {
@@ -285,72 +292,154 @@ public class GitleaksDetectorAdapter {
     }
 
     /**
+     * Scans git history by invoking git log -p when Gitleaks binary is not present.
+     */
+    private void scanGitHistoryWithCli(Path repoPath, String commitRange, List<GitleaksRawFinding> findings) {
+        try {
+            List<String> cmd = new ArrayList<>();
+            cmd.add("git");
+            cmd.add("log");
+            cmd.add("-p");
+            if (commitRange != null && !commitRange.isBlank()) {
+                cmd.add(commitRange);
+            }
+
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.directory(repoPath.toFile());
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                String currentCommit = null;
+                String currentAuthor = null;
+                String currentDate = null;
+                String currentFile = null;
+                int lineNum = 0;
+
+                while ((line = reader.readLine()) != null) {
+                    if (line.startsWith("commit ")) {
+                        currentCommit = line.substring(7).trim();
+                        currentFile = null;
+                        lineNum = 0;
+                    } else if (line.startsWith("Author: ")) {
+                        currentAuthor = line.substring(8).trim();
+                    } else if (line.startsWith("Date: ")) {
+                        currentDate = line.substring(6).trim();
+                    } else if (line.startsWith("diff --git ")) {
+                        String[] parts = line.split(" ");
+                        if (parts.length >= 4) {
+                            String bPath = parts[3];
+                            if (bPath.startsWith("b/")) {
+                                currentFile = bPath.substring(2);
+                            } else {
+                                currentFile = bPath;
+                            }
+                        }
+                        lineNum = 0;
+                    } else if (line.startsWith("@@ ")) {
+                        int plusIdx = line.indexOf('+');
+                        if (plusIdx != -1) {
+                            int commaIdx = line.indexOf(',', plusIdx);
+                            int endIdx = line.indexOf(' ', plusIdx);
+                            int targetIdx = commaIdx != -1 && commaIdx < endIdx ? commaIdx : endIdx;
+                            if (targetIdx != -1) {
+                                try {
+                                    lineNum = Integer.parseInt(line.substring(plusIdx + 1, targetIdx).trim()) - 1;
+                                } catch (NumberFormatException ignored) {
+                                    lineNum = 1;
+                                }
+                            }
+                        }
+                    } else if (line.startsWith("+") && !line.startsWith("+++")) {
+                        lineNum++;
+                        String addedContent = line.substring(1);
+                        scanLineContent(addedContent, lineNum, currentFile != null ? currentFile : "unknown", currentCommit, currentAuthor, currentDate, findings);
+                    } else if (!line.startsWith("-")) {
+                        lineNum++;
+                    }
+                }
+            }
+            process.waitFor(5, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("Git log history scan failed: {}", e.getMessage());
+        }
+    }
+
+    /**
      * Scans a single text file against the SP-CONFIG-001 rules.
      */
     private void scanSingleFile(Path filePath, String relativePath, List<GitleaksRawFinding> findings) {
         try {
-            // Read lines; ignore binary/unsupported encoding safely
             List<String> lines = Files.readAllLines(filePath, StandardCharsets.UTF_8);
             for (int i = 0; i < lines.size(); i++) {
                 String line = lines.get(i);
                 int lineNum = i + 1;
-
-                List<GitleaksRawFinding> lineFindings = new ArrayList<>();
-                for (SpConfigRule rule : CANONICAL_RULES) {
-                    Matcher matcher = rule.pattern().matcher(line);
-                    while (matcher.find()) {
-                        String secret = rule.secretGroupIndex() > 0 && matcher.groupCount() >= rule.secretGroupIndex()
-                            ? matcher.group(rule.secretGroupIndex())
-                            : matcher.group();
-
-                        int startCol = (rule.secretGroupIndex() > 0 && matcher.groupCount() >= rule.secretGroupIndex()
-                            ? matcher.start(rule.secretGroupIndex())
-                            : matcher.start()) + 1;
-
-                        int endCol = (rule.secretGroupIndex() > 0 && matcher.groupCount() >= rule.secretGroupIndex()
-                            ? matcher.end(rule.secretGroupIndex())
-                            : matcher.end());
-
-                        // If generic rule overlaps with an already matched specific rule on this line, skip duplicate
-                        if ("generic-api-key".equals(rule.ruleId())) {
-                            boolean alreadyCovered = lineFindings.stream().anyMatch(lf ->
-                                !lf.ruleID().equals("generic-api-key") && (
-                                    lf.secret().equals(secret) ||
-                                    (startCol <= lf.endColumn() && endCol >= lf.startColumn())
-                                )
-                            );
-                            if (alreadyCovered) {
-                                continue;
-                            }
-                        }
-
-                        GitleaksRawFinding finding = new GitleaksRawFinding(
-                            rule.ruleId(),
-                            rule.description(),
-                            lineNum,
-                            lineNum,
-                            startCol,
-                            endCol,
-                            line,
-                            secret,
-                            relativePath,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null
-                        );
-                        lineFindings.add(finding);
-                    }
-                }
-                findings.addAll(lineFindings);
-
+                scanLineContent(line, lineNum, relativePath, null, null, null, findings);
             }
         } catch (Exception e) {
-            // Ignore unreadable binary files during scan
             log.debug("Skipped non-text file during embedded scan: {}", relativePath);
         }
+    }
+
+    private void scanLineContent(
+        String line,
+        int lineNum,
+        String relativePath,
+        String commit,
+        String author,
+        String date,
+        List<GitleaksRawFinding> findings
+    ) {
+        List<GitleaksRawFinding> lineFindings = new ArrayList<>();
+        for (SpConfigRule rule : CANONICAL_RULES) {
+            Matcher matcher = rule.pattern().matcher(line);
+            while (matcher.find()) {
+                String secret = rule.secretGroupIndex() > 0 && matcher.groupCount() >= rule.secretGroupIndex()
+                    ? matcher.group(rule.secretGroupIndex())
+                    : matcher.group();
+
+                int startCol = (rule.secretGroupIndex() > 0 && matcher.groupCount() >= rule.secretGroupIndex()
+                    ? matcher.start(rule.secretGroupIndex())
+                    : matcher.start()) + 1;
+
+                int endCol = (rule.secretGroupIndex() > 0 && matcher.groupCount() >= rule.secretGroupIndex()
+                    ? matcher.end(rule.secretGroupIndex())
+                    : matcher.end());
+
+                if ("generic-api-key".equals(rule.ruleId())) {
+                    boolean alreadyCovered = lineFindings.stream().anyMatch(lf ->
+                        !lf.ruleID().equals("generic-api-key") && (
+                            lf.secret().equals(secret) ||
+                            (startCol <= lf.endColumn() && endCol >= lf.startColumn())
+                        )
+                    );
+                    if (alreadyCovered) {
+                        continue;
+                    }
+                }
+
+                GitleaksRawFinding finding = new GitleaksRawFinding(
+                    rule.ruleId(),
+                    rule.description(),
+                    lineNum,
+                    lineNum,
+                    startCol,
+                    endCol,
+                    line,
+                    secret,
+                    relativePath,
+                    commit,
+                    null,
+                    author,
+                    null,
+                    date,
+                    null
+                );
+                lineFindings.add(finding);
+            }
+        }
+        findings.addAll(lineFindings);
     }
 
     private boolean isIgnoredDirectory(Path file, Path root) {
