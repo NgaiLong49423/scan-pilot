@@ -11,6 +11,24 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-18 — SP_SECRET_FP_V1 HMAC-SHA-256 Fingerprinting and Redaction Engine (Issue #21)
+
+**Status:** Committed — `b7d58a8`
+
+**Scope:** Implemented repository-scoped HMAC-SHA-256 `SP_SECRET_FP_V1` secret fingerprinting with length prefixing (**REC-03**) and comprehensive secret redaction/masking engine under Issue `#21`.
+
+### Added
+
+- Added `com.scanpilot.security.secret` package containing:
+  - Models: `SecretMatch` (transient raw match record within trusted boundary) and `RedactedEvidence` (safe, public immutable record).
+  - Services: `SecretFingerprintService` (canonical `v1|repoId|ruleId|len:secret` format with HMAC-SHA-256) and `SecretRedactionService` (token masking for Google, GitHub, AWS, generic secrets, snippet/text sanitization, and `buildRedactedEvidence`).
+  - Configuration: `SecurityConfigProperties` for `scanpilot.security.hmac-secret-key`.
+- Added 25 unit tests in `SecretFingerprintServiceTest` and `SecretRedactionServiceTest` (126/126 tests passing in total).
+
+### Changed
+
+- Updated `backend/src/main/resources/application.yml` with `scanpilot.security` configuration properties.
+
 ## 2026-08-18 — Layered Content Classifier and File Eligibility Policy (Issue #15)
 
 **Status:** Committed — `3bd1038`

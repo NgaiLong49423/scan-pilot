@@ -24,4 +24,6 @@ scanpilot:
     app-id: ${GITHUB_APP_ID:}
     app-slug: ${GITHUB_APP_SLUG:scan-pilot}
     app-private-key: ${GITHUB_APP_PRIVATE_KEY:}
+  security:
+    hmac-secret-key: ${SCANPILOT_HMAC_SECRET_KEY:default-insecure-dev-hmac-key-for-local-testing-only-32bytes}
 
