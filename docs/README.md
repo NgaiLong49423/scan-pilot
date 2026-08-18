@@ -27,6 +27,7 @@ This directory is the canonical source of product, research, and specification c
 
 ## Design and Lifecycle
 
+- [Local Development and Run Guide](LOCAL-DEVELOPMENT-GUIDE.md)
 - [Architecture Direction](ARCHITECTURE.md)
 - [Cloud Budget and Cost Guardrails](CLOUD-BUDGET.md)
 - [Scan Lifecycle](SCAN-LIFECYCLE.md)
