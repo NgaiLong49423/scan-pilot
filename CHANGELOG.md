@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.27.0
+> **Version:** v2.28.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-17
+> **Last Updated:** 2026-08-18
 > **Status:** Active
 
 # Scan Pilot Changelog
@@ -10,6 +10,21 @@
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
+
+## 2026-08-18 — CI Delivery Automation and Submission MVP Issue Decomposition (Issue #18)
+
+**Status:** Committed — `feab6fa`
+
+**Scope:** Decomposed Submission MVP requirements into GitHub Issues #14 through #24, synchronized with GitHub Project #13, and implemented GitHub Actions CI workflow for frontend and backend under Issue `#18`.
+
+### Added
+
+- Added `.github/workflows/ci.yml` with dual parallel jobs: frontend lint/build (Node.js 20, npm cache) and backend verify (Java 21 Temurin, Maven cache) with least-privilege `permissions: { contents: read }`.
+- Added numbered draft issues and updated `.agents/outputs/drafts/github-issues/ISSUE_INDEX.md` with live issue links for Issues #14 through #24.
+
+### Changed
+
+- Updated `.agents/outputs/drafts/github-issues/ISSUE_INDEX.md` status to Created.
 
 ## 2026-08-17 — Delivery Automation Staging Policy
 
