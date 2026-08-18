@@ -3,6 +3,8 @@ package com.scanpilot.auth.service;
 import com.scanpilot.auth.config.AuthConfigProperties;
 import com.scanpilot.auth.dto.GitHubUserDto;
 import com.scanpilot.auth.model.UserSession;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 
@@ -14,16 +16,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class SessionService {
 
     private final AuthConfigProperties properties;
     private final SecureRandom secureRandom = new SecureRandom();
     private final Map<String, UserSession> sessionStore = new ConcurrentHashMap<>();
-
-    public SessionService(AuthConfigProperties properties) {
-        this.properties = properties;
-    }
 
     public UserSession createSession(GitHubUserDto user, String accessToken) {
         return createSession(
@@ -80,6 +80,18 @@ public class SessionService {
         }
 
         return Optional.of(session);
+    }
+
+    public Optional<UserSession> updateInstallationId(String sessionId, Long installationId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return Optional.empty();
+        }
+
+        UserSession updated = sessionStore.computeIfPresent(sessionId, (key, existing) ->
+                existing.withInstallationId(installationId)
+        );
+
+        return Optional.ofNullable(updated);
     }
 
     public void invalidateSession(String sessionId) {

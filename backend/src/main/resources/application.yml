@@ -20,4 +20,8 @@ scanpilot:
     cookie-secure: ${COOKIE_SECURE:false}
     session-ttl-seconds: ${SESSION_TTL_SECONDS:604800}
     state-ttl-seconds: ${STATE_TTL_SECONDS:600}
+  github:
+    app-id: ${GITHUB_APP_ID:}
+    app-slug: ${GITHUB_APP_SLUG:scan-pilot}
+    app-private-key: ${GITHUB_APP_PRIVATE_KEY:}
 

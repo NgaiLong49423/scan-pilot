@@ -1,18 +1,32 @@
 package com.scanpilot.auth.model;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
+
 import java.time.Instant;
 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@ToString(exclude = {"accessToken"})
 public class UserSession {
 
-    private final String sessionId;
-    private final Long githubUserId;
-    private final String login;
-    private final String name;
-    private final String avatarUrl;
-    private final String email;
-    private final String accessToken;
-    private final Instant createdAt;
-    private final Instant expiresAt;
+    private String sessionId;
+    private Long githubUserId;
+    private String login;
+    private String name;
+    private String avatarUrl;
+    private String email;
+    private String accessToken;
+    private Long installationId;
+    private Instant createdAt;
+    private Instant expiresAt;
 
     public UserSession(
             String sessionId,
@@ -25,54 +39,22 @@ public class UserSession {
             Instant createdAt,
             Instant expiresAt
     ) {
-        this.sessionId = sessionId;
-        this.githubUserId = githubUserId;
-        this.login = login;
-        this.name = name;
-        this.avatarUrl = avatarUrl;
-        this.email = email;
-        this.accessToken = accessToken;
-        this.createdAt = createdAt;
-        this.expiresAt = expiresAt;
+        this(sessionId, githubUserId, login, name, avatarUrl, email, accessToken, null, createdAt, expiresAt);
     }
 
-    public String getSessionId() {
-        return sessionId;
-    }
-
-    public Long getGithubUserId() {
-        return githubUserId;
-    }
-
-    public String getLogin() {
-        return login;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public String getAvatarUrl() {
-        return avatarUrl;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    /**
-     * Server-only access token. Must never be exposed via public APIs or logs.
-     */
-    public String getAccessToken() {
-        return accessToken;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public Instant getExpiresAt() {
-        return expiresAt;
+    public UserSession withInstallationId(Long newInstallationId) {
+        return new UserSession(
+                this.sessionId,
+                this.githubUserId,
+                this.login,
+                this.name,
+                this.avatarUrl,
+                this.email,
+                this.accessToken,
+                newInstallationId,
+                this.createdAt,
+                this.expiresAt
+        );
     }
 
     public boolean isExpired() {
@@ -80,6 +62,6 @@ public class UserSession {
     }
 
     public boolean isExpired(Instant now) {
-        return now.isAfter(expiresAt);
+        return expiresAt != null && now.isAfter(expiresAt);
     }
 }
