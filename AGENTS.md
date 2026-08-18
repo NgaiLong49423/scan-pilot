@@ -147,7 +147,7 @@ Exact infrastructure choices listed as open in `docs/DECISIONS.md` remain unreso
 ## Git Checkpoint Policy
 
 - Scan Pilot is a solo project. Use a lightweight workflow: keep `main` stable and use one working branch for each coherent large workstream.
-- Documentation research and specification may share a branch such as `codex/docs-research-specification`; a large implementation feature should use its own branch such as `codex/secret-scanning`.
+- Documentation research and specification may share a branch such as `docs/research-specification`; a large implementation feature should use its own branch such as `feature/secret-scanning`.
 - Small documentation corrections may stay on the current working branch. Do not create a new branch or pull request for every minor edit.
 - Outside active `FULL_TRACKED` governance, a pull request is optional for a large feature or checkpoint when reviewing the complete diff would be useful. Do not introduce `develop`, `release`, or `hotfix` branches unless a later accepted need justifies them.
 - Do not create a commit after each file edit, discussion, or individual accepted decision.
@@ -177,7 +177,7 @@ Exact infrastructure choices listed as open in `docs/DECISIONS.md` remain unreso
 > **Primary Implementer:** Antigravity
 > **Executable work tracker:** GitHub Issues in `NgaiLong49423/scan-pilot`
 > **Operational status board:** GitHub Project #13
-> **Branch convention:** `codex/<issue-number>-<short-kebab-name>`
+> **Branch convention:** `feature/<issue-number>-<short-kebab-name>`
 > **Local coordination directory:** `.agent-work/` (Git-ignored; no secrets)
 
 The Integration Check **PASSED** on 2026-08-17:

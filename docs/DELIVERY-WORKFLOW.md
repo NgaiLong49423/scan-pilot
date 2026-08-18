@@ -71,7 +71,7 @@ The instruction does not authorize creating unrelated Issues, closing the Issue,
 
 - Keep `main` stable.
 - Prefer one branch per coherent checkpoint or large workstream rather than one branch for every small child task.
-- Use the project-defined branch convention. Scan Pilot currently uses `codex/<issue-number>-<short-kebab-name>`; the reusable skill does not prescribe a prefix.
+- Use the project-defined branch convention. Scan Pilot currently uses `feature/<issue-number>-<short-kebab-name>` (or `fix/`, `docs/`, `ci/`); the reusable skill does not prescribe a prefix.
 - Do not combine unrelated Issues merely to reduce branch or commit count.
 - Reference the active Issue in progress reports and checkpoint proposals.
 

@@ -65,8 +65,8 @@ tự kiểm tra
 merge vào main sau khi được cho phép
 ```
 
-- Công việc nghiên cứu và đặc tả tài liệu có thể dùng chung branch `codex/docs-research-specification`.
-- Một feature lớn nên có branch riêng, ví dụ `codex/secret-scanning`.
+- Công việc nghiên cứu và đặc tả tài liệu có thể dùng chung branch `docs/research-specification`.
+- Một feature lớn nên có branch riêng, ví dụ `feature/secret-scanning`.
 - Sửa chính tả hoặc tài liệu rất nhỏ có thể thực hiện trên branch đang làm.
 - `main` phải giữ trạng thái ổn định trước demo hoặc release.
 - Pull Request hữu ích để tự review diff của feature hoặc checkpoint lớn, nhưng không bắt buộc cho mọi chỉnh sửa tài liệu nhỏ.
@@ -92,7 +92,7 @@ Backlog → Planning → In Progress → Review → Done
 
 `Blocked` là nhãn bổ sung, không phải trạng thái thay thế. Một item vẫn giữ trạng thái công việc hiện tại và ghi rõ điều kiện đang chặn.
 
-Nhánh thực thi nên có dạng `codex/<issue-number>-<short-description>`. Commit hoặc Pull Request dùng `Refs #N` khi chưa được phép đóng Issue. Chỉ dùng `Closes #N` khi Product Owner đã cho phép cơ chế đóng tự động. Agent không tự chuyển item sang `Done`, đóng Issue, commit, push, tạo hoặc merge Pull Request nếu chưa có sự cho phép tương ứng.
+Nhánh thực thi nên có dạng `feature/<issue-number>-<short-description>` (hoặc `fix/`, `docs/`, `ci/`, `test/`). Commit hoặc Pull Request dùng `Refs #N` khi chưa được phép đóng Issue. Chỉ dùng `Closes #N` khi Product Owner đã cho phép cơ chế đóng tự động. Agent không tự chuyển item sang `Done`, đóng Issue, commit, push, tạo hoặc merge Pull Request nếu chưa có sự cho phép tương ứng.
 
 Quy trình đầy đủ nằm tại [`docs/DELIVERY-WORKFLOW.md`](docs/DELIVERY-WORKFLOW.md).
 
