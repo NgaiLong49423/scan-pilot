@@ -11,6 +11,20 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-18 — Snapshot and Git History Scan Pipeline with Finding Lifecycle (Issue #23)
+
+**Status:** Committed — `8f8c331`
+
+**Scope:** Implemented end-to-end Scan Pipeline (`ScanPipelineService`), Finding Lifecycle Engine (`FindingLifecycleEngine` for `OPEN/ACTION_REQUIRED` -> `RESOLVED/RISK_CONTAINED` -> `RESOLVED/VERIFIED_COMPLETE` -> `REGRESSED/ACTION_REQUIRED`), disposable workspace manager with guaranteed recursive cleanup (`GitWorkspaceManager`), and REST scan endpoints under Issue `#23`.
+
+### Added
+
+- Added `com.scanpilot.scanner.workspace` package containing `GitWorkspace` and `GitWorkspaceManager` with isolated directory creation and guaranteed recursive deletion.
+- Added `com.scanpilot.scanner.lifecycle` package containing `FindingLifecycleEngine` mapping finding states and remediation qualities across sequential scans.
+- Added `com.scanpilot.scanner.pipeline` package containing `ScanPipelineService` orchestrating Stage 1 snapshot scan, Stage 2 Git history scan, coverage recording, finding normalization, and checkpoint advancement.
+- Added `com.scanpilot.scanner.controller` package containing `ScanController` (`/api/v1/scans`) for trigger scan, job status, findings list, and coverage reports.
+- Added 18 unit and integration tests across lifecycle, workspace, pipeline, and controller test suites (179/179 tests passing in total).
+
 ## 2026-08-18 — PostgreSQL Core Persistence and Repositories (Issue #22)
 
 **Status:** Committed — `5f6017a`
