@@ -11,6 +11,18 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-19 — Frontend AI Studio Integration & Cloud Run Dual-Origin (Issue #37)
+
+**Status:** Committed — `ebe659b`
+
+**Scope:** Implemented dynamic `VITE_API_BASE_URL` resolution, TypeScript environment typings, and step-by-step Google AI Studio synchronization and deployment runbook under Issue `#37`.
+
+### Added
+
+- Updated `frontend/src/api/client.ts` and `authApi.ts` with dynamic `VITE_API_BASE_URL` prefixing and `getBaseUrl` accessor.
+- Added `frontend/src/vite-env.d.ts` declaring typed Vite environment variables.
+- Added `docs/AI-STUDIO-DEPLOYMENT-GUIDE.md` detailing step-by-step sync, environment variable configuration, and native Cloud Run publishing from Google AI Studio.
+
 ## 2026-08-19 — Backend Cloud Run Dockerfile & Multi-Origin CORS (Issue #36)
 
 **Status:** Committed — `4725a3b`
