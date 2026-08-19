@@ -30,6 +30,7 @@ import { CoverageTab } from './components/CoverageTab';
 import { CardSkeleton, MetricSkeleton } from './components/LoadingSkeleton';
 import { EmptyState } from './components/EmptyState';
 import { ErrorBanner } from './components/ErrorBanner';
+import { Footer } from './components/Footer';
 
 export default function App() {
   // Global & Session State
@@ -83,7 +84,7 @@ export default function App() {
     setIsLoadingInitial(true);
     setGlobalError(null);
     try {
-      // Fetch authenticated user
+      // Fetch authenticated user (gracefully returns null if guest)
       const currentUser = await authApi.getMe();
       setUser(currentUser);
 
@@ -100,8 +101,8 @@ export default function App() {
           ]);
         }
       }
-    } catch (err: any) {
-      setGlobalError(err?.message || 'Failed to initialize Scan Pilot dashboard.');
+    } catch {
+      // Silent on guest load
     } finally {
       setIsLoadingInitial(false);
     }
@@ -585,6 +586,9 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Modern Bento Dark Slate Footer */}
+      <Footer />
 
       {/* Repository Selection & Branch Slot Modal (UC-002) */}
       <RepoSelectorModal

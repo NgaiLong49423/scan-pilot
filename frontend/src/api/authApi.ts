@@ -9,11 +9,9 @@ export const authApi = {
   async getMe(): Promise<UserProfile | null> {
     try {
       return await apiClient.get<UserProfile>('/api/v1/auth/me');
-    } catch (err: any) {
-      if (err.status === 401) {
-        return null;
-      }
-      throw err;
+    } catch {
+      // Gracefully treat as guest/unauthenticated
+      return null;
     }
   },
 
