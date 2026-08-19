@@ -21,7 +21,8 @@ export const authApi = {
    * Returns the GitHub OAuth login URL.
    */
   getLoginUrl(): string {
-    return '/api/v1/auth/github/login';
+    const base = apiClient.getBaseUrl();
+    return `${base}/api/v1/auth/github/login`;
   },
 
   /**
