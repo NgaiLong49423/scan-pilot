@@ -1,3 +1,10 @@
+> **Document:** AI Studio to Cloud Run CORS Spike  
+> **File:** `spikes/issue-006-ai-studio-cors/README.md`  
+> **Version:** v1.0.0  
+> **Created:** 2026-08-16  
+> **Last Updated:** 2026-08-19  
+> **Status:** Active  
+
 # AI Studio to Cloud Run CORS Spike
 
 Temporary, credential-free code for Scan Pilot Eligibility Spike Issue #6.

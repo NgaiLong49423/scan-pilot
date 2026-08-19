@@ -45,5 +45,14 @@ scanpilot:
     binary-path: ${GITLEAKS_BINARY_PATH:gitleaks}
     timeout-seconds: ${GITLEAKS_TIMEOUT_SECONDS:60}
     policy-resource-path: ${GITLEAKS_POLICY_PATH:policies/sp-config-001-gitleaks.toml}
+  ai:
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+      model: ${GEMINI_MODEL:gemini-1.5-flash}
+      base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
+      timeout-seconds: ${GEMINI_TIMEOUT_SECONDS:15}
+      enabled: ${GEMINI_ENABLED:true}
+      cache-ttl-seconds: ${GEMINI_CACHE_TTL_SECONDS:3600}
+
 
 

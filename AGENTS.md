@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Agent Instructions
 > **File:** `AGENTS.md`
-> **Version:** v2.3.0
+> **Version:** v2.4.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-17
+> **Last Updated:** 2026-08-19
 > **Status:** Active
 
 # Agent Instructions
@@ -127,6 +127,25 @@ Exact infrastructure choices listed as open in `docs/DECISIONS.md` remain unreso
 - Do not propose an architecture that intentionally exceeds the accepted two-month USD 250 planning envelope without explicit user acceptance.
 - Do not treat promotional credit as guaranteed cash or as a reason to add paid services, always-on capacity, or product scope.
 - Every material paid-service proposal must include a current estimate, cheaper alternative, cost controls, credit-expiry behavior, and verification limit.
+
+## Installed Agent Skills & Trigger Map
+
+All agent skills are installed in `.agents/skill/`. Agents must consult and apply these canonical skills for their respective domains:
+
+| Skill Name | Canonical Path | Trigger & Usage Scope |
+|---|---|---|
+| **Lean Code Crafting (Ponytail)** | `.agents/skill/ponytail/SKILL.md` | Mandatory for all code writing, refactoring, designing, and dependency selection. Enforces the 7-rung ladder, YAGNI, and stdlib/native-first approach. |
+| **Over-Engineering Review** | `.agents/skill/ponytail-review/SKILL.md` | Mandatory for PR reviews and pre-commit self-checks. Identifies speculative abstractions, single-implementation interfaces, and bloat. |
+| **Technical Debt Ledger** | `.agents/skill/ponytail-debt/SKILL.md` | Use when auditing MVP simplifications or harvesting `// ponytail:` comment markers. |
+| **Frontend Design Taste & Human UX** | `.agents/skill/design-taste-frontend/SKILL.md` | Mandatory for all React, Tailwind, and UI tasks. Enforces "Security for Humans" (plain-language summaries, before/after fix diffs, secret masking, reassuring empty states, and WCAG AA contrast). |
+| **UI/UX Design Audit** | `.agents/skill/ui-design-audit/SKILL.md` | Mandatory for reviewing Frontend PRs, ensuring beginner-friendly usability, accessibility, and visual polish. |
+| **Full Output Enforcement** | `.agents/skill/full-output-enforcement/SKILL.md` | Mandatory across all implementation tasks. Strictly bans `// TODO`, `// rest of code`, and truncated outputs. |
+| **Platform-Native Cheat-Sheet** | `.agents/docs/platform-native-cheatsheet.md` | Reference guide for Java 21, Spring Boot 3, PostgreSQL, and Web APIs native features. |
+| **Agent Delivery Governance** | `.agents/skill/agent-delivery-governance/SKILL.md` | Mandatory for `FULL_TRACKED` delivery workflow, PO ratifications, and Codex PR reviews. |
+| **GitHub Issue Delivery** | `.agents/skill/github-issue-delivery/SKILL.md` | Mandatory for executing assigned GitHub Issues. |
+| **SRS to GitHub Issues** | `.agents/skill/srs-to-github-issues/SKILL.md` | Use when decomposing approved specifications into actionable GitHub Issues. |
+| **Document Metadata Standardizer** | `.agents/skill/document-metadata-standardizer/SKILL.md` | Mandatory when creating, editing, auditing, or standardizing repository Markdown files. |
+| **Changelog Automatic** | `.agents/skill/changelog-automatic/SKILL.md` | Use when updating `CHANGELOG.md` with structured working tree entries. |
 
 ## Documentation Rules
 

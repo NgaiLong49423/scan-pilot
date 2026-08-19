@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.28.0
+> **Version:** v2.29.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-18
+> **Last Updated:** 2026-08-19
 > **Status:** Active
 
 # Scan Pilot Changelog
@@ -10,6 +10,63 @@
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
+
+## 2026-08-19 — Lean Code Crafting, Frontend Design Taste Skills & Agent Trigger Map
+
+**Status:** Committed — `4972a4c`
+
+**Scope:** Audited, integrated, and registered lean code crafting (Ponytail method) and beginner-friendly, anti-slop frontend UI/UX design standards into Scan Pilot canonical instructions and agent skills.
+
+### Added
+
+- Added `.agents/skill/ponytail/SKILL.md` enforcing the 7-rung priority ladder (YAGNI, codebase reuse, stdlib first, native platform features, installed dependencies, one-liner, minimum code) with non-negotiable security/validation boundaries.
+- Added `.agents/skill/ponytail-review/SKILL.md` for reviewing pull requests and diffs specifically to eliminate over-engineering, single-implementation interfaces, and redundant dependencies.
+- Added `.agents/skill/ponytail-debt/SKILL.md` for scanning and managing deliberate MVP shortcuts tagged with `// ponytail:` comment markers into a structured technical debt ledger.
+- Added `.agents/docs/platform-native-cheatsheet.md` providing a comprehensive reference for Java 21, Spring Boot 3, PostgreSQL, HTML5, CSS3, and modern Web APIs native capabilities.
+- Added `.agents/skill/design-taste-frontend/SKILL.md` establishing high-taste, beginner-friendly UI/UX directives ("Security for Humans", plain-language finding summaries, one-click before/after remediation diffs, secret masking, reassuring empty states, and WCAG AA contrast).
+- Added `.agents/skill/full-output-enforcement/SKILL.md` preventing AI code truncation and banning lazy placeholders (`// TODO`, `// rest of code`).
+- Added `.agents/skill/ui-design-audit/SKILL.md` providing a comprehensive UI/UX audit checklist for Frontend pull requests and views.
+
+### Changed
+
+- Updated `AGENTS.md` to `v2.4.0` adding a canonical `Installed Agent Skills & Trigger Map` table defining mandatory triggers and usage scopes for all installed skills.
+- Standardized document metadata headers across all agent skills (`changelog-automatic`, `document-metadata-standardizer`, `repo-template-doc-sync-auditor`, `srs-to-github-issues`) and spike documents (`spikes/issue-006-ai-studio-cors/README.md`, `spikes/issue-007-github-oauth/README.md`).
+- Updated `database/README.md` to `v1.0.0` (Active) reflecting the implemented PostgreSQL core schema (`V1__init_core_schema.sql`), JPA entities, and repositories.
+
+## 2026-08-19 — Gemini AI Explanation and Remediation Guidance Service (Issue #16)
+
+**Status:** Committed — `b8caeec`
+
+**Scope:** Implemented Gemini AI Explanation and Remediation Guidance Service (`GeminiExplanationService`, `GeminiApiClient`) with structured JSON outputs, rule family fallback templates, fingerprint caching, and `AI_INFERENCE` evidence persistence under Issue `#16`.
+
+### Added
+
+- Added `com.scanpilot.ai.gemini` package containing:
+  - Configuration: `GeminiConfigProperties` for `scanpilot.ai.gemini`.
+  - Models: `GeminiExplanationRequest` and `GeminiExplanationResponse` records carrying plain-language summaries, risk impacts, evidence limits, remediation steps, remediation diffs, and revocation commands.
+  - Services: `GeminiApiClient` (Spring 6 `RestClient` calling Google GenAI REST API with `response_mime_type: "application/json"`) and `GeminiExplanationService` (defensive zero-secret validation, `ConcurrentHashMap` TTL caching, deterministic fallback guidance, and `AI_INFERENCE` persistence).
+  - Controller: `AiExplanationController` (`/api/v1/ai`) with endpoints `POST /findings/{findingId}/explain` and `GET /findings/{findingId}/explanation`.
+- Added 16 comprehensive unit and integration tests in `GeminiExplanationServiceTest` and `AiExplanationControllerTest` (195/195 tests passing in total).
+
+### Changed
+
+- Updated `backend/src/main/resources/application.yml` with `scanpilot.ai.gemini` configuration properties.
+
+## 2026-08-19 — Lean Code Crafting & Human-Centric Frontend Design Taste Skills
+
+**Status:** Working tree
+
+**Scope:** Audited and integrated lean development philosophy (Ponytail method) and beginner-friendly, anti-slop frontend UI/UX design standards into Scan Pilot agent skills without external scripts or supply-chain attack surface.
+
+### Added
+
+- Added `.agents/skill/ponytail/SKILL.md` enforcing the 7-rung priority ladder (YAGNI, codebase reuse, stdlib first, native platform features, installed dependencies, one-liner, minimum code) with non-negotiable security/validation boundaries.
+- Added `.agents/skill/ponytail-review/SKILL.md` for reviewing pull requests and diffs specifically to eliminate over-engineering, single-implementation interfaces, and redundant dependencies.
+- Added `.agents/skill/ponytail-debt/SKILL.md` for scanning and managing deliberate MVP shortcuts tagged with `// ponytail:` comment markers into a structured technical debt ledger.
+- Added `.agents/docs/platform-native-cheatsheet.md` providing a comprehensive reference for Java 21, Spring Boot 3, PostgreSQL, HTML5, CSS3, and modern Web APIs native capabilities.
+- Added `.agents/skill/design-taste-frontend/SKILL.md` establishing high-taste, beginner-friendly UI/UX directives ("Security for Humans", plain-language finding summaries, one-click before/after remediation diffs, secret masking, reassuring empty states, and WCAG AA contrast).
+- Added `.agents/skill/full-output-enforcement/SKILL.md` preventing AI code truncation and banning lazy placeholders (`// TODO`, `// rest of code`).
+- Added `.agents/skill/ui-design-audit/SKILL.md` providing a comprehensive UI/UX audit checklist for Frontend pull requests and views.
 
 ## 2026-08-18 — Snapshot and Git History Scan Pipeline with Finding Lifecycle (Issue #23)
 

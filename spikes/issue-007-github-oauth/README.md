@@ -1,3 +1,10 @@
+> **Document:** Issue #7 GitHub OAuth Spike  
+> **File:** `spikes/issue-007-github-oauth/README.md`  
+> **Version:** v1.0.0  
+> **Created:** 2026-08-16  
+> **Last Updated:** 2026-08-19  
+> **Status:** Active  
+
 # Issue #7 GitHub OAuth Spike
 
 Temporary Cloud Run service for the AI Riser Eligibility Spike. It verifies a
