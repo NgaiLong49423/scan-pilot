@@ -25,8 +25,24 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.springframework.test.context.TestPropertySource;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 @SpringBootTest
 @AutoConfigureMockMvc
+@TestPropertySource(properties = {
+        "scanpilot.auth.client-id=test-client-id",
+        "scanpilot.auth.frontend-url=http://localhost:3000"
+})
 class AuthControllerTest {
 
     @Autowired
@@ -44,14 +60,25 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/v1/auth/github/login redirects to GitHub OAuth authorize URL")
+    @DisplayName("GET /api/v1/auth/github/login redirects to GitHub OAuth authorize URL when client_id is set")
     void testLoginWithGitHubRedirects() throws Exception {
-        String mockAuthorizeUrl = "https://github.com/login/oauth/authorize?client_id=test-id&redirect_uri=http://localhost:8080/callback&state=xyz123";
+        String mockAuthorizeUrl = "https://github.com/login/oauth/authorize?client_id=test-client-id&redirect_uri=http://localhost:8080/callback&state=xyz123";
         when(gitHubOAuthService.generateAuthorizationUrl()).thenReturn(mockAuthorizeUrl);
 
         mockMvc.perform(get("/api/v1/auth/github/login"))
                 .andExpect(status().isFound())
                 .andExpect(header().string(HttpHeaders.LOCATION, mockAuthorizeUrl));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/auth/dev-login creates session and sets cookie for local dev")
+    void testDevLogin() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/dev-login"))
+                .andExpect(status().isFound())
+                .andExpect(header().string(HttpHeaders.LOCATION, "http://localhost:3000"))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("SCANPILOT_SESSION=")));
+
+        assertThat(sessionService.getActiveSessionCount()).isEqualTo(1);
     }
 
     @Test
@@ -70,7 +97,7 @@ class AuthControllerTest {
                         .param("code", code)
                         .param("state", state))
                 .andExpect(status().isFound())
-                .andExpect(header().string(HttpHeaders.LOCATION, "http://localhost:5173"))
+                .andExpect(header().string(HttpHeaders.LOCATION, "http://localhost:3000"))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("SCANPILOT_SESSION=")))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("HttpOnly")))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("SameSite=Lax")));
@@ -87,7 +114,7 @@ class AuthControllerTest {
                         .param("code", "some-code")
                         .param("state", "invalid_state"))
                 .andExpect(status().isFound())
-                .andExpect(header().string(HttpHeaders.LOCATION, "http://localhost:5173?auth_error=invalid_state"));
+                .andExpect(header().string(HttpHeaders.LOCATION, "http://localhost:3000?auth_error=invalid_state"));
 
         assertThat(sessionService.getActiveSessionCount()).isEqualTo(0);
     }
@@ -99,7 +126,7 @@ class AuthControllerTest {
                         .param("error", "access_denied")
                         .param("error_description", "The user has denied your application access."))
                 .andExpect(status().isFound())
-                .andExpect(header().string(HttpHeaders.LOCATION, "http://localhost:5173?auth_error=access_denied"));
+                .andExpect(header().string(HttpHeaders.LOCATION, "http://localhost:3000?auth_error=access_denied"));
     }
 
     @Test
@@ -110,7 +137,7 @@ class AuthControllerTest {
         mockMvc.perform(get("/api/v1/auth/github/callback")
                         .param("state", "valid_state"))
                 .andExpect(status().isFound())
-                .andExpect(header().string(HttpHeaders.LOCATION, "http://localhost:5173?auth_error=missing_code"));
+                .andExpect(header().string(HttpHeaders.LOCATION, "http://localhost:3000?auth_error=missing_code"));
     }
 
     @Test
@@ -123,7 +150,7 @@ class AuthControllerTest {
                         .param("code", "code")
                         .param("state", "valid_state"))
                 .andExpect(status().isFound())
-                .andExpect(header().string(HttpHeaders.LOCATION, "http://localhost:5173?auth_error=oauth_failed"));
+                .andExpect(header().string(HttpHeaders.LOCATION, "http://localhost:3000?auth_error=oauth_failed"));
     }
 
     @Test
