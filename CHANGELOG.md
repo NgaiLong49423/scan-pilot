@@ -11,6 +11,36 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-19 — React Dashboard Integration with Real Backend REST APIs (Issue #17)
+
+**Status:** Committed — `58e3329`
+
+**Scope:** Connected the React + TypeScript + Vite frontend with real Spring Boot backend REST APIs, replacing mock state with live GitHub OAuth authentication, repository selection, real-time scan job polling, finding details with Gemini AI remediation guides, before/after code diffs, finding lifecycle tracking, and coverage audit reporting under Issue `#17`.
+
+### Added
+
+- Added `frontend/src/types/api.ts` defining TypeScript interfaces matching all backend DTOs (`UserProfile`, `GitHubRepository`, `MonitoredProject`, `ScanJob`, `Finding`, `FindingLocation`, `EvidenceItem`, `AiExplanation`, `CoverageSummary`, `CoverageItem`, `ScanTriggerResponse`).
+- Added `frontend/src/api/` package containing:
+  - `client.ts`: Native `fetch` HTTP client with `credentials: 'include'` and status-aware error throwing.
+  - `authApi.ts`: Endpoints for `/api/v1/auth/*` (`getMe`, `getLoginUrl`, `logout`).
+  - `githubApi.ts`: Endpoints for `/api/v1/github/*` (`getAccessibleRepositories`, `getInstallUrl`).
+  - `projectsApi.ts`: Endpoints for `/api/v1/projects/*` (`getCurrentProject`, `selectRepository`, `updateBranches`).
+  - `scansApi.ts`: Endpoints for `/api/v1/scans/*` (`triggerScan`, `getScanJob`, `getFindings`, `getCoverage`).
+  - `aiApi.ts`: Endpoints for `/api/v1/ai/*` (`explainFinding`, `getFindingExplanation`).
+- Added `frontend/src/components/` package containing:
+  - `Header.tsx`: Brand header with user profile avatar, active repository badge, view navigation, and sign-in/out controls.
+  - `RepoSelectorModal.tsx`: Modal for browsing and selecting GitHub repositories and configuring branch slots.
+  - `ScanProgressBar.tsx`: Real-time polling indicator for `PENDING` -> `RUNNING` -> `COMPLETED`/`FAILED` scan jobs.
+  - `FindingCard.tsx`: Finding card with masked secret preview, redacted snippet, severity badges, lifecycle badges, and remediation quality badges.
+  - `AiRemediationGuide.tsx`: Gemini AI guidance displaying plain-language summary, risk impact, evidence limits, interactive checklist, before/after diff preview, and copyable key revocation command.
+  - `CoverageTab.tsx`: File classification audit tab with metric cards, segmented ratio bar, and filterable skipped files table.
+  - `LoadingSkeleton.tsx`, `EmptyState.tsx`, `ErrorBanner.tsx`: UI state completeness components (WCAG AA compliant, `tabular-nums` for numeric stability).
+
+### Changed
+
+- Updated `frontend/src/App.tsx` with complete end-to-end state management, live data fetching, polling, and view routing.
+- Updated `frontend/vite.config.ts` configuring API proxy (`/api` -> `http://localhost:8080`) on dev server port 3000.
+
 ## 2026-08-19 — Canonical SRS, Use Cases (UC-001 - UC-006) & Non-Functional Requirements (NFR-001 - NFR-010)
 
 **Status:** Committed — `2be23d2`

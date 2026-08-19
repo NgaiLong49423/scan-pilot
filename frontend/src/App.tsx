@@ -1,454 +1,598 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
-  ShieldAlert, ShieldCheck, Shield, ChevronRight, AlertTriangle, 
-  Search, ArrowLeft, Code, Cpu, GitBranch, Clock, 
-  CheckCircle, RefreshCw, Info, CheckSquare, Square,
-  Terminal
+  ShieldCheck, 
+  Search, 
+  GitBranch, 
+  RefreshCw, 
+  AlertTriangle,
+  Play,
+  Github,
+  ExternalLink,
+  Filter,
+  CheckSquare,
+  Layers
 } from 'lucide-react';
-
-// --- Types ---
-
-type AttentionStatus = 'Critical' | 'Warning' | 'Secure';
-type FindingStatus = 'OPEN' | 'RESOLVED' | 'SCANNING...';
-type RemediationQuality = 'ACTION_REQUIRED' | 'RISK_CONTAINED' | 'VERIFIED_COMPLETE';
-
-interface Repository {
-  id: string;
-  name: string;
-  branch: string;
-  lastScanned: string;
-  findingCount: number;
-  attentionStatus: AttentionStatus;
-}
-
-interface Finding {
-  id: string;
-  ruleId: string;
-  ruleName: string;
-  severity: 'High';
-  status: FindingStatus;
-  remediationQuality: RemediationQuality;
-  filePath: string;
-  lineNumber: number;
-  snippet: string;
-}
-
-// --- Prototype Data ---
-
-const PROTOTYPE_REPOS: Repository[] = [
-  {
-    id: 'repo-1',
-    name: 'acme-corp/ai-service-frontend',
-    branch: 'main',
-    lastScanned: '2m ago',
-    findingCount: 3,
-    attentionStatus: 'Critical',
-  },
-  {
-    id: 'repo-2',
-    name: 'acme-corp/auth-backend',
-    branch: 'staging',
-    lastScanned: '1h ago',
-    findingCount: 0,
-    attentionStatus: 'Secure',
-  },
-  {
-    id: 'repo-3',
-    name: 'acme-corp/data-pipeline',
-    branch: 'feature/ml-model',
-    lastScanned: '45m ago',
-    findingCount: 1,
-    attentionStatus: 'Warning',
-  }
-];
-
-const INITIAL_FINDING: Finding = {
-  id: 'find-001',
-  ruleId: 'SP-CONFIG-001',
-  ruleName: 'Source Code Secret Exposure',
-  severity: 'High',
-  status: 'OPEN',
-  remediationQuality: 'ACTION_REQUIRED',
-  filePath: 'src/config/ai-client.ts',
-  lineNumber: 42,
-  snippet: 'const GEMINI_API_KEY = "AIza...REDACTED";',
-};
-
-// --- Components ---
+import { 
+  UserProfile, 
+  MonitoredProject, 
+  Finding, 
+  CoverageSummary, 
+  ScanJob
+} from './types/api';
+import { authApi } from './api/authApi';
+import { projectsApi } from './api/projectsApi';
+import { scansApi } from './api/scansApi';
+import { Header } from './components/Header';
+import { RepoSelectorModal } from './components/RepoSelectorModal';
+import { ScanProgressBar } from './components/ScanProgressBar';
+import { FindingCard } from './components/FindingCard';
+import { CoverageTab } from './components/CoverageTab';
+import { CardSkeleton, MetricSkeleton } from './components/LoadingSkeleton';
+import { EmptyState } from './components/EmptyState';
+import { ErrorBanner } from './components/ErrorBanner';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'dashboard' | 'repository'>('dashboard');
-  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
+  // Global & Session State
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [project, setProject] = useState<MonitoredProject | null>(null);
+  const [activeTab, setActiveTab] = useState<'findings' | 'coverage'>('findings');
+  const [isRepoModalOpen, setIsRepoModalOpen] = useState(false);
 
-  const navigateToRepo = (repo: Repository) => {
-    setSelectedRepo(repo);
-    setCurrentView('repository');
+  // Data State
+  const [findings, setFindings] = useState<Finding[]>([]);
+  const [coverage, setCoverage] = useState<CoverageSummary | null>(null);
+  const [selectedBranch, setSelectedBranch] = useState<string>('main');
+
+  // Scan Job & Polling State
+  const [activeScanJob, setActiveScanJob] = useState<ScanJob | null>(null);
+  const [isTriggeringScan, setIsTriggeringScan] = useState(false);
+  const pollingTimerRef = useRef<number | null>(null);
+
+  // Filter & Search State
+  const [severityFilter, setSeverityFilter] = useState<string>('ALL');
+  const [lifecycleFilter, setLifecycleFilter] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Loading & Error States (4-state completeness)
+  const [isLoadingInitial, setIsLoadingInitial] = useState(true);
+  const [isLoadingFindings, setIsLoadingFindings] = useState(false);
+  const [isLoadingCoverage, setIsLoadingCoverage] = useState(false);
+  const [globalError, setGlobalError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // 1. Initial Load & OAuth Error Handling
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const authErr = urlParams.get('auth_error') || urlParams.get('error');
+    if (authErr) {
+      setAuthError(`GitHub Authentication Notice: ${authErr.replace(/_/g, ' ')}`);
+      // Clean query string without page reload
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    bootstrapApp();
+
+    return () => {
+      if (pollingTimerRef.current) {
+        clearInterval(pollingTimerRef.current);
+      }
+    };
+  }, []);
+
+  const bootstrapApp = async () => {
+    setIsLoadingInitial(true);
+    setGlobalError(null);
+    try {
+      // Fetch authenticated user
+      const currentUser = await authApi.getMe();
+      setUser(currentUser);
+
+      if (currentUser) {
+        // Fetch currently monitored project
+        const currentProj = await projectsApi.getCurrentProject();
+        setProject(currentProj);
+
+        if (currentProj) {
+          setSelectedBranch(currentProj.primaryBranch || currentProj.defaultBranch || 'main');
+          await Promise.allSettled([
+            loadFindings(currentProj.id),
+            loadCoverage(currentProj.id),
+          ]);
+        }
+      }
+    } catch (err: any) {
+      setGlobalError(err?.message || 'Failed to initialize Scan Pilot dashboard.');
+    } finally {
+      setIsLoadingInitial(false);
+    }
   };
 
-  const navigateToDashboard = () => {
-    setSelectedRepo(null);
-    setCurrentView('dashboard');
+  const loadFindings = async (repositoryId: string) => {
+    setIsLoadingFindings(true);
+    try {
+      const data = await scansApi.getFindings(repositoryId);
+      setFindings(data || []);
+    } catch (err: any) {
+      setGlobalError(err?.message || 'Failed to load security findings.');
+    } finally {
+      setIsLoadingFindings(false);
+    }
   };
 
-  return (
-    <div className="min-h-screen bg-slate-950 text-slate-300 font-sans flex flex-col">
-      {/* Top Bar Contract */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="bg-blue-600/20 p-2 rounded-lg border border-blue-500/30">
-            <Cpu className="w-5 h-5 text-blue-400" />
-          </div>
-          <span className="text-white font-semibold tracking-tight text-lg">Scan Pilot</span>
-        </div>
-        
-        <nav className="hidden md:flex items-center gap-6">
-          <a href="#" className="text-sm font-medium text-white">Dashboard</a>
-          <a href="#" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Rules</a>
-          <a href="#" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Integrations</a>
-          <a href="#" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Reports</a>
-        </nav>
-        
-        <div className="flex items-center gap-4">
-          <button className="text-sm font-medium text-slate-400 hover:text-white transition-colors flex items-center gap-2">
-            <Info className="w-4 h-4" />
-            <span className="hidden sm:inline">Docs</span>
-          </button>
-          <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
-            <span className="text-xs font-medium text-slate-300">JD</span>
-          </div>
-        </div>
-      </header>
+  const loadCoverage = async (repositoryId: string) => {
+    setIsLoadingCoverage(true);
+    try {
+      const data = await scansApi.getCoverage(repositoryId);
+      setCoverage(data);
+    } catch (err: any) {
+      // 404 is normal before first scan
+      if (err?.status !== 404) {
+        setGlobalError(err?.message || 'Failed to load coverage report.');
+      }
+    } finally {
+      setIsLoadingCoverage(false);
+    }
+  };
 
-      <main className="flex-1 p-6 lg:p-8 max-w-7xl mx-auto w-full">
-        {currentView === 'dashboard' ? (
-          <DashboardView onSelectRepo={navigateToRepo} />
-        ) : (
-          <RepositoryView repo={selectedRepo!} onBack={navigateToDashboard} />
-        )}
-      </main>
-    </div>
-  );
-}
+  // 2. Scan Trigger & Real-Time Polling (UC-003)
+  const handleTriggerScan = async (branchName?: string) => {
+    if (!project) return;
+    const targetBranch = branchName || selectedBranch || project.primaryBranch || 'main';
 
-// --- Dashboard View ---
+    setIsTriggeringScan(true);
+    setGlobalError(null);
 
-function DashboardView({ onSelectRepo }: { onSelectRepo: (repo: Repository) => void }) {
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-white tracking-tight">Monitored Repositories</h1>
-          <p className="text-slate-400 mt-1 text-sm">Security overview of your connected codebases.</p>
-        </div>
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input 
-            type="text" 
-            placeholder="Search repositories..." 
-            className="bg-slate-900 border border-slate-800 rounded-md py-2 pl-9 pr-4 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-full sm:w-64"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4">
-        {PROTOTYPE_REPOS.map((repo) => (
-          <div 
-            key={repo.id}
-            onClick={() => onSelectRepo(repo)}
-            className="group bg-slate-900/40 border border-slate-800/60 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-800/40 hover:border-slate-700 transition-all cursor-pointer"
-          >
-            <div className="flex items-start gap-4">
-              <div className="mt-1">
-                {repo.attentionStatus === 'Critical' && <ShieldAlert className="w-6 h-6 text-rose-500" />}
-                {repo.attentionStatus === 'Warning' && <AlertTriangle className="w-6 h-6 text-amber-500" />}
-                {repo.attentionStatus === 'Secure' && <ShieldCheck className="w-6 h-6 text-emerald-500" />}
-              </div>
-              <div>
-                <h3 className="text-base font-medium text-white group-hover:text-blue-400 transition-colors flex items-center gap-2">
-                  {repo.name}
-                </h3>
-                <div className="flex items-center gap-4 mt-2 text-xs text-slate-400">
-                  <span className="flex items-center gap-1.5 bg-slate-800/50 px-2 py-0.5 rounded-sm border border-slate-700/50">
-                    <GitBranch className="w-3.5 h-3.5" />
-                    {repo.branch}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" />
-                    {repo.lastScanned}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between sm:justify-end gap-6 sm:gap-8 border-t sm:border-t-0 border-slate-800 pt-4 sm:pt-0">
-              <div className="flex flex-col sm:items-end">
-                <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">Findings</span>
-                <span className={`text-lg font-medium tabular-nums ${repo.findingCount > 0 ? 'text-white' : 'text-slate-500'}`}>
-                  {repo.findingCount}
-                </span>
-              </div>
-              <div className="flex flex-col sm:items-end w-32">
-                <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">Status</span>
-                <span className={`text-sm font-medium ${
-                  repo.attentionStatus === 'Critical' ? 'text-rose-400' :
-                  repo.attentionStatus === 'Warning' ? 'text-amber-400' : 'text-emerald-400'
-                }`}>
-                  {repo.attentionStatus}
-                </span>
-              </div>
-              <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-slate-400 hidden sm:block" />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// --- Repository View ---
-
-function RepositoryView({ repo, onBack }: { repo: Repository, onBack: () => void }) {
-  const [finding, setFinding] = useState<Finding>(INITIAL_FINDING);
-  const [isScanning, setIsScanning] = useState(false);
-  const [checklist, setChecklist] = useState({
-    remove: false,
-    revoke: false,
-    history: false,
-  });
-
-  const handleScan = () => {
-    setIsScanning(true);
-    setFinding(prev => ({ ...prev, status: 'SCANNING...' }));
-    
-    // Simulate scan process
-    setTimeout(() => {
-      setFinding(prev => ({ 
-        ...prev, 
-        status: 'RESOLVED',
-        remediationQuality: 'RISK_CONTAINED'
-      }));
+    try {
+      const response = await scansApi.triggerScan(targetBranch, project.id);
       
-      // Simulate follow-up verification
-      setTimeout(() => {
-        setFinding(prev => ({ 
-          ...prev, 
-          remediationQuality: 'VERIFIED_COMPLETE'
-        }));
-        setIsScanning(false);
-      }, 1200);
-      
+      const initialJob: ScanJob = {
+        id: response.jobId,
+        repositoryId: response.repositoryId || project.id,
+        branchName: response.branchName || targetBranch,
+        scanMode: 'CONTINUOUS_MONITORING',
+        status: (response.status as any) || 'PENDING',
+        commitSha: null,
+        durationMs: null,
+        errorMessage: null,
+        startedAt: new Date().toISOString(),
+        completedAt: null,
+      };
+      setActiveScanJob(initialJob);
+
+      // Start real-time polling loop every 1.5 seconds
+      startScanPolling(response.jobId, project.id);
+    } catch (err: any) {
+      setGlobalError(err?.message || 'Failed to trigger security scan.');
+      setIsTriggeringScan(false);
+    }
+  };
+
+  const startScanPolling = (jobId: string, repositoryId: string) => {
+    if (pollingTimerRef.current) {
+      clearInterval(pollingTimerRef.current);
+    }
+
+    pollingTimerRef.current = window.setInterval(async () => {
+      try {
+        const job = await scansApi.getScanJob(jobId);
+        setActiveScanJob(job);
+
+        if (job.status === 'COMPLETED') {
+          if (pollingTimerRef.current) clearInterval(pollingTimerRef.current);
+          setIsTriggeringScan(false);
+          // Refresh findings and coverage silently
+          loadFindings(repositoryId);
+          loadCoverage(repositoryId);
+        } else if (job.status === 'FAILED') {
+          if (pollingTimerRef.current) clearInterval(pollingTimerRef.current);
+          setIsTriggeringScan(false);
+          setGlobalError(job.errorMessage || 'Scan job failed during execution.');
+        }
+      } catch (err: any) {
+        if (pollingTimerRef.current) clearInterval(pollingTimerRef.current);
+        setIsTriggeringScan(false);
+        setGlobalError(err?.message || 'Error polling scan job status.');
+      }
     }, 1500);
   };
 
-  const toggleCheck = (key: keyof typeof checklist) => {
-    setChecklist(prev => ({ ...prev, [key]: !prev[key] }));
+  const handleSelectProjectSuccess = async (newProject: MonitoredProject) => {
+    setProject(newProject);
+    setSelectedBranch(newProject.primaryBranch || newProject.defaultBranch || 'main');
+    await Promise.allSettled([
+      loadFindings(newProject.id),
+      loadCoverage(newProject.id),
+    ]);
   };
 
+  const handleLogout = async () => {
+    try {
+      await authApi.logout();
+      setUser(null);
+      setProject(null);
+      setFindings([]);
+      setCoverage(null);
+    } catch (err: any) {
+      setGlobalError(err?.message || 'Failed to log out.');
+    }
+  };
+
+  const handleLogin = () => {
+    window.location.href = authApi.getLoginUrl();
+  };
+
+  // Filtered findings calculation
+  const filteredFindings = findings.filter((f) => {
+    const matchesSeverity = severityFilter === 'ALL' || f.severity === severityFilter;
+    const matchesLifecycle = lifecycleFilter === 'ALL' || f.lifecycle === lifecycleFilter;
+    const matchesSearch = 
+      f.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      f.ruleId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      f.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (f.locations && f.locations.some((l) => l.filePath.toLowerCase().includes(searchQuery.toLowerCase())));
+
+    return matchesSeverity && matchesLifecycle && matchesSearch;
+  });
+
+  const openFindingsCount = findings.filter((f) => f.lifecycle === 'OPEN').length;
+  const resolvedFindingsCount = findings.filter((f) => f.lifecycle === 'RESOLVED').length;
+
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-      <div className="flex items-center gap-4">
-        <button 
-          onClick={onBack}
-          className="p-2 -ml-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          aria-label="Back to dashboard"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-semibold text-white tracking-tight">{repo.name}</h1>
-            <span className="flex items-center gap-1 text-xs font-medium bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700">
-              <GitBranch className="w-3 h-3" />
-              {repo.branch}
-            </span>
+    <div className="min-h-screen bg-slate-950 text-slate-300 font-sans flex flex-col antialiased">
+      {/* Top Header Navigation */}
+      <Header
+        user={user}
+        project={project}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onOpenRepoSelector={() => setIsRepoModalOpen(true)}
+        onLogout={handleLogout}
+        onLogin={handleLogin}
+      />
+
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+        {/* Auth Error Banner */}
+        {authError && (
+          <ErrorBanner
+            message={authError}
+            onDismiss={() => setAuthError(null)}
+          />
+        )}
+
+        {/* Global Error Banner with Retry */}
+        {globalError && (
+          <ErrorBanner
+            message={globalError}
+            onRetry={project ? () => bootstrapApp() : undefined}
+            onDismiss={() => setGlobalError(null)}
+          />
+        )}
+
+        {/* Initial Loading Skeleton */}
+        {isLoadingInitial ? (
+          <div className="space-y-6 pt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <MetricSkeleton />
+              <MetricSkeleton />
+              <MetricSkeleton />
+              <MetricSkeleton />
+            </div>
+            <CardSkeleton />
+            <CardSkeleton />
           </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Finding Details */}
-        <div className="lg:col-span-7 space-y-6">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
-            <div className="p-5 border-b border-slate-800 bg-slate-900/50 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-0.5 rounded-md text-xs font-semibold tracking-wide uppercase">
-                    {finding.severity} Severity
-                  </span>
-                  <span className="text-slate-400 text-sm font-mono">{finding.ruleId}</span>
-                </div>
-                <h2 className="text-lg font-medium text-white">{finding.ruleName}</h2>
-              </div>
-              <div className="flex flex-col items-start sm:items-end gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Status</span>
-                  <span className={`text-sm font-bold flex items-center gap-1.5 ${
-                    finding.status === 'OPEN' ? 'text-amber-400' :
-                    finding.status === 'SCANNING...' ? 'text-blue-400' : 'text-emerald-400'
-                  }`}>
-                    {finding.status === 'SCANNING...' && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                    {finding.status === 'RESOLVED' && <CheckCircle className="w-3.5 h-3.5" />}
-                    {finding.status === 'OPEN' && <AlertTriangle className="w-3.5 h-3.5" />}
-                    {finding.status}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Remediation</span>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-sm border ${
-                    finding.remediationQuality === 'ACTION_REQUIRED' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                    finding.remediationQuality === 'RISK_CONTAINED' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                    'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                  }`}>
-                    {finding.remediationQuality.replace('_', ' ')}
-                  </span>
-                </div>
-              </div>
+        ) : !user ? (
+          /* Unauthenticated Landing State */
+          <div className="py-12 sm:py-20 text-center max-w-2xl mx-auto space-y-8 animate-in fade-in duration-300">
+            <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-600 p-0.5 mx-auto shadow-xl shadow-blue-500/20 flex items-center justify-center">
+              <ShieldCheck className="w-9 h-9 text-white" />
             </div>
-            
-            <div className="p-5">
-              <div className="mb-4 flex items-center gap-2 text-sm text-slate-300">
-                <Code className="w-4 h-4 text-slate-500" />
-                <span className="font-mono text-xs">{finding.filePath}:{finding.lineNumber}</span>
-              </div>
-              
-              <div className="bg-[#0d1117] rounded-lg border border-slate-800/80 p-4 font-mono text-sm overflow-x-auto relative group">
-                <div className="flex gap-4">
-                  <div className="text-slate-600 select-none text-right flex flex-col items-end min-w-[2rem]">
-                    <span>41</span>
-                    <span className="text-rose-500">42</span>
-                    <span>43</span>
-                  </div>
-                  <div className="text-slate-300 flex flex-col">
-                    <span><span className="text-blue-400">import</span> {'{ initClient }'} <span className="text-blue-400">from</span> <span className="text-emerald-400">'./client'</span>;</span>
-                    <span className="bg-rose-500/10 -mx-2 px-2 border-l-2 border-rose-500"><span className="text-blue-400">const</span> GEMINI_API_KEY = <span className="text-amber-300">"{finding.snippet.split('"')[1]}"</span>;</span>
-                    <span><span className="text-blue-400">export</span> <span className="text-blue-400">const</span> ai = initClient(GEMINI_API_KEY);</span>
-                  </div>
-                </div>
-              </div>
+            <div className="space-y-3">
+              <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
+                Continuous Secret Detection & AI-Assisted Remediation
+              </h1>
+              <p className="text-sm sm:text-base text-slate-400 leading-relaxed max-w-xl mx-auto">
+                Scan Pilot guards your GitHub repositories with instant snapshot scans, git history verification, and actionable Gemini AI remediation guidance.
+              </p>
             </div>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm">
-            <h3 className="text-base font-medium text-white flex items-center gap-2 mb-4">
-              <Shield className="w-4 h-4 text-blue-400" />
-              Remediation Checklist
-            </h3>
-            
-            <div className="space-y-3 mb-6">
-              <button onClick={() => toggleCheck('remove')} className="flex items-start gap-3 w-full text-left group">
-                {checklist.remove ? <CheckSquare className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" /> : <Square className="w-5 h-5 text-slate-500 group-hover:text-slate-400 shrink-0 mt-0.5 transition-colors" />}
-                <div>
-                  <p className={`text-sm font-medium ${checklist.remove ? 'text-slate-400 line-through' : 'text-slate-200'}`}>Remove the secret from current source</p>
-                  <p className="text-xs text-slate-500 mt-0.5">Move the configuration to environment variables (.env).</p>
-                </div>
-              </button>
-              
-              <button onClick={() => toggleCheck('revoke')} className="flex items-start gap-3 w-full text-left group">
-                {checklist.revoke ? <CheckSquare className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" /> : <Square className="w-5 h-5 text-slate-500 group-hover:text-slate-400 shrink-0 mt-0.5 transition-colors" />}
-                <div>
-                  <p className={`text-sm font-medium ${checklist.revoke ? 'text-slate-400 line-through' : 'text-slate-200'}`}>Replace and revoke the exposed credential</p>
-                  <p className="text-xs text-slate-500 mt-0.5">Generate a new key in Google Cloud Console and revoke the old one.</p>
-                </div>
-              </button>
-
-              <button onClick={() => toggleCheck('history')} className="flex items-start gap-3 w-full text-left group">
-                {checklist.history ? <CheckSquare className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" /> : <Square className="w-5 h-5 text-slate-500 group-hover:text-slate-400 shrink-0 mt-0.5 transition-colors" />}
-                <div>
-                  <p className={`text-sm font-medium ${checklist.history ? 'text-slate-400 line-through' : 'text-slate-200'}`}>Review Git history</p>
-                  <p className="text-xs text-slate-500 mt-0.5">Ensure the secret is purged from previous commits if pushed remotely.</p>
-                </div>
-              </button>
-            </div>
-
-            <div className="pt-4 border-t border-slate-800 flex justify-end">
-              <button 
-                onClick={handleScan}
-                disabled={isScanning || finding.status === 'RESOLVED'}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg flex items-center gap-2 transition-colors text-sm"
+            <div className="pt-2">
+              <button
+                onClick={handleLogin}
+                className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl text-sm inline-flex items-center gap-2.5 transition-all shadow-lg shadow-blue-600/30 focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
               >
-                {isScanning ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Scanning Repository...
-                  </>
-                ) : finding.status === 'RESOLVED' ? (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    Verification Complete
-                  </>
-                ) : (
-                  <>
-                    <Search className="w-4 h-4" />
-                    Run Verification Scan
-                  </>
-                )}
+                <Github className="w-5 h-5" />
+                <span>Sign in with GitHub</span>
               </button>
             </div>
-          </div>
-        </div>
-
-        {/* Right Column: AI Explanation */}
-        <div className="lg:col-span-5 relative">
-          {/* Subtle glow behind AI panel */}
-          <div className="absolute -inset-0.5 bg-gradient-to-b from-blue-500/10 to-transparent rounded-2xl blur-xl pointer-events-none" />
-          
-          <div className="bg-slate-900 border border-slate-800/80 rounded-xl shadow-lg relative overflow-hidden flex flex-col h-full">
-            <div className="p-4 border-b border-slate-800/80 bg-slate-900/80 flex items-center gap-3">
-              <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-1.5 rounded-md shadow-sm">
-                <Terminal className="w-4 h-4 text-white" />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-left pt-8 border-t border-slate-800/80 text-xs">
+              <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+                <div className="font-semibold text-white mb-1">Dual-Stage Detection</div>
+                <div className="text-slate-400 leading-relaxed">Scans current HEAD snapshots and reachable Git commit history.</div>
               </div>
-              <h3 className="text-sm font-semibold text-white tracking-wide">Gemini Security Analysis</h3>
-            </div>
-            
-            <div className="p-5 space-y-6 text-sm flex-1">
-              <div>
-                <h4 className="font-medium text-slate-200 mb-2 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                  What was detected
-                </h4>
-                <p className="text-slate-400 leading-relaxed pl-3.5 border-l border-slate-800">
-                  A hardcoded Google API Key (likely for Gemini or Maps) was found embedded directly in the frontend source code. The pattern <code className="text-xs bg-slate-800 px-1 py-0.5 rounded text-amber-200 border border-slate-700">AIza...</code> matched our credentials signature.
-                </p>
+              <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+                <div className="font-semibold text-white mb-1">Zero Secret Leaks</div>
+                <div className="text-slate-400 leading-relaxed">Full masking, redaction, and SHA-256 fingerprinting at all times.</div>
               </div>
-
-              <div>
-                <h4 className="font-medium text-slate-200 mb-2 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                  Why it matters
-                </h4>
-                <p className="text-slate-400 leading-relaxed pl-3.5 border-l border-slate-800">
-                  Client-side code is visible to any user. Hardcoding secrets here exposes your quota and billing account to unauthorized usage, abuse, and potential denial-of-service via quota exhaustion.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-3">
-                  <h4 className="font-medium text-emerald-400 mb-1.5 text-xs uppercase tracking-wider">Evidence Proves</h4>
-                  <p className="text-slate-400 text-xs leading-relaxed">
-                    The key is currently present in tracked Git files and matches valid structural patterns for active credentials.
-                  </p>
-                </div>
-                <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-3">
-                  <h4 className="font-medium text-slate-400 mb-1.5 text-xs uppercase tracking-wider">Evidence Cannot Prove</h4>
-                  <p className="text-slate-500 text-xs leading-relaxed">
-                    We cannot determine if the key has already been extracted or actively exploited by third parties.
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-medium text-slate-200 mb-2 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                  Recommended Remediation
-                </h4>
-                <p className="text-slate-400 leading-relaxed pl-3.5 border-l border-slate-800">
-                  Move the credential to a server-side environment variable (e.g., <code className="text-xs bg-slate-800 px-1 py-0.5 rounded text-slate-300">process.env.GEMINI_API_KEY</code>). Proxy client requests through your own backend to keep the key completely hidden from the browser. Immediate revocation of the current key is required to contain the risk.
-                </p>
+              <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+                <div className="font-semibold text-white mb-1">Gemini AI Guidance</div>
+                <div className="text-slate-400 leading-relaxed">Structured checklists, code diffs, and revocation commands.</div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        ) : !project ? (
+          /* Authenticated but No Repository Selected */
+          <EmptyState
+            type="no-project"
+            title="Connect a Repository to Start Monitoring"
+            description="Select an accessible repository to enable continuous secret scanning, git history verification, and AI remediation guidance."
+            actionText="Select Monitored Repository"
+            onAction={() => setIsRepoModalOpen(true)}
+          />
+        ) : (
+          /* Authenticated & Monitored Repository Active */
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Project Header Bar */}
+            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h2 className="text-xl font-bold text-white tracking-tight">
+                    {project.fullName}
+                  </h2>
+                  <a
+                    href={`https://github.com/${project.fullName}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-slate-500 hover:text-slate-300 transition-colors"
+                    title="View repository on GitHub"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                  {project.isPrivate ? (
+                    <span className="text-[11px] font-medium bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">
+                      Private
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-medium bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">
+                      Public
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                  <span className="flex items-center gap-1 text-slate-300 font-medium">
+                    <GitBranch className="w-3.5 h-3.5 text-blue-400" />
+                    Primary: {project.primaryBranch}
+                  </span>
+                  {project.secondaryBranches && project.secondaryBranches.length > 0 && (
+                    <span className="flex items-center gap-1 text-slate-400">
+                      Secondary slots ({project.secondaryBranches.length}): {project.secondaryBranches.join(', ')}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Branch Selector & Trigger Scan Button */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selectedBranch}
+                    onChange={(e) => setSelectedBranch(e.target.value)}
+                    disabled={isTriggeringScan}
+                    className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  >
+                    <option value={project.primaryBranch}>{project.primaryBranch} (Primary)</option>
+                    {(project.secondaryBranches || []).map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+
+                  <button
+                    onClick={() => handleTriggerScan(selectedBranch)}
+                    disabled={isTriggeringScan}
+                    className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
+                  >
+                    {isTriggeringScan ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Scanning...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>Run Security Scan</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Real-time Scan Progress Bar (UC-003) */}
+            {activeScanJob && (
+              <ScanProgressBar
+                scanJob={activeScanJob}
+                onDismiss={() => setActiveScanJob(null)}
+                onRetry={() => handleTriggerScan(activeScanJob.branchName)}
+              />
+            )}
+
+            {/* Metrics Overview Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    Total Findings
+                  </span>
+                  <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    <Layers className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <span className="text-2xl font-bold text-white tabular-nums">
+                    {findings.length}
+                  </span>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Across current & historical commits
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    Open / Action Required
+                  </span>
+                  <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <span className={`text-2xl font-bold tabular-nums ${openFindingsCount > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    {openFindingsCount}
+                  </span>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {openFindingsCount > 0 ? 'Requires immediate remediation' : 'No active exposures'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    Resolved Findings
+                  </span>
+                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <span className="text-2xl font-bold text-emerald-400 tabular-nums">
+                    {resolvedFindingsCount}
+                  </span>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Contained or verified clean (UC-005)
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    Scan Coverage
+                  </span>
+                  <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    <CheckSquare className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <span className="text-2xl font-bold text-white tabular-nums">
+                    {coverage && coverage.totalFiles > 0
+                      ? `${Math.round((coverage.scannedFiles / coverage.totalFiles) * 100)}%`
+                      : '100%'}
+                  </span>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {coverage ? `${coverage.scannedFiles} of ${coverage.totalFiles} files` : 'Ready for evaluation'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Tab Views */}
+            {activeTab === 'findings' ? (
+              /* Findings Tab */
+              <div className="space-y-4">
+                {/* Search and Filters Toolbar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search by rule, title, or file path..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 pl-9 pr-4 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                      <Filter className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Severity:</span>
+                    </div>
+                    <select
+                      value={severityFilter}
+                      onChange={(e) => setSeverityFilter(e.target.value)}
+                      className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    >
+                      <option value="ALL">All Severities</option>
+                      <option value="CRITICAL">Critical</option>
+                      <option value="HIGH">High</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="LOW">Low</option>
+                    </select>
+
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400 ml-2">
+                      <span>Lifecycle:</span>
+                    </div>
+                    <select
+                      value={lifecycleFilter}
+                      onChange={(e) => setLifecycleFilter(e.target.value)}
+                      className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    >
+                      <option value="ALL">All Lifecycle</option>
+                      <option value="OPEN">Open</option>
+                      <option value="RESOLVED">Resolved</option>
+                      <option value="REGRESSED">Regressed</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Findings List */}
+                {isLoadingFindings ? (
+                  <div className="space-y-4 pt-2">
+                    <CardSkeleton />
+                    <CardSkeleton />
+                  </div>
+                ) : filteredFindings.length === 0 ? (
+                  <EmptyState
+                    type="no-findings"
+                    title={
+                      findings.length === 0
+                        ? "Zero Secret Exposures Detected"
+                        : "No Findings Match Your Filter"
+                    }
+                    description={
+                      findings.length === 0
+                        ? "Both the current HEAD snapshot and reachable git commits are clean of active secrets."
+                        : "Try adjusting your search query, severity, or lifecycle filters."
+                    }
+                    actionText={findings.length === 0 ? "Run Verification Scan" : undefined}
+                    onAction={findings.length === 0 ? () => handleTriggerScan() : undefined}
+                  />
+                ) : (
+                  <div className="space-y-4">
+                    {filteredFindings.map((finding) => (
+                      <FindingCard key={finding.id} finding={finding} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Coverage & Audit Tab */
+              <CoverageTab
+                coverage={coverage}
+                isLoading={isLoadingCoverage}
+              />
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* Repository Selection & Branch Slot Modal (UC-002) */}
+      <RepoSelectorModal
+        isOpen={isRepoModalOpen}
+        currentProject={project}
+        onClose={() => setIsRepoModalOpen(false)}
+        onSelectSuccess={handleSelectProjectSuccess}
+      />
     </div>
   );
 }
