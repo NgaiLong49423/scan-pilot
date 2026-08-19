@@ -11,6 +11,19 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-19 — Security-Lab E2E Lifecycle Verification & Independent Secret Benchmark (Issue #24)
+
+**Status:** Committed — `bc83377`
+
+**Scope:** Implemented full 4-stage Security-Lab E2E integration test suite and independent ground-truth synthetic secret detection benchmark suite (`SP-CONFIG-001`), publishing verification evidence under Issue `#24`.
+
+### Added
+
+- Added `backend/src/test/java/com/scanpilot/e2e/SecurityLabE2ELifecycleTest.java` verifying the complete 4-stage lifecycle (`OPEN/ACTION_REQUIRED` -> `RESOLVED/RISK_CONTAINED` -> `RESOLVED/VERIFIED_COMPLETE` -> `REGRESSED/ACTION_REQUIRED`) with synthetic Git histories, 100% workspace disposal, and zero secret leakage.
+- Added `backend/src/test/java/com/scanpilot/benchmark/SafeSecretBenchmarkSuite.java` defining 60 synthetic ground-truth test cases across 12 rule families.
+- Added `backend/src/test/java/com/scanpilot/benchmark/IndependentSecretBenchmarkTest.java` achieving 100% Precision, 100% Recall, 100% F1-Score, 100% Specificity, and 100% Accuracy on `SP-CONFIG-001`.
+- Added `docs/research/benchmarks/BENCHMARK-RESULTS-SP-CONFIG-001.md` documenting formal benchmark results, metrics breakdown, and verification evidence.
+
 ## 2026-08-19 — React Dashboard Integration with Real Backend REST APIs (Issue #17)
 
 **Status:** Committed — `fa96335`
