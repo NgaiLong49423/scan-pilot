@@ -79,7 +79,7 @@ jobs:
             --memory=512Mi
             --cpu=1
             --allow-unauthenticated
-            --set-env-vars=SPRING_PROFILES_ACTIVE=prod,COOKIE_SECURE=true
+            --set-env-vars=SPRING_PROFILES_ACTIVE=prod,COOKIE_SECURE=true,GITHUB_CLIENT_ID=${{ secrets.GH_APP_CLIENT_ID }},GITHUB_CLIENT_SECRET=${{ secrets.GH_APP_CLIENT_SECRET }}
 
       - name: Verify Public Cloud Run URL
         run: |

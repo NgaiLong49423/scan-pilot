@@ -1,14 +1,14 @@
 import React from 'react';
-import { 
-  Shield, 
-  Sparkles, 
-  ExternalLink, 
-  Github, 
-  CheckCircle2, 
-  Lock, 
-  FileText, 
-  Layers, 
-  Cloud 
+import {
+  Shield,
+  Sparkles,
+  ExternalLink,
+  Github,
+  CheckCircle2,
+  Lock,
+  FileText,
+  Layers,
+  Cloud
 } from 'lucide-react';
 
 export const Footer: React.FC = () => {
@@ -17,7 +17,7 @@ export const Footer: React.FC = () => {
       {/* Top section: Bento Links Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 lg:gap-12">
-          
+
           {/* Col 1 & 2: Brand, Value Proposition & Tech Stack */}
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center gap-2.5">
@@ -29,7 +29,7 @@ export const Footer: React.FC = () => {
                 MVP
               </span>
             </div>
-            
+
             <p className="text-sm text-slate-400 leading-relaxed max-w-sm">
               Continuous multi-project security & health monitoring platform for AI-assisted and AI-generated software. Guarding repositories with automated secret detection, lifecycle tracking, and Gemini AI guidance.
             </p>
@@ -123,9 +123,9 @@ export const Footer: React.FC = () => {
             </h4>
             <ul className="space-y-2.5 text-sm">
               <li>
-                <a 
-                  href="https://github.com/NgaiLong49423/scan-pilot" 
-                  target="_blank" 
+                <a
+                  href="https://github.com/NgaiLong49423/scan-pilot"
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-slate-400 hover:text-cyan-400 transition-colors inline-flex items-center gap-1.5"
                 >
@@ -135,9 +135,9 @@ export const Footer: React.FC = () => {
                 </a>
               </li>
               <li>
-                <a 
-                  href="https://scan-pilot-api-drbjfwrlxq-as.a.run.app/api/v1/system/status" 
-                  target="_blank" 
+                <a
+                  href="https://scan-pilot-api-drbjfwrlxq-as.a.run.app/api/v1/system/status"
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-slate-400 hover:text-emerald-400 transition-colors inline-flex items-center gap-1.5"
                 >
@@ -147,9 +147,9 @@ export const Footer: React.FC = () => {
                 </a>
               </li>
               <li>
-                <a 
-                  href="https://aistudio.google.com" 
-                  target="_blank" 
+                <a
+                  href="https://aistudio.google.com"
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-slate-400 hover:text-indigo-400 transition-colors inline-flex items-center gap-1.5"
                 >
