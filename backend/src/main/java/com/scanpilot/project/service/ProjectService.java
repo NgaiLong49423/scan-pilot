@@ -23,6 +23,9 @@ public class ProjectService {
 
     public static final int MAX_SECONDARY_BRANCHES = 2;
 
+    private final com.scanpilot.persistence.repository.UserRepository userRepository;
+    private final com.scanpilot.persistence.repository.RepositoryRepository repositoryRepository;
+
     // Per-user monitored repository store (DEC-046: 1 selected personal repository per user)
     private final Map<Long, MonitoredProject> userProjects = new ConcurrentHashMap<>();
 
@@ -54,8 +57,50 @@ public class ProjectService {
 
         boolean isPrivate = Boolean.TRUE.equals(request.isPrivate());
 
+        String projectId = UUID.randomUUID().toString();
+        Instant monitoredAt = Instant.now();
+
+        if (userRepository != null && repositoryRepository != null) {
+            try {
+                com.scanpilot.persistence.entity.UserEntity userEntity = userRepository.findByGithubUserId(user.getGithubUserId())
+                        .orElseGet(() -> userRepository.save(com.scanpilot.persistence.entity.UserEntity.builder()
+                                .githubUserId(user.getGithubUserId())
+                                .login(user.getLogin())
+                                .name(user.getName())
+                                .email(user.getEmail())
+                                .avatarUrl(user.getAvatarUrl())
+                                .createdAt(Instant.now())
+                                .build()));
+
+                if (userEntity != null && userEntity.getId() != null) {
+                    com.scanpilot.persistence.entity.RepositoryEntity repoEntity = repositoryRepository.findByUserIdAndGithubRepoId(userEntity.getId(), request.githubRepoId())
+                            .orElseGet(() -> repositoryRepository.save(com.scanpilot.persistence.entity.RepositoryEntity.builder()
+                                    .userId(userEntity.getId())
+                                    .githubRepoId(request.githubRepoId())
+                                    .owner(owner)
+                                    .name(name)
+                                    .fullName(fullName)
+                                    .defaultBranch(defaultBranch)
+                                    .primaryBranch(defaultBranch)
+                                    .isPrivate(isPrivate)
+                                    .status("ACTIVE")
+                                    .monitoredAt(Instant.now())
+                                    .build()));
+
+                    if (repoEntity != null && repoEntity.getId() != null) {
+                        projectId = repoEntity.getId().toString();
+                        if (repoEntity.getMonitoredAt() != null) {
+                            monitoredAt = repoEntity.getMonitoredAt();
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Could not synchronize repository selection to PostgreSQL: {}", e.getMessage());
+            }
+        }
+
         MonitoredProject project = new MonitoredProject(
-                UUID.randomUUID().toString(),
+                projectId,
                 user.getGithubUserId(),
                 request.githubRepoId(),
                 owner,
@@ -65,7 +110,7 @@ public class ProjectService {
                 defaultBranch, // PRIMARY derived from GitHub default branch (FR-020, FR-022)
                 List.of(),     // Secondary branches initially empty
                 isPrivate,
-                Instant.now(),
+                monitoredAt,
                 "ACTIVE"
         );
 

@@ -38,7 +38,10 @@ class GitHubAppServiceTest {
 
         gitHubAppAuthService = mock(GitHubAppAuthService.class);
         sessionService = new SessionService(new AuthConfigProperties());
-        projectService = new ProjectService();
+        projectService = new ProjectService(
+                mock(com.scanpilot.persistence.repository.UserRepository.class),
+                mock(com.scanpilot.persistence.repository.RepositoryRepository.class)
+        );
 
         RestClient.Builder builder = RestClient.builder();
         mockServer = MockRestServiceServer.bindTo(builder).build();

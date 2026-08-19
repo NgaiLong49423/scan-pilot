@@ -77,6 +77,8 @@ public class ScanPipelineService {
     private final EvidenceItemRepository evidenceItemRepository;
     private final CoverageRecordRepository coverageRecordRepository;
     private final CoverageItemRepository coverageItemRepository;
+    private final com.scanpilot.persistence.repository.RepositoryRepository repositoryRepository;
+    private final com.scanpilot.persistence.repository.UserSessionRepository userSessionRepository;
 
     /**
      * Executes the complete snapshot and history scan pipeline for a repository.
@@ -111,9 +113,11 @@ public class ScanPipelineService {
             workspace = gitWorkspaceManager.createWorkspace(repositoryId);
             Path workspacePath = workspace.workspacePath();
 
-            // Copy source files if provided
+            // Copy source files if provided, or download snapshot from remote GitHub repository
             if (sourcePath != null && Files.exists(sourcePath)) {
                 gitWorkspaceManager.copyDirectory(sourcePath, workspacePath);
+            } else {
+                fetchRemoteRepositorySnapshot(repositoryId, branch, workspacePath);
             }
 
             // 3. Resolve commit SHA if git repository exists
@@ -495,5 +499,81 @@ public class ScanPipelineService {
             }
         }
         return false;
+    }
+
+    private void fetchRemoteRepositorySnapshot(UUID repositoryId, String branch, Path workspacePath) {
+        if (repositoryRepository == null || repositoryId == null) {
+            return;
+        }
+        repositoryRepository.findById(repositoryId).ifPresent(repo -> {
+            String fullName = repo.getFullName();
+            if (fullName == null || fullName.isBlank()) {
+                if (repo.getOwner() != null && repo.getName() != null) {
+                    fullName = repo.getOwner() + "/" + repo.getName();
+                }
+            }
+            if (fullName == null || fullName.isBlank()) {
+                return;
+            }
+
+            log.info("Fetching remote snapshot for repository {} on branch {}", fullName, branch);
+            try {
+                String url = "https://api.github.com/repos/" + fullName + "/zipball/" + branch;
+                org.springframework.web.client.RestClient client = org.springframework.web.client.RestClient.create();
+
+                String token = null;
+                if (repo.getUserId() != null && userSessionRepository != null) {
+                    List<com.scanpilot.persistence.entity.UserSessionEntity> sessions = userSessionRepository.findByUserId(repo.getUserId());
+                    if (!sessions.isEmpty()) {
+                        token = sessions.get(0).getAccessToken();
+                    }
+                }
+
+                var req = client.get().uri(url)
+                        .header("Accept", "application/vnd.github+json")
+                        .header("User-Agent", "Scan-Pilot");
+                if (token != null && !token.isBlank() && !token.startsWith("mock-")) {
+                    req.header("Authorization", "Bearer " + token);
+                }
+
+                byte[] zipBytes = req.retrieve().body(byte[].class);
+                if (zipBytes != null && zipBytes.length > 0) {
+                    extractZipArchive(zipBytes, workspacePath);
+                    log.info("Successfully extracted {} bytes of repository snapshot for {}", zipBytes.length, fullName);
+                }
+            } catch (Exception e) {
+                log.warn("Could not download remote snapshot for {} (branch: {}): {}", fullName, branch, e.getMessage());
+            }
+        });
+    }
+
+    private void extractZipArchive(byte[] zipBytes, Path targetDir) throws IOException {
+        try (java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(zipBytes))) {
+            java.util.zip.ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                String entryName = entry.getName();
+                int slashIdx = entryName.indexOf('/');
+                if (slashIdx >= 0) {
+                    entryName = entryName.substring(slashIdx + 1);
+                }
+                if (entryName.isBlank()) {
+                    continue;
+                }
+                Path resolved = targetDir.resolve(entryName).normalize();
+                // Zip-slip security protection
+                if (!resolved.startsWith(targetDir)) {
+                    continue;
+                }
+                if (entry.isDirectory()) {
+                    Files.createDirectories(resolved);
+                } else {
+                    if (resolved.getParent() != null) {
+                        Files.createDirectories(resolved.getParent());
+                    }
+                    Files.copy(zis, resolved, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+                zis.closeEntry();
+            }
+        }
     }
 }
