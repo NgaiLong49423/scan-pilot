@@ -11,9 +11,20 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-19 — Live Cloud Run Deployment Documentation and Status Update
+
+**Status:** Working tree
+
+**Scope:** Recorded verified live Backend Cloud Run URL (`https://scan-pilot-api-drbjfwrlxq-as.a.run.app`) across `docs/CURRENT-STATUS.md`, `docs/DEPLOYMENT-SPEC.md`, and `README.md`.
+
+### Updated
+
+- Updated `docs/CURRENT-STATUS.md` recording live Cloud Run deployment state and health status.
+- Updated `docs/DEPLOYMENT-SPEC.md` and `README.md` recording verified live endpoint URL.
+
 ## 2026-08-19 — GitHub Actions CD Workflow for Cloud Run Deployment (Issue #40)
 
-**Status:** Committed — `454d03b`
+**Status:** Committed — `2278cb1`
 
 **Scope:** Implemented automated Continuous Deployment (CD) pipeline via GitHub Actions to build Docker images and deploy Backend Spring Boot service to Google Cloud Run upon merges to `main`.
 

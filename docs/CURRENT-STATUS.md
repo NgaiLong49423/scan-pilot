@@ -1,21 +1,22 @@
 > **Document:** Scan Pilot Current Status
 > **File:** `docs/CURRENT-STATUS.md`
-> **Version:** v2.2.0
+> **Version:** v2.3.0
 > **Created:** 2026-08-12
-> **Last Updated:** 2026-08-17
+> **Last Updated:** 2026-08-19
 > **Status:** Active
 
 # Scan Pilot Current Status
 
 ## Current Phase
 
-**Implementation.** Documentation migration from the original template is complete. The Product Owner accepted the Eligibility Spike `CONDITIONAL GO` on 2026-08-16 and explicitly authorized implementation under `DEC-054`.
+**Live Cloud Run Deployment & Submission Finalization.**
+The Scan Pilot MVP backend is successfully containerized and deployed live on Google Cloud Run (`asia-southeast1`). Continuous Integration (CI) and Continuous Deployment (CD) are active via GitHub Actions.
 
-Production foundation is merged into `main` through PR `#12` (`b85d37d`) for Issue `#9`:
-- `frontend/`: React + TypeScript + Vite production workspace hosting the approved prototype UI/UX.
-- `backend/`: Spring Boot 3 + Java 21 + Maven modular monolith skeleton with successful test and build verification.
-
-Issue `#9` remains open until the Product Owner records final Issue acceptance and authorizes closure.
+- **Live Backend API:** [`https://scan-pilot-api-drbjfwrlxq-as.a.run.app`](https://scan-pilot-api-drbjfwrlxq-as.a.run.app/api/v1/system/status)
+- **Live Health Status:** `HEALTHY` (Scale-to-Zero, 0 idle cost envelope)
+- **Frontend Workspace:** React 18 + Vite + TypeScript dashboard ready for native deployment via Google AI Studio (`docs/AI-STUDIO-DEPLOYMENT-GUIDE.md`).
+- **Core Inspection Pipeline:** `SP-CONFIG-001` secret scanner with Gitleaks adapter, `SP_SECRET_FP_V1` redaction/fingerprinting, 3-stage lifecycle tracking, and Gemini AI remediation guidance.
+- **Verification Evidence:** 210/210 backend tests passing, 100% precision/recall on 60-case ground-truth synthetic benchmark suite.
 
 ## Submission Context
 

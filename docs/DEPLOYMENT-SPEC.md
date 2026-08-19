@@ -29,8 +29,8 @@ Scan Pilot adopts a **Decoupled Multi-Service Cloud Run Architecture** (`DEC-056
                                     │ HTTPS + CORS Credentials
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│                 Backend Service: scan-pilot-api                        │
-│              Domain: https://scan-pilot-api-*.run.app                  │
+│                 Backend Service: scan-pilot-api (LIVE)                 │
+│              Domain: https://scan-pilot-api-drbjfwrlxq-as.a.run.app    │
 │  - Spring Boot 3.4.3 + Java 21 JRE                                     │
 │  - Flyway Database Migrations (12 Core PostgreSQL tables)              │
 │  - Pinned SP-CONFIG-001 Policy & Gitleaks Detection Engine             │

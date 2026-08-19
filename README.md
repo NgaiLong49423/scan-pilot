@@ -53,13 +53,18 @@ The first accepted MVP rule is `SP-CONFIG-001 — Source Code Secret Exposure`.
 
 | Area | Direction |
 |---|---|
-| Frontend | React, TypeScript, Vite, Tailwind CSS, shadcn/ui, TanStack Query |
-| Backend | Spring Boot 3, Java 21, Apache Maven, RESTful modular monolith |
-| Database | PostgreSQL, Spring Data JPA/Hibernate, Flyway |
-| Repository integration | GitHub App and webhooks |
-| AI | Gemini first, provider abstraction for later providers and BYOK |
-| Scanning | asynchronous isolated scan workers |
-| Deployment | Google Cloud direction, GitHub Actions CI/CD |
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS, Lucide Icons |
+| Backend | Spring Boot 3.4.3, Java 21, Apache Maven, RESTful modular monolith |
+| Database | PostgreSQL, Spring Data JPA/Hibernate, Flyway migrations |
+| Security Inspection | Pinned SP-CONFIG-001 policy, Gitleaks engine, HMAC-SHA-256 fingerprinting |
+| AI Guidance | Google Gemini 1.5 Flash (Explanation, Scoped Claims, Before/After Fix Diffs) |
+| Continuous Deployment | GitHub Actions automated CD pipeline to Google Cloud Run |
+
+## Live Deployment
+
+- **Backend API (Google Cloud Run):** [`https://scan-pilot-api-drbjfwrlxq-as.a.run.app`](https://scan-pilot-api-drbjfwrlxq-as.a.run.app/api/v1/system/status) (Region: `asia-southeast1`, Scale-to-Zero $0 idle cost)
+- **Deployment Specification:** [Cloud Run Deployment Spec](docs/DEPLOYMENT-SPEC.md)
+- **AI Studio Deployment Guide:** [AI Studio Frontend Sync & Publish Guide](docs/AI-STUDIO-DEPLOYMENT-GUIDE.md)
 
 Detailed infrastructure choices that remain open are recorded in [Accepted Decisions](docs/DECISIONS.md).
 
