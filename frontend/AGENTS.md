@@ -85,9 +85,22 @@ Scan Pilot makes software security accessible, approachable, and actionable for 
 | `LoadingSkeleton.tsx` | Shimmer loading skeleton cards. |
 | `ErrorBanner.tsx` | Graceful error dismissible alert banner. |
 
+## 5. Installed Agent Skills & Trigger Map
+
+All specialized agent skills are stored under `.agents/skill/` relative to the workspace root:
+
+| Skill Name | Canonical Path | Trigger & Usage Scope |
+|---|---|---|
+| **Frontend Design Taste & Human UX** | [`.agents/skill/design-taste-frontend/SKILL.md`](.agents/skill/design-taste-frontend/SKILL.md) | Mandatory for all React, Tailwind CSS, and UI tasks. Enforces "Security for Humans" (plain-language summaries, before/after fix diffs, secret masking, reassuring empty states, and WCAG AA contrast). |
+| **UI/UX Design Audit** | [`.agents/skill/ui-design-audit/SKILL.md`](.agents/skill/ui-design-audit/SKILL.md) | Mandatory for auditing and reviewing UI components, ensuring beginner-friendly usability, accessibility, and visual polish. |
+| **Lean Code Crafting (Ponytail)** | [`.agents/skill/ponytail/SKILL.md`](.agents/skill/ponytail/SKILL.md) | Enforces the 7-rung ladder, YAGNI, native Web APIs (`fetch`), and zero dependency bloat. |
+| **Over-Engineering Review** | [`.agents/skill/ponytail-review/SKILL.md`](.agents/skill/ponytail-review/SKILL.md) | Pre-commit self-checks for speculative abstractions, unused wrappers, and bloated state management. |
+| **Full Output Enforcement** | [`.agents/skill/full-output-enforcement/SKILL.md`](.agents/skill/full-output-enforcement/SKILL.md) | Mandatory across all code changes. Strictly bans `// TODO`, `// rest of code`, and truncated outputs. |
+| **Document Metadata Standardizer** | [`.agents/skill/document-metadata-standardizer/SKILL.md`](.agents/skill/document-metadata-standardizer/SKILL.md) | Mandatory when creating or modifying Markdown documentation. |
+
 ---
 
-## 5. Deployment Guidelines (Google AI Studio to Cloud Run)
+## 6. Deployment Guidelines (Google AI Studio to Cloud Run)
 
 1. Set `VITE_API_BASE_URL=https://scan-pilot-api-drbjfwrlxq-as.a.run.app` in AI Studio Project Settings / Secrets.
 2. Verify all UI components in the **Preview** tab.

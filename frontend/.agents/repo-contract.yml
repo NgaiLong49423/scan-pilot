@@ -1,0 +1,95 @@
+project_name: Scan Pilot
+project_type: ai-security-monitoring-platform
+current_phase: research-and-specification
+
+canonical_docs:
+  agent_instructions: AGENTS.md
+  project_overview: README.md
+  project_context: docs/PROJECT-CONTEXT.md
+  accepted_decisions: docs/DECISIONS.md
+  current_status: docs/CURRENT-STATUS.md
+  delivery_workflow: docs/DELIVERY-WORKFLOW.md
+  product: docs/PRODUCT.md
+  requirements: docs/REQUIREMENTS.md
+  inspection_spec: docs/INSPECTION-SPEC.md
+  architecture: docs/ARCHITECTURE.md
+  scan_lifecycle: docs/SCAN-LIFECYCLE.md
+  research_sources: docs/RESEARCH-SOURCES.md
+  changelog: CHANGELOG.md
+  contribution_rules: CONTRIBUTING.md
+  database_schema: database/schema.sql
+  labels: .github/labels.yml
+
+deprecated_docs:
+  - docs/requirements/PRD.md
+  - docs/requirements/SRS.md
+  - App/README.md
+
+source_of_truth_precedence:
+  - explicit_latest_user_instruction
+  - docs/DECISIONS.md
+  - canonical_specifications
+  - docs/CURRENT-STATUS.md
+  - research_notes
+  - implementation_code
+
+delivery_management:
+  repository: NgaiLong49423/scan-pilot
+  project_owner: NgaiLong49423
+  project_number: 13
+  project_url: https://github.com/users/NgaiLong49423/projects/13
+  milestone: AI Riser 2026 - Stable Submission
+  issue_creation_skill: .agents/skill/srs-to-github-issues/SKILL.md
+  issue_delivery_skill: .agents/skill/github-issue-delivery/SKILL.md
+  issue_status_source: github_project
+  product_truth_source: canonical_docs
+
+doc_sync_rules:
+  - when: docs/DECISIONS.md changes
+    check:
+      - docs/PROJECT-CONTEXT.md
+      - docs/CURRENT-STATUS.md
+      - docs/PRODUCT.md
+      - docs/REQUIREMENTS.md
+      - docs/INSPECTION-SPEC.md
+      - README.md
+      - CHANGELOG.md
+  - when: docs/REQUIREMENTS.md changes
+    check:
+      - docs/PRODUCT.md
+      - docs/ARCHITECTURE.md
+      - docs/SCAN-LIFECYCLE.md
+      - docs/INSPECTION-SPEC.md
+      - docs/CURRENT-STATUS.md
+      - CHANGELOG.md
+  - when: docs/INSPECTION-SPEC.md changes
+    check:
+      - docs/DECISIONS.md
+      - docs/REQUIREMENTS.md
+      - docs/research/
+      - docs/CURRENT-STATUS.md
+      - CHANGELOG.md
+  - when: docs/ARCHITECTURE.md changes
+    check:
+      - docs/REQUIREMENTS.md
+      - docs/SCAN-LIFECYCLE.md
+      - database/README.md
+      - README.md
+      - CHANGELOG.md
+  - when: database/schema.sql changes
+    check:
+      - database/README.md
+      - docs/ARCHITECTURE.md
+      - docs/REQUIREMENTS.md
+      - CHANGELOG.md
+  - when: .github/labels.yml changes
+    check:
+      - .github/ISSUE_TEMPLATE/
+      - .agents/skill/
+
+guardrails:
+  implementation_requires_explicit_phase_change: true
+  research_candidates_require_user_acceptance: true
+  no_mock_only_rules_in_primary_demo: true
+  never_expose_detected_secrets: true
+  no_commit_push_merge_or_pr_without_explicit_authorization: true
