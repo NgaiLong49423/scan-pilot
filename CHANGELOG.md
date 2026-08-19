@@ -11,9 +11,23 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-19 — Backend Cloud Run Dockerfile & Multi-Origin CORS (Issue #36)
+
+**Status:** Committed — `e63854c`
+
+**Scope:** Implemented multi-stage lean Dockerfile, non-root user execution, dynamic Cloud Run port binding, and multi-origin CORS configuration supporting Google AI Studio and Frontend Cloud Run origins under Issue `#36`.
+
+### Added
+
+- Added `backend/Dockerfile` using multi-stage build (`maven:3.9.9-eclipse-temurin-21-alpine` builder and `eclipse-temurin:21-jre-alpine` runner) with unprivileged user `scanpilot` (UID 10001) and container JVM flags.
+- Added `backend/.dockerignore` filtering build artifacts, VCS, and sensitive local files.
+- Added `backend/src/main/java/com/scanpilot/config/CorsProperties.java` and `CorsConfig.java` supporting dynamic multi-origin CORS and credentials.
+- Added `backend/src/main/resources/application-prod.yml` configured for Cloud SQL PostgreSQL, HikariCP pool, and Cloud Run port binding.
+- Added `backend/src/test/java/com/scanpilot/config/CorsConfigTest.java` verifying multi-origin CORS requests.
+
 ## 2026-08-19 — Decoupled Cloud Run Deployment Architecture Specification (DEC-056)
 
-**Status:** Working tree
+**Status:** Committed — `11f07fb`
 
 **Scope:** Defined canonical decoupled deployment architecture (`DEC-056`) and deployment specification (`docs/DEPLOYMENT-SPEC.md`) for deploying Backend Spring Boot API to Google Cloud Run and Frontend React Dashboard via Google AI Studio native deployment.
 
