@@ -13,7 +13,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-19 — React Dashboard Integration with Real Backend REST APIs (Issue #17)
 
-**Status:** Committed — `58e3329`
+**Status:** Committed — `fa96335`
 
 **Scope:** Connected the React + TypeScript + Vite frontend with real Spring Boot backend REST APIs, replacing mock state with live GitHub OAuth authentication, repository selection, real-time scan job polling, finding details with Gemini AI remediation guides, before/after code diffs, finding lifecycle tracking, and coverage audit reporting under Issue `#17`.
 
