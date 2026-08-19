@@ -13,7 +13,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-19 — Live Cloud Run Deployment Documentation and Status Update
 
-**Status:** Working tree
+**Status:** Committed — `7d47ed2`
 
 **Scope:** Recorded verified live Backend Cloud Run URL (`https://scan-pilot-api-drbjfwrlxq-as.a.run.app`) across `docs/CURRENT-STATUS.md`, `docs/DEPLOYMENT-SPEC.md`, and `README.md`.
 
