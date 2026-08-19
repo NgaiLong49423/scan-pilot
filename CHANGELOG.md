@@ -11,9 +11,21 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-19 — Decoupled Cloud Run Deployment Architecture Specification (DEC-056)
+
+**Status:** Working tree
+
+**Scope:** Defined canonical decoupled deployment architecture (`DEC-056`) and deployment specification (`docs/DEPLOYMENT-SPEC.md`) for deploying Backend Spring Boot API to Google Cloud Run and Frontend React Dashboard via Google AI Studio native deployment.
+
+### Added
+
+- Added `docs/DEPLOYMENT-SPEC.md` defining multi-stage Dockerfile standards, Scale-to-Zero resource limits, environment variables, multi-origin CORS, and step-by-step Cloud Run deployment runbooks.
+- Recorded `DEC-056` in `docs/DECISIONS.md`.
+- Created executable GitHub Issues `#36` (Backend Cloud Run Deployment) and `#37` (Frontend AI Studio Dual-Origin Integration).
+
 ## 2026-08-19 — Security-Lab E2E Lifecycle Verification & Independent Secret Benchmark (Issue #24)
 
-**Status:** Committed — `bc83377`
+**Status:** Committed — `1a95f32`
 
 **Scope:** Implemented full 4-stage Security-Lab E2E integration test suite and independent ground-truth synthetic secret detection benchmark suite (`SP-CONFIG-001`), publishing verification evidence under Issue `#24`.
 

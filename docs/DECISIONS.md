@@ -732,7 +732,21 @@ Scan Pilot installs `agent-delivery-governance` v1.0.0 as a project-local skill.
 
 Detailed briefs, implementation reports, long test logs, and intermediate agent discussion remain in Git-ignored `.agent-work/`; they must never contain secrets. GitHub retains durable requirements, reviewable code diff, compact verification summary, review conclusion, Product Owner decision, and status. The reusable skill does not prescribe a branch prefix; Scan Pilot currently defines its own convention in `AGENTS.md`.
 
-**Reason:** A PR provides durable review evidence tied to a precise code diff without turning GitHub into a duplicate of agent context. The benefit is a strict, auditable CEO/PO → Codex → Antigravity workflow with bounded token and maintenance cost. The trade-off is one PR for each coherent implementation checkpoint after activation. The verification limit is that the observed Antigravity export workspace is not yet a Git checkout, so the Integration Check and `FULL_TRACKED` activation remain pending.
+**Reason:** A PR provides durable review evidence tied to a precise code diff without turning GitHub into a duplicate of agent context. The benefit is a strict, auditable CEO/PO → Codex → Antigravity workflow with bounded token and maintenance cost. The trade-off is one PR for each coherent implementation checkpoint after activation.
+
+## DEC-056 — Decoupled Cloud Run Deployment Architecture with Google AI Studio Frontend & Spring Boot Backend
+
+**Status:** Accepted
+
+Scan Pilot adopts a decoupled multi-service Google Cloud Run deployment architecture:
+1. **Backend Service (`scan-pilot-api`):** Spring Boot 3 + Java 21 REST API containerized via multi-stage Docker build, deployed to Google Cloud Run (`asia-southeast1`) with Scale-to-Zero (`min-instances = 0`) to enforce zero idle cost ($0). Connects to PostgreSQL (Cloud SQL / managed Postgres) with Flyway migrations and Gitleaks detection baseline.
+2. **Frontend Service (`scan-pilot-web`):** React 18 + Vite dashboard deployed via Google AI Studio's native "Deploy to Cloud Run" feature to satisfy official AI Riser competition submission evidence and earn the +10 Cloud Run bonus points.
+3. **Cross-Origin & API Contract Guardrails:**
+   - Backend enforces strict CORS allowing `https://aistudio.google.com` and the deployed Frontend Cloud Run service origin with `Allow-Credentials: true`.
+   - Frontend accesses Backend via `VITE_API_BASE_URL` with graceful degradation: any unmapped or missing endpoints fall back to safe error states without crashing the UI.
+   - Frontend codebase maintains a strict boundary between `src/api/` (immutable API client layer) and `src/components/` (customizable UI components) to prevent prompt edits in AI Studio from breaking backend connectivity.
+
+**Reason:** Aligns with the official *Google AI & Vibe Coding Handbook* workflow (Prototype in AI Studio -> Deploy to Cloud Run -> Scale on Google Cloud) while preserving Spring Boot security logic, PostgreSQL persistence, and zero idle cost. The trade-off is managing CORS and environment variables across two Cloud Run domains. The verification limit is that Cloud Run deployment and CORS communication require live verification in the target GCP environment.
 
 ## Intentionally Open Decisions
 
