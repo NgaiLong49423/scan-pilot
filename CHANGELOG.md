@@ -13,7 +13,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-19 — Backend Cloud Run Dockerfile & Multi-Origin CORS (Issue #36)
 
-**Status:** Committed — `e63854c`
+**Status:** Committed — `4725a3b`
 
 **Scope:** Implemented multi-stage lean Dockerfile, non-root user execution, dynamic Cloud Run port binding, and multi-origin CORS configuration supporting Google AI Studio and Frontend Cloud Run origins under Issue `#36`.
 
