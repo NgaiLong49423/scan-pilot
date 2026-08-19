@@ -28,6 +28,8 @@ server:
   forward-headers-strategy: framework
 
 scanpilot:
+  cors:
+    allowed-origins: ${SCANPILOT_CORS_ALLOWED_ORIGINS:https://aistudio.google.com,https://*.ai.studio,https://*.run.app,http://localhost:3000,http://localhost:5173}
   auth:
     cookie-secure: ${COOKIE_SECURE:true}
 
