@@ -38,12 +38,38 @@ public class AuthController {
 
     /**
      * Initiates GitHub OAuth flow by redirecting user to GitHub's authorization endpoint.
+     * When client_id is not configured (local development), falls back automatically to dev session.
      */
     @GetMapping("/github/login")
     public ResponseEntity<Void> loginWithGitHub() {
+        if (properties.getClientId() == null || properties.getClientId().isBlank()) {
+            log.info("GitHub Client ID is not configured. Falling back to local dev session login.");
+            return devLogin();
+        }
         String authUrl = gitHubOAuthService.generateAuthorizationUrl();
         return ResponseEntity.status(HttpStatus.FOUND)
                 .location(URI.create(authUrl))
+                .build();
+    }
+
+    /**
+     * Local development instant sign-in endpoint.
+     */
+    @GetMapping("/dev-login")
+    public ResponseEntity<Void> devLogin() {
+        GitHubUserDto devUser = new GitHubUserDto(
+                12345678L,
+                "scan-pilot-developer",
+                "Scan Pilot Developer",
+                "https://avatars.githubusercontent.com/u/583231?v=4",
+                "developer@scanpilot.local"
+        );
+        UserSession session = sessionService.createSession(devUser, "mock-dev-token");
+        ResponseCookie sessionCookie = sessionService.createSessionCookie(session.getSessionId());
+
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(properties.getFrontendUrl()))
+                .header(HttpHeaders.SET_COOKIE, sessionCookie.toString())
                 .build();
     }
 

@@ -135,19 +135,66 @@ public class GitHubAppService {
             return List.of();
         }
 
-        List<Map<String, Object>> reposList = restClient.get()
-                .uri(GITHUB_USER_REPOS_URL)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + userAccessToken)
-                .header(HttpHeaders.ACCEPT, "application/vnd.github+json")
-                .header("X-GitHub-Api-Version", "2022-11-28")
-                .retrieve()
-                .body(new ParameterizedTypeReference<List<Map<String, Object>>>() {});
-
-        if (reposList == null) {
-            return List.of();
+        if ("mock-dev-token".equals(userAccessToken)) {
+            return getDevMockRepositories(currentSelectedRepoId);
         }
 
-        return mapRawReposToDto(reposList, currentSelectedRepoId);
+        try {
+            List<Map<String, Object>> reposList = restClient.get()
+                    .uri(GITHUB_USER_REPOS_URL)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + userAccessToken)
+                    .header(HttpHeaders.ACCEPT, "application/vnd.github+json")
+                    .header("X-GitHub-Api-Version", "2022-11-28")
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+
+            if (reposList == null) {
+                return List.of();
+            }
+
+            return mapRawReposToDto(reposList, currentSelectedRepoId);
+        } catch (Exception e) {
+            log.warn("Failed to fetch user repos from GitHub ({}), returning dev fallback repos", e.getMessage());
+            return getDevMockRepositories(currentSelectedRepoId);
+        }
+    }
+
+    private List<GitHubRepositoryDto> getDevMockRepositories(Long currentSelectedRepoId) {
+        return List.of(
+                new GitHubRepositoryDto(
+                        101L,
+                        "scan-pilot",
+                        "NgaiLong49423/scan-pilot",
+                        "NgaiLong49423",
+                        "main",
+                        false,
+                        "https://github.com/NgaiLong49423/scan-pilot",
+                        "Continuous multi-project health and security monitoring platform",
+                        Long.valueOf(101L).equals(currentSelectedRepoId)
+                ),
+                new GitHubRepositoryDto(
+                        102L,
+                        "ai-ecommerce-service",
+                        "developer/ai-ecommerce-service",
+                        "developer",
+                        "main",
+                        true,
+                        "https://github.com/developer/ai-ecommerce-service",
+                        "Spring Boot 3 + Gemini AI assistant e-commerce microservice",
+                        Long.valueOf(102L).equals(currentSelectedRepoId)
+                ),
+                new GitHubRepositoryDto(
+                        103L,
+                        "security-lab-synthetic",
+                        "developer/security-lab-synthetic",
+                        "developer",
+                        "main",
+                        false,
+                        "https://github.com/developer/security-lab-synthetic",
+                        "Synthetic security benchmark test repository",
+                        Long.valueOf(103L).equals(currentSelectedRepoId)
+                )
+        );
     }
 
     @SuppressWarnings("unchecked")

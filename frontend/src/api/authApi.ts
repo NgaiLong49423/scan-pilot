@@ -1,0 +1,33 @@
+import { apiClient } from './client';
+import { UserProfile } from '../types/api';
+
+export const authApi = {
+  /**
+   * Retrieves the profile of the currently authenticated user.
+   * Returns null if unauthenticated (401).
+   */
+  async getMe(): Promise<UserProfile | null> {
+    try {
+      return await apiClient.get<UserProfile>('/api/v1/auth/me');
+    } catch (err: any) {
+      if (err.status === 401) {
+        return null;
+      }
+      throw err;
+    }
+  },
+
+  /**
+   * Returns the GitHub OAuth login URL.
+   */
+  getLoginUrl(): string {
+    return '/api/v1/auth/github/login';
+  },
+
+  /**
+   * Invalidates active session on backend and clears the HttpOnly cookie.
+   */
+  async logout(): Promise<{ message: string }> {
+    return await apiClient.post<{ message: string }>('/api/v1/auth/logout');
+  },
+};
