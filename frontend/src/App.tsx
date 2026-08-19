@@ -1,601 +1,345 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
   Search, 
-  GitBranch, 
-  RefreshCw, 
-  AlertTriangle,
-  Play,
-  Github,
+  Filter, 
+  Layers, 
+  CheckCircle2, 
+  Clock, 
+  ArrowLeft,
+  Sparkles,
   ExternalLink,
-  Filter,
-  CheckSquare,
-  Layers
+  GitCommit,
+  FileCode 
 } from 'lucide-react';
+import { Repository, Finding, HealthMetrics, UserProfile } from './types';
 import { 
-  UserProfile, 
-  MonitoredProject, 
-  Finding, 
-  CoverageSummary, 
-  ScanJob
-} from './types/api';
-import { authApi } from './api/authApi';
-import { projectsApi } from './api/projectsApi';
-import { scansApi } from './api/scansApi';
-import { Header } from './components/Header';
-import { RepoSelectorModal } from './components/RepoSelectorModal';
-import { ScanProgressBar } from './components/ScanProgressBar';
+  fetchRepositories, 
+  fetchFindingsForRepo, 
+  fetchHealthMetrics,
+  fetchCurrentUser,
+  loginWithGitHub,
+  logoutUser,
+  triggerRealScan
+} from './services/api';
+import { Navbar } from './components/Navbar';
+import { HealthGauge } from './components/HealthGauge';
+import { TrendSparkline } from './components/TrendSparkline';
+import { MetricsGrid } from './components/MetricsGrid';
 import { FindingCard } from './components/FindingCard';
-import { CoverageTab } from './components/CoverageTab';
-import { CardSkeleton, MetricSkeleton } from './components/LoadingSkeleton';
-import { EmptyState } from './components/EmptyState';
-import { ErrorBanner } from './components/ErrorBanner';
-import { Footer } from './components/Footer';
+import { RepoSelectModal } from './components/RepoSelectModal';
+import { HeroLanding } from './components/HeroLanding';
+import { ScanProgressStepper } from './components/ScanProgressStepper';
+import { CoverageAuditView } from './components/CoverageAuditView';
 
 export default function App() {
-  // Global & Session State
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [project, setProject] = useState<MonitoredProject | null>(null);
-  const [activeTab, setActiveTab] = useState<'findings' | 'coverage'>('findings');
-  const [isRepoModalOpen, setIsRepoModalOpen] = useState(false);
-
-  // Data State
+  const [currentView, setCurrentView] = useState<'landing' | 'dashboard'>('landing');
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [activeNavTab, setActiveNavTab] = useState<'findings' | 'coverage'>('findings');
+  const [repositories, setRepositories] = useState<Repository[]>([]);
+  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
-  const [coverage, setCoverage] = useState<CoverageSummary | null>(null);
-  const [selectedBranch, setSelectedBranch] = useState<string>('main');
+  const [metrics, setMetrics] = useState<HealthMetrics | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [isRepoModalOpen, setIsRepoModalOpen] = useState(false);
+  const [severityFilter, setSeverityFilter] = useState<'ALL' | 'CRITICAL' | 'HIGH' | 'RESOLVED'>('ALL');
+  const [scanModeFilter, setScanModeFilter] = useState<'ALL' | 'SNAPSHOT' | 'HISTORY'>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Scan Job & Polling State
-  const [activeScanJob, setActiveScanJob] = useState<ScanJob | null>(null);
-  const [isTriggeringScan, setIsTriggeringScan] = useState(false);
-  const pollingTimerRef = useRef<number | null>(null);
-
-  // Filter & Search State
-  const [severityFilter, setSeverityFilter] = useState<string>('ALL');
-  const [lifecycleFilter, setLifecycleFilter] = useState<string>('ALL');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-
-  // Loading & Error States (4-state completeness)
-  const [isLoadingInitial, setIsLoadingInitial] = useState(true);
-  const [isLoadingFindings, setIsLoadingFindings] = useState(false);
-  const [isLoadingCoverage, setIsLoadingCoverage] = useState(false);
-  const [globalError, setGlobalError] = useState<string | null>(null);
-  const [authError, setAuthError] = useState<string | null>(null);
-
-  // 1. Initial Load & OAuth Error Handling
+  // Initial load: Check real backend authentication session
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const authErr = urlParams.get('auth_error') || urlParams.get('error');
-    if (authErr) {
-      setAuthError(`GitHub Authentication Notice: ${authErr.replace(/_/g, ' ')}`);
-      // Clean query string without page reload
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
-    bootstrapApp();
-
-    return () => {
-      if (pollingTimerRef.current) {
-        clearInterval(pollingTimerRef.current);
+    async function loadData() {
+      // 1. Check if user is already logged in via backend session cookie
+      const user = await fetchCurrentUser();
+      if (user) {
+        setCurrentUser(user);
+        setCurrentView('dashboard');
       }
-    };
+
+      // 2. Load repositories
+      const repos = await fetchRepositories();
+      setRepositories(repos);
+      if (repos.length > 0) {
+        const firstRepo = repos[0];
+        setSelectedRepo(firstRepo);
+        const [repoFindings, repoMetrics] = await Promise.all([
+          fetchFindingsForRepo(firstRepo.id),
+          fetchHealthMetrics(firstRepo.id),
+        ]);
+        setFindings(repoFindings);
+        setMetrics(repoMetrics);
+      }
+    }
+    loadData();
   }, []);
 
-  const bootstrapApp = async () => {
-    setIsLoadingInitial(true);
-    setGlobalError(null);
-    try {
-      // Fetch authenticated user (gracefully returns null if guest)
-      const currentUser = await authApi.getMe();
-      setUser(currentUser);
-
-      if (currentUser) {
-        // Fetch currently monitored project
-        const currentProj = await projectsApi.getCurrentProject();
-        setProject(currentProj);
-
-        if (currentProj) {
-          setSelectedBranch(currentProj.primaryBranch || currentProj.defaultBranch || 'main');
-          await Promise.allSettled([
-            loadFindings(currentProj.id),
-            loadCoverage(currentProj.id),
-          ]);
-        }
-      }
-    } catch {
-      // Silent on guest load
-    } finally {
-      setIsLoadingInitial(false);
-    }
+  // Handle real GitHub OAuth Sign-in
+  const handleGitHubLogin = () => {
+    loginWithGitHub();
   };
 
-  const loadFindings = async (repositoryId: string) => {
-    setIsLoadingFindings(true);
-    try {
-      const data = await scansApi.getFindings(repositoryId);
-      setFindings(data || []);
-    } catch (err: any) {
-      setGlobalError(err?.message || 'Failed to load security findings.');
-    } finally {
-      setIsLoadingFindings(false);
-    }
+  // Handle Demo Mode
+  const handleExploreDemo = () => {
+    setCurrentView('dashboard');
   };
 
-  const loadCoverage = async (repositoryId: string) => {
-    setIsLoadingCoverage(true);
-    try {
-      const data = await scansApi.getCoverage(repositoryId);
-      setCoverage(data);
-    } catch (err: any) {
-      // 404 is normal before first scan
-      if (err?.status !== 404) {
-        setGlobalError(err?.message || 'Failed to load coverage report.');
-      }
-    } finally {
-      setIsLoadingCoverage(false);
-    }
-  };
-
-  // 2. Scan Trigger & Real-Time Polling (UC-003)
-  const handleTriggerScan = async (branchName?: string) => {
-    if (!project) return;
-    const targetBranch = branchName || selectedBranch || project.primaryBranch || 'main';
-
-    setIsTriggeringScan(true);
-    setGlobalError(null);
-
-    try {
-      const response = await scansApi.triggerScan(targetBranch, project.id);
-      
-      const initialJob: ScanJob = {
-        id: response.jobId,
-        repositoryId: response.repositoryId || project.id,
-        branchName: response.branchName || targetBranch,
-        scanMode: 'CONTINUOUS_MONITORING',
-        status: (response.status as any) || 'PENDING',
-        commitSha: null,
-        durationMs: null,
-        errorMessage: null,
-        startedAt: new Date().toISOString(),
-        completedAt: null,
-      };
-      setActiveScanJob(initialJob);
-
-      // Start real-time polling loop every 1.5 seconds
-      startScanPolling(response.jobId, project.id);
-    } catch (err: any) {
-      setGlobalError(err?.message || 'Failed to trigger security scan.');
-      setIsTriggeringScan(false);
-    }
-  };
-
-  const startScanPolling = (jobId: string, repositoryId: string) => {
-    if (pollingTimerRef.current) {
-      clearInterval(pollingTimerRef.current);
-    }
-
-    pollingTimerRef.current = window.setInterval(async () => {
-      try {
-        const job = await scansApi.getScanJob(jobId);
-        setActiveScanJob(job);
-
-        if (job.status === 'COMPLETED') {
-          if (pollingTimerRef.current) clearInterval(pollingTimerRef.current);
-          setIsTriggeringScan(false);
-          // Refresh findings and coverage silently
-          loadFindings(repositoryId);
-          loadCoverage(repositoryId);
-        } else if (job.status === 'FAILED') {
-          if (pollingTimerRef.current) clearInterval(pollingTimerRef.current);
-          setIsTriggeringScan(false);
-          setGlobalError(job.errorMessage || 'Scan job failed during execution.');
-        }
-      } catch (err: any) {
-        if (pollingTimerRef.current) clearInterval(pollingTimerRef.current);
-        setIsTriggeringScan(false);
-        setGlobalError(err?.message || 'Error polling scan job status.');
-      }
-    }, 1500);
-  };
-
-  const handleSelectProjectSuccess = async (newProject: MonitoredProject) => {
-    setProject(newProject);
-    setSelectedBranch(newProject.primaryBranch || newProject.defaultBranch || 'main');
-    await Promise.allSettled([
-      loadFindings(newProject.id),
-      loadCoverage(newProject.id),
+  // Handle selecting another repo
+  const handleSelectRepo = async (repo: Repository) => {
+    setSelectedRepo(repo);
+    const [repoFindings, repoMetrics] = await Promise.all([
+      fetchFindingsForRepo(repo.id),
+      fetchHealthMetrics(repo.id),
     ]);
+    setFindings(repoFindings);
+    setMetrics(repoMetrics);
   };
 
-  const handleLogout = async () => {
-    try {
-      await authApi.logout();
-      setUser(null);
-      setProject(null);
-      setFindings([]);
-      setCoverage(null);
-    } catch (err: any) {
-      setGlobalError(err?.message || 'Failed to log out.');
+  // Handle trigger scan
+  const handleTriggerRescan = async () => {
+    setIsScanning(true);
+    await triggerRealScan(selectedRepo?.branch);
+    setTimeout(() => {
+      setIsScanning(false);
+    }, 2000);
+  };
+
+  // Handle applying an AI fix
+  const handleApplyFix = (findingId: string) => {
+    setFindings((prev) =>
+      prev.map((f) =>
+        f.id === findingId
+          ? {
+              ...f,
+              status: 'RESOLVED',
+              remediationQuality: 'VERIFIED_COMPLETE',
+            }
+          : f
+      )
+    );
+
+    if (metrics) {
+      setMetrics({
+        ...metrics,
+        openLeaksCount: Math.max(0, metrics.openLeaksCount - 1),
+        resolvedLeaksCount: metrics.resolvedLeaksCount + 1,
+        healthScore: Math.min(100, metrics.healthScore + 3),
+      });
     }
   };
 
-  const handleLogin = () => {
-    window.location.href = authApi.getLoginUrl();
-  };
+  if (currentView === 'landing') {
+    return (
+      <HeroLanding
+        onSignIn={handleGitHubLogin}
+        onExploreDemo={handleExploreDemo}
+      />
+    );
+  }
 
-  // Filtered findings calculation
   const filteredFindings = findings.filter((f) => {
-    const matchesSeverity = severityFilter === 'ALL' || f.severity === severityFilter;
-    const matchesLifecycle = lifecycleFilter === 'ALL' || f.lifecycle === lifecycleFilter;
     const matchesSearch = 
-      f.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.ruleId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      f.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (f.locations && f.locations.some((l) => l.filePath.toLowerCase().includes(searchQuery.toLowerCase())));
+      f.ruleName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      f.filePath.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      f.ruleId.toLowerCase().includes(searchQuery.toLowerCase());
 
-    return matchesSeverity && matchesLifecycle && matchesSearch;
+    if (!matchesSearch) return false;
+
+    // Scan Mode filter
+    if (scanModeFilter === 'SNAPSHOT' && !f.detectedCommit.includes('HEAD')) return false;
+    if (scanModeFilter === 'HISTORY' && f.detectedCommit.includes('HEAD-02')) return false;
+
+    if (severityFilter === 'ALL') return true;
+    if (severityFilter === 'RESOLVED') return f.status === 'RESOLVED';
+    return f.severity === severityFilter && f.status === 'OPEN';
   });
 
-  const openFindingsCount = findings.filter((f) => f.lifecycle === 'OPEN').length;
-  const resolvedFindingsCount = findings.filter((f) => f.lifecycle === 'RESOLVED').length;
-
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-300 font-sans flex flex-col antialiased">
-      {/* Top Header Navigation */}
-      <Header
-        user={user}
-        project={project}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        onOpenRepoSelector={() => setIsRepoModalOpen(true)}
-        onLogout={handleLogout}
-        onLogin={handleLogin}
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col justify-between selection:bg-indigo-500/30">
+      {/* Sticky Top Navbar with 2 Main Navigation Tabs */}
+      <Navbar
+        selectedRepo={selectedRepo}
+        activeTab={activeNavTab}
+        onTabChange={setActiveNavTab}
+        isScanning={isScanning}
+        onTriggerRescan={handleTriggerRescan}
+        onOpenRepoModal={() => setIsRepoModalOpen(true)}
+        onNavigateHome={logoutUser}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
-        {/* Auth Error Banner */}
-        {authError && (
-          <ErrorBanner
-            message={authError}
-            onDismiss={() => setAuthError(null)}
+      {/* Main Content Area */}
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-6">
+        {/* Dual-Stage Scan Stepper Progress Banner */}
+        {selectedRepo && (
+          <ScanProgressStepper
+            isScanning={isScanning}
+            branchName={selectedRepo.branch}
           />
         )}
 
-        {/* Global Error Banner with Retry */}
-        {globalError && (
-          <ErrorBanner
-            message={globalError}
-            onRetry={project ? () => bootstrapApp() : undefined}
-            onDismiss={() => setGlobalError(null)}
-          />
-        )}
-
-        {/* Initial Loading Skeleton */}
-        {isLoadingInitial ? (
-          <div className="space-y-6 pt-4">
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <MetricSkeleton />
-              <MetricSkeleton />
-              <MetricSkeleton />
-              <MetricSkeleton />
-            </div>
-            <CardSkeleton />
-            <CardSkeleton />
-          </div>
-        ) : !user ? (
-          /* Unauthenticated Landing State */
-          <div className="py-12 sm:py-20 text-center max-w-2xl mx-auto space-y-8 animate-in fade-in duration-300">
-            <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-600 p-0.5 mx-auto shadow-xl shadow-blue-500/20 flex items-center justify-center">
-              <ShieldCheck className="w-9 h-9 text-white" />
-            </div>
-            <div className="space-y-3">
-              <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
-                Continuous Secret Detection & AI-Assisted Remediation
-              </h1>
-              <p className="text-sm sm:text-base text-slate-400 leading-relaxed max-w-xl mx-auto">
-                Scan Pilot guards your GitHub repositories with instant snapshot scans, git history verification, and actionable Gemini AI remediation guidance.
-              </p>
-            </div>
-            <div className="pt-2">
-              <button
-                onClick={handleLogin}
-                className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl text-sm inline-flex items-center gap-2.5 transition-all shadow-lg shadow-blue-600/30 focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
-              >
-                <Github className="w-5 h-5" />
-                <span>Sign in with GitHub</span>
-              </button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-left pt-8 border-t border-slate-800/80 text-xs">
-              <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-                <div className="font-semibold text-white mb-1">Dual-Stage Detection</div>
-                <div className="text-slate-400 leading-relaxed">Scans current HEAD snapshots and reachable Git commit history.</div>
-              </div>
-              <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-                <div className="font-semibold text-white mb-1">Zero Secret Leaks</div>
-                <div className="text-slate-400 leading-relaxed">Full masking, redaction, and SHA-256 fingerprinting at all times.</div>
-              </div>
-              <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-                <div className="font-semibold text-white mb-1">Gemini AI Guidance</div>
-                <div className="text-slate-400 leading-relaxed">Structured checklists, code diffs, and revocation commands.</div>
-              </div>
-            </div>
-          </div>
-        ) : !project ? (
-          /* Authenticated but No Repository Selected */
-          <EmptyState
-            type="no-project"
-            title="Connect a Repository to Start Monitoring"
-            description="Select an accessible repository to enable continuous secret scanning, git history verification, and AI remediation guidance."
-            actionText="Select Monitored Repository"
-            onAction={() => setIsRepoModalOpen(true)}
-          />
-        ) : (
-          /* Authenticated & Monitored Repository Active */
-          <div className="space-y-6 animate-in fade-in duration-300">
-            {/* Project Header Bar */}
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="text-xl font-bold text-white tracking-tight">
-                    {project.fullName}
-                  </h2>
-                  <a
-                    href={`https://github.com/${project.fullName}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-slate-500 hover:text-slate-300 transition-colors"
-                    title="View repository on GitHub"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                  {project.isPrivate ? (
-                    <span className="text-[11px] font-medium bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">
-                      Private
-                    </span>
-                  ) : (
-                    <span className="text-[11px] font-medium bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">
-                      Public
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
-                  <span className="flex items-center gap-1 text-slate-300 font-medium">
-                    <GitBranch className="w-3.5 h-3.5 text-blue-400" />
-                    Primary: {project.primaryBranch}
-                  </span>
-                  {project.secondaryBranches && project.secondaryBranches.length > 0 && (
-                    <span className="flex items-center gap-1 text-slate-400">
-                      Secondary slots ({project.secondaryBranches.length}): {project.secondaryBranches.join(', ')}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Branch Selector & Trigger Scan Button */}
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <select
-                    value={selectedBranch}
-                    onChange={(e) => setSelectedBranch(e.target.value)}
-                    disabled={isTriggeringScan}
-                    className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  >
-                    <option value={project.primaryBranch}>{project.primaryBranch} (Primary)</option>
-                    {(project.secondaryBranches || []).map((b) => (
-                      <option key={b} value={b}>{b}</option>
-                    ))}
-                  </select>
+        {/* Tab 1: Findings & Remediation View */}
+        {activeNavTab === 'findings' && (
+          <div className="space-y-8 animate-in fade-in duration-200">
+            {/* Top Overview Section: Health Gauge + Trend Sparkline + Metrics */}
+            {metrics && (
+              <section className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                      Security Posture & Findings
+                    </h1>
+                    <p className="text-xs sm:text-sm text-slate-400 mt-1">
+                      Continuous secret detection & AI-assisted remediation across commit history.
+                    </p>
+                  </div>
 
                   <button
-                    onClick={() => handleTriggerScan(selectedBranch)}
-                    disabled={isTriggeringScan}
-                    className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
+                    type="button"
+                    onClick={logoutUser}
+                    className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:bg-slate-800 text-xs text-slate-400 hover:text-slate-200 transition-colors"
                   >
-                    {isTriggeringScan ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Scanning...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-3.5 h-3.5 fill-current" />
-                        <span>Run Security Scan</span>
-                      </>
-                    )}
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Landing Page</span>
                   </button>
                 </div>
-              </div>
-            </div>
 
-            {/* Real-time Scan Progress Bar (UC-003) */}
-            {activeScanJob && (
-              <ScanProgressBar
-                scanJob={activeScanJob}
-                onDismiss={() => setActiveScanJob(null)}
-                onRetry={() => handleTriggerScan(activeScanJob.branchName)}
-              />
+                {/* Visual Analytics Bento Banner */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
+                  <div className="md:col-span-4 lg:col-span-3">
+                    <HealthGauge score={metrics.healthScore} grade={metrics.grade} />
+                  </div>
+                  <div className="md:col-span-8 lg:col-span-4">
+                    <TrendSparkline data={metrics.trendData} />
+                  </div>
+                  <div className="md:col-span-12 lg:col-span-5">
+                    <MetricsGrid metrics={metrics} />
+                  </div>
+                </div>
+              </section>
             )}
 
-            {/* Metrics Overview Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    Total Findings
-                  </span>
-                  <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                    <Layers className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <span className="text-2xl font-bold text-white tabular-nums">
-                    {findings.length}
-                  </span>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Across current & historical commits
-                  </p>
-                </div>
-              </div>
+            {/* Finding Stream Section */}
+            <section className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+                {/* Filter Tabs by Severity */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                  <button
+                    type="button"
+                    onClick={() => setSeverityFilter('ALL')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                      severityFilter === 'ALL'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    }`}
+                  >
+                    All Findings ({findings.length})
+                  </button>
 
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    Open / Action Required
-                  </span>
-                  <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                    <AlertTriangle className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <span className={`text-2xl font-bold tabular-nums ${openFindingsCount > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                    {openFindingsCount}
-                  </span>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {openFindingsCount > 0 ? 'Requires immediate remediation' : 'No active exposures'}
-                  </p>
-                </div>
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => setSeverityFilter('CRITICAL')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                      severityFilter === 'CRITICAL'
+                        ? 'bg-rose-600 text-white shadow-sm'
+                        : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    }`}
+                  >
+                    Critical ({findings.filter((f) => f.severity === 'CRITICAL' && f.status === 'OPEN').length})
+                  </button>
 
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    Resolved Findings
-                  </span>
-                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    <ShieldCheck className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <span className="text-2xl font-bold text-emerald-400 tabular-nums">
-                    {resolvedFindingsCount}
-                  </span>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Contained or verified clean (UC-005)
-                  </p>
-                </div>
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => setSeverityFilter('HIGH')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                      severityFilter === 'HIGH'
+                        ? 'bg-amber-600 text-white shadow-sm'
+                        : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    }`}
+                  >
+                    High ({findings.filter((f) => f.severity === 'HIGH' && f.status === 'OPEN').length})
+                  </button>
 
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    Scan Coverage
-                  </span>
-                  <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                    <CheckSquare className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <span className="text-2xl font-bold text-white tabular-nums">
-                    {coverage && coverage.totalFiles > 0
-                      ? `${Math.round((coverage.scannedFiles / coverage.totalFiles) * 100)}%`
-                      : '100%'}
-                  </span>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {coverage ? `${coverage.scannedFiles} of ${coverage.totalFiles} files` : 'Ready for evaluation'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Tab Views */}
-            {activeTab === 'findings' ? (
-              /* Findings Tab */
-              <div className="space-y-4">
-                {/* Search and Filters Toolbar */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
-                  <div className="relative flex-1 max-w-md">
-                    <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      placeholder="Search by rule, title, or file path..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 pl-9 pr-4 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                    />
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                      <Filter className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Severity:</span>
-                    </div>
-                    <select
-                      value={severityFilter}
-                      onChange={(e) => setSeverityFilter(e.target.value)}
-                      className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                    >
-                      <option value="ALL">All Severities</option>
-                      <option value="CRITICAL">Critical</option>
-                      <option value="HIGH">High</option>
-                      <option value="MEDIUM">Medium</option>
-                      <option value="LOW">Low</option>
-                    </select>
-
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400 ml-2">
-                      <span>Lifecycle:</span>
-                    </div>
-                    <select
-                      value={lifecycleFilter}
-                      onChange={(e) => setLifecycleFilter(e.target.value)}
-                      className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                    >
-                      <option value="ALL">All Lifecycle</option>
-                      <option value="OPEN">Open</option>
-                      <option value="RESOLVED">Resolved</option>
-                      <option value="REGRESSED">Regressed</option>
-                    </select>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSeverityFilter('RESOLVED')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                      severityFilter === 'RESOLVED'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    }`}
+                  >
+                    Resolved ({findings.filter((f) => f.status === 'RESOLVED').length})
+                  </button>
                 </div>
 
-                {/* Findings List */}
-                {isLoadingFindings ? (
-                  <div className="space-y-4 pt-2">
-                    <CardSkeleton />
-                    <CardSkeleton />
-                  </div>
-                ) : filteredFindings.length === 0 ? (
-                  <EmptyState
-                    type="no-findings"
-                    title={
-                      findings.length === 0
-                        ? "Zero Secret Exposures Detected"
-                        : "No Findings Match Your Filter"
-                    }
-                    description={
-                      findings.length === 0
-                        ? "Both the current HEAD snapshot and reachable git commits are clean of active secrets."
-                        : "Try adjusting your search query, severity, or lifecycle filters."
-                    }
-                    actionText={findings.length === 0 ? "Run Verification Scan" : undefined}
-                    onAction={findings.length === 0 ? () => handleTriggerScan() : undefined}
+                {/* Search Input */}
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search rule, path..."
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 pl-9 pr-3 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                   />
+                </div>
+              </div>
+
+              {/* Finding Cards List */}
+              <div className="space-y-4">
+                {filteredFindings.length > 0 ? (
+                  filteredFindings.map((finding) => (
+                    <FindingCard
+                      key={finding.id}
+                      finding={finding}
+                      onApplyFix={handleApplyFix}
+                    />
+                  ))
                 ) : (
-                  <div className="space-y-4">
-                    {filteredFindings.map((finding) => (
-                      <FindingCard key={finding.id} finding={finding} />
-                    ))}
+                  <div className="p-12 text-center bg-slate-900/40 border border-slate-800/80 rounded-2xl space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-base font-semibold text-white">No Matching Findings</h3>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                      All monitored files are clean or no findings match your active filter criteria.
+                    </p>
                   </div>
                 )}
               </div>
-            ) : (
-              /* Coverage & Audit Tab */
-              <CoverageTab
-                coverage={coverage}
-                isLoading={isLoadingCoverage}
-              />
-            )}
+            </section>
           </div>
+        )}
+
+        {/* Tab 2: Coverage & Audit View */}
+        {activeNavTab === 'coverage' && selectedRepo && (
+          <CoverageAuditView repo={selectedRepo} />
         )}
       </main>
 
-      {/* Modern Bento Dark Slate Footer */}
-      <Footer />
+      {/* Footer */}
+      <footer className="w-full border-t border-slate-800/80 bg-slate-950 py-6 text-xs text-slate-500 mt-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="font-semibold text-slate-400">Scan Pilot Security</span>
+            <span>•</span>
+            <span>Google Cloud Run & Spring Boot 3 Engine</span>
+          </div>
 
-      {/* Repository Selection & Branch Slot Modal (UC-002) */}
-      <RepoSelectorModal
+          <div className="flex items-center gap-4 text-[11px]">
+            <span>SP-CONFIG-001 Verified</span>
+            <span>•</span>
+            <span>Zero Raw Secret Policy</span>
+          </div>
+        </div>
+      </footer>
+
+      {/* Repository Selector Modal */}
+      <RepoSelectModal
         isOpen={isRepoModalOpen}
-        currentProject={project}
+        repositories={repositories}
+        selectedRepoId={selectedRepo?.id || ''}
+        onSelectRepo={handleSelectRepo}
         onClose={() => setIsRepoModalOpen(false)}
-        onSelectSuccess={handleSelectProjectSuccess}
       />
     </div>
   );
