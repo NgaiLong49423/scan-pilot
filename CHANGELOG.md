@@ -11,9 +11,19 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-19 — Remote GitHub Snapshot Auto-Redirect & Default Branch Fallback (PR #45)
+
+**Status:** Working tree — `feature/real-github-snapshot-download`
+
+**Scope:** Resolved remote GitHub archive download issue by replacing HttpURLConnection with Java 21 `HttpClient` configured with `Redirect.ALWAYS` (handling cross-domain 302 redirects from `api.github.com` to `codeload.github.com`), and added automatic fallback to repository default branch when branch-specific URL returns 404.
+
+### Changed
+
+- Updated `backend/src/main/java/com/scanpilot/scanner/pipeline/ScanPipelineService.java` using Java 21 `HttpClient` with auto-redirects and branch fallback to download complete repository snapshots.
+
 ## 2026-08-19 — Scan Pipeline PostgreSQL Persistence & Remote Snapshot Scanning (PR #44)
 
-**Status:** Working tree — `8f12215` (PR #44)
+**Status:** Committed — `c84aff4` (PR #44)
 
 **Scope:** Resolved scan execution 500 error by persisting user and repository entities to PostgreSQL on repository selection, added automated remote GitHub repository snapshot downloading/unpacking via pure Java ZipStream, configured default production frontend URL, and added root API welcome endpoint.
 

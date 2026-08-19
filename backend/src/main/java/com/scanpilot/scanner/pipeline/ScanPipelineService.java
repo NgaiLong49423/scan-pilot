@@ -518,9 +518,6 @@ public class ScanPipelineService {
 
             log.info("Fetching remote snapshot for repository {} on branch {}", fullName, branch);
             try {
-                String url = "https://api.github.com/repos/" + fullName + "/zipball/" + branch;
-                org.springframework.web.client.RestClient client = org.springframework.web.client.RestClient.create();
-
                 String token = null;
                 if (repo.getUserId() != null && userSessionRepository != null) {
                     List<com.scanpilot.persistence.entity.UserSessionEntity> sessions = userSessionRepository.findByUserId(repo.getUserId());
@@ -529,22 +526,56 @@ public class ScanPipelineService {
                     }
                 }
 
-                var req = client.get().uri(url)
-                        .header("Accept", "application/vnd.github+json")
-                        .header("User-Agent", "Scan-Pilot");
-                if (token != null && !token.isBlank() && !token.startsWith("mock-")) {
-                    req.header("Authorization", "Bearer " + token);
+                java.net.http.HttpClient httpClient = java.net.http.HttpClient.newBuilder()
+                        .followRedirects(java.net.http.HttpClient.Redirect.ALWAYS)
+                        .connectTimeout(java.time.Duration.ofSeconds(30))
+                        .build();
+
+                // 1. Try branch-specific zipball URL
+                byte[] zipBytes = downloadZipBytes(httpClient, "https://api.github.com/repos/" + fullName + "/zipball/" + branch, token);
+
+                // 2. If branch-specific URL returns null/404, fallback to default branch zipball URL
+                if (zipBytes == null || zipBytes.length == 0) {
+                    log.info("Branch '{}' not found or returned empty for {}; attempting repository default branch", branch, fullName);
+                    zipBytes = downloadZipBytes(httpClient, "https://api.github.com/repos/" + fullName + "/zipball", token);
                 }
 
-                byte[] zipBytes = req.retrieve().body(byte[].class);
                 if (zipBytes != null && zipBytes.length > 0) {
                     extractZipArchive(zipBytes, workspacePath);
                     log.info("Successfully extracted {} bytes of repository snapshot for {}", zipBytes.length, fullName);
+                } else {
+                    log.warn("Repository snapshot for {} returned empty payload", fullName);
                 }
             } catch (Exception e) {
-                log.warn("Could not download remote snapshot for {} (branch: {}): {}", fullName, branch, e.getMessage());
+                log.warn("Could not download remote snapshot for {} (branch: {}): {}", fullName, branch, e.getMessage(), e);
             }
         });
+    }
+
+    private byte[] downloadZipBytes(java.net.http.HttpClient httpClient, String url, String token) {
+        try {
+            java.net.http.HttpRequest.Builder builder = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(url))
+                    .header("Accept", "application/vnd.github+json")
+                    .header("User-Agent", "Scan-Pilot")
+                    .timeout(java.time.Duration.ofMinutes(2))
+                    .GET();
+
+            if (token != null && !token.isBlank() && !token.startsWith("mock-")) {
+                builder.header("Authorization", "Bearer " + token);
+            }
+
+            java.net.http.HttpResponse<byte[]> response = httpClient.send(builder.build(), java.net.http.HttpResponse.BodyHandlers.ofByteArray());
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                return response.body();
+            } else {
+                log.warn("GitHub snapshot request to '{}' returned HTTP {}", url, response.statusCode());
+                return null;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to download from '{}': {}", url, e.getMessage());
+            return null;
+        }
     }
 
     private void extractZipArchive(byte[] zipBytes, Path targetDir) throws IOException {
