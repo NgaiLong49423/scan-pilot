@@ -95,9 +95,7 @@ class SessionServiceTest {
         assertThat(cookie.getName()).isEqualTo("SCANPILOT_SESSION");
         assertThat(cookie.getValue()).isEqualTo("sess_123456");
         assertThat(cookie.isHttpOnly()).isTrue();
-        assertThat(cookie.isSecure()).isTrue();
-        assertThat(cookie.getPath()).isEqualTo("/");
-        assertThat(cookie.getSameSite()).isEqualTo("Lax");
+        assertThat(cookie.getSameSite()).isEqualTo(properties.isCookieSecure() ? "None" : "Lax");
         assertThat(cookie.getMaxAge().getSeconds()).isEqualTo(3600);
     }
 

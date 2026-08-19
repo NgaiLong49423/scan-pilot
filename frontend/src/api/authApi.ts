@@ -16,11 +16,12 @@ export const authApi = {
   },
 
   /**
-   * Returns the GitHub OAuth login URL.
+   * Returns the GitHub OAuth login URL with dynamic return redirect.
    */
   getLoginUrl(): string {
     const base = apiClient.getBaseUrl();
-    return `${base}/api/v1/auth/github/login`;
+    const currentOrigin = typeof window !== 'undefined' ? encodeURIComponent(window.location.origin) : '';
+    return `${base}/api/v1/auth/github/login?redirect_uri=${currentOrigin}`;
   },
 
   /**

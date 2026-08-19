@@ -105,7 +105,7 @@ public class SessionService {
                 .httpOnly(true)
                 .secure(properties.isCookieSecure())
                 .path("/")
-                .sameSite("Lax")
+                .sameSite(properties.isCookieSecure() ? "None" : "Lax")
                 .maxAge(Duration.ofSeconds(properties.getSessionTtlSeconds()))
                 .build();
     }
@@ -115,7 +115,7 @@ public class SessionService {
                 .httpOnly(true)
                 .secure(properties.isCookieSecure())
                 .path("/")
-                .sameSite("Lax")
+                .sameSite(properties.isCookieSecure() ? "None" : "Lax")
                 .maxAge(0)
                 .build();
     }

@@ -38,13 +38,17 @@ public class AuthController {
 
     /**
      * Initiates GitHub OAuth flow by redirecting user to GitHub's authorization endpoint.
-     * When client_id is not configured (local development), falls back automatically to dev session.
+     * When client_id is not configured (local development / preview), falls back automatically to dev session.
      */
     @GetMapping("/github/login")
-    public ResponseEntity<Void> loginWithGitHub() {
+    public ResponseEntity<Void> loginWithGitHub(
+            HttpServletRequest request,
+            @RequestParam(name = "redirect_uri", required = false) String redirectUri
+    ) {
+        String targetFrontend = resolveTargetFrontendUrl(request, redirectUri);
         if (properties.getClientId() == null || properties.getClientId().isBlank()) {
-            log.info("GitHub Client ID is not configured. Falling back to local dev session login.");
-            return devLogin();
+            log.info("GitHub Client ID is not configured. Falling back to dev session login redirecting to {}", targetFrontend);
+            return devLogin(targetFrontend);
         }
         String authUrl = gitHubOAuthService.generateAuthorizationUrl();
         return ResponseEntity.status(HttpStatus.FOUND)
@@ -53,10 +57,18 @@ public class AuthController {
     }
 
     /**
-     * Local development instant sign-in endpoint.
+     * Local development / instant sign-in endpoint with dynamic return URL.
      */
     @GetMapping("/dev-login")
-    public ResponseEntity<Void> devLogin() {
+    public ResponseEntity<Void> devLoginEndpoint(
+            HttpServletRequest request,
+            @RequestParam(name = "redirect_uri", required = false) String redirectUri
+    ) {
+        String targetFrontend = resolveTargetFrontendUrl(request, redirectUri);
+        return devLogin(targetFrontend);
+    }
+
+    private ResponseEntity<Void> devLogin(String targetFrontend) {
         GitHubUserDto devUser = new GitHubUserDto(
                 12345678L,
                 "scan-pilot-developer",
@@ -68,9 +80,27 @@ public class AuthController {
         ResponseCookie sessionCookie = sessionService.createSessionCookie(session.getSessionId());
 
         return ResponseEntity.status(HttpStatus.FOUND)
-                .location(URI.create(properties.getFrontendUrl()))
+                .location(URI.create(targetFrontend))
                 .header(HttpHeaders.SET_COOKIE, sessionCookie.toString())
                 .build();
+    }
+
+    private String resolveTargetFrontendUrl(HttpServletRequest request, String redirectUri) {
+        if (redirectUri != null && !redirectUri.isBlank() && (redirectUri.startsWith("http://") || redirectUri.startsWith("https://"))) {
+            return redirectUri;
+        }
+        String referer = request.getHeader(HttpHeaders.REFERER);
+        if (referer != null && !referer.isBlank()) {
+            try {
+                URI uri = URI.create(referer);
+                String origin = uri.getScheme() + "://" + uri.getAuthority();
+                if (!origin.isBlank()) {
+                    return origin;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return properties.getFrontendUrl();
     }
 
     /**
