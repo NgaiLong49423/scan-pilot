@@ -11,6 +11,22 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-19 — Canonical SRS, Use Cases (UC-001 - UC-006) & Non-Functional Requirements (NFR-001 - NFR-010)
+
+**Status:** Committed — `2be23d2`
+
+**Scope:** Decomposed and standardized formal Use Cases (`UC-001` to `UC-006`), quantitative Non-Functional Requirements (`NFR-001` to `NFR-010`), and revitalized the canonical Software Requirements Specification (`docs/requirements/SRS.md` v2.0.0).
+
+### Added
+
+- Added `docs/USE-CASES.md` v1.0.0 defining detailed actor flows, preconditions, triggers, main success scenarios, alternate/error extensions, and postconditions for 6 core user interactions (`UC-001` through `UC-006`).
+- Added `docs/NON-FUNCTIONAL-REQUIREMENTS.md` v1.0.0 defining exact quantitative metrics, verification methods, and acceptance thresholds across 10 non-functional categories (`NFR-001` through `NFR-010`).
+
+### Changed
+
+- Updated `docs/requirements/SRS.md` to `v2.0.0` (Active) unifying product introduction, architecture diagram, functional summary, use cases, and non-functional specifications.
+- Updated `docs/README.md` to link all canonical requirement specifications.
+
 ## 2026-08-19 — Lean Code Crafting, Frontend Design Taste Skills & Agent Trigger Map
 
 **Status:** Committed — `4972a4c`

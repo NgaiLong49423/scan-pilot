@@ -27,14 +27,15 @@ This directory is the canonical source of product, research, and specification c
 
 ## Design and Lifecycle
 
+- [Software Requirements Specification (SRS)](requirements/SRS.md)
+- [Use Cases Specification (UC-001 - UC-006)](USE-CASES.md)
+- [Non-Functional Requirements (NFR-001 - NFR-010)](NON-FUNCTIONAL-REQUIREMENTS.md)
 - [Local Development and Run Guide](LOCAL-DEVELOPMENT-GUIDE.md)
 - [Architecture Direction](ARCHITECTURE.md)
 - [Cloud Budget and Cost Guardrails](CLOUD-BUDGET.md)
 - [Scan Lifecycle](SCAN-LIFECYCLE.md)
 - [Evidence Model](EVIDENCE-MODEL.md)
 - [Finding Tracking Model](FINDING-TRACKING.md)
-- Scoring model: not yet created because the scoring formula is unresolved.
-- Data model: not yet created because the exact database schema remains unresolved.
 
 ## Research
 
