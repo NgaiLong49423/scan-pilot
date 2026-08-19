@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Java 21 (Temurin)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
@@ -60,7 +60,7 @@ jobs:
         run: |
           IMAGE_TAG="asia-southeast1-docker.pkg.dev/${PROJECT_ID}/scan-pilot/api:${{ github.sha }}"
           LATEST_TAG="asia-southeast1-docker.pkg.dev/${PROJECT_ID}/scan-pilot/api:latest"
-          gcloud builds submit --tag "${IMAGE_TAG}" backend/
+          gcloud builds submit --tag "${IMAGE_TAG}" --suppress-logs backend/
           gcloud artifacts docker tags add "${IMAGE_TAG}" "${LATEST_TAG}" || true
 
       - name: Deploy to Cloud Run
