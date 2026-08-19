@@ -27,6 +27,8 @@ management:
         include: health,info
 
 scanpilot:
+  cors:
+    allowed-origins: ${SCANPILOT_CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,https://aistudio.google.com}
   auth:
     client-id: ${GITHUB_CLIENT_ID:}
     client-secret: ${GITHUB_CLIENT_SECRET:}
