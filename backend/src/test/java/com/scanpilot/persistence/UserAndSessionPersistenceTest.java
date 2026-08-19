@@ -32,6 +32,12 @@ class UserAndSessionPersistenceTest {
     @Autowired
     private UserSessionRepository sessionRepository;
 
+    @org.junit.jupiter.api.BeforeEach
+    void cleanDatabase() {
+        sessionRepository.deleteAll();
+        userRepository.deleteAll();
+    }
+
     @Nested
     @DisplayName("User Entity CRUD Tests")
     class UserCrudTests {

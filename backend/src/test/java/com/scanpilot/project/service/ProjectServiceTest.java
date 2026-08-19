@@ -15,15 +15,46 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class ProjectServiceTest {
 
     private ProjectService projectService;
+    private com.scanpilot.persistence.repository.UserRepository userRepository;
+    private com.scanpilot.persistence.repository.RepositoryRepository repositoryRepository;
     private UserSession userSession;
 
     @BeforeEach
     void setUp() {
-        projectService = new ProjectService();
+        userRepository = mock(com.scanpilot.persistence.repository.UserRepository.class);
+        repositoryRepository = mock(com.scanpilot.persistence.repository.RepositoryRepository.class);
+
+        java.util.UUID mockUserId = java.util.UUID.randomUUID();
+        java.util.UUID mockRepoId = java.util.UUID.randomUUID();
+
+        when(userRepository.findByGithubUserId(any())).thenReturn(Optional.of(
+                com.scanpilot.persistence.entity.UserEntity.builder()
+                        .id(mockUserId)
+                        .githubUserId(1001L)
+                        .login("johndoe")
+                        .build()
+        ));
+        when(userRepository.save(any())).thenAnswer(invocation -> {
+            com.scanpilot.persistence.entity.UserEntity u = invocation.getArgument(0);
+            u.setId(mockUserId);
+            return u;
+        });
+
+        when(repositoryRepository.findByUserIdAndGithubRepoId(any(), any())).thenReturn(Optional.empty());
+        when(repositoryRepository.save(any())).thenAnswer(invocation -> {
+            com.scanpilot.persistence.entity.RepositoryEntity r = invocation.getArgument(0);
+            r.setId(mockRepoId);
+            return r;
+        });
+
+        projectService = new ProjectService(userRepository, repositoryRepository);
         userSession = new UserSession(
                 "session-123",
                 1001L,

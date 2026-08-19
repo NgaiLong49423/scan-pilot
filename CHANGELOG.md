@@ -11,16 +11,46 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
-## 2026-08-19 — Live Cloud Run Deployment Documentation and Status Update
+## 2026-08-19 — Scan Pipeline PostgreSQL Persistence & Remote Snapshot Scanning (PR #44)
 
-**Status:** Committed — `7d47ed2`
+**Status:** Working tree — `8f12215` (PR #44)
 
-**Scope:** Recorded verified live Backend Cloud Run URL (`https://scan-pilot-api-drbjfwrlxq-as.a.run.app`) across `docs/CURRENT-STATUS.md`, `docs/DEPLOYMENT-SPEC.md`, and `README.md`.
+**Scope:** Resolved scan execution 500 error by persisting user and repository entities to PostgreSQL on repository selection, added automated remote GitHub repository snapshot downloading/unpacking via pure Java ZipStream, configured default production frontend URL, and added root API welcome endpoint.
 
-### Updated
+### Added
 
-- Updated `docs/CURRENT-STATUS.md` recording live Cloud Run deployment state and health status.
-- Updated `docs/DEPLOYMENT-SPEC.md` and `README.md` recording verified live endpoint URL.
+- Added `backend/src/main/java/com/scanpilot/system/RootController.java` serving welcome API metadata at `GET /` to prevent 404 Whitelabel errors.
+- Added pure Java `fetchRemoteRepositorySnapshot` and `extractZipArchive` with zip-slip security protection in `ScanPipelineService.java`.
+
+### Changed
+
+- Updated `backend/src/main/java/com/scanpilot/project/service/ProjectService.java` synchronizing `UserEntity` and `RepositoryEntity` to PostgreSQL on repository selection to guarantee valid Foreign Keys in `scan_jobs`.
+- Updated `backend/src/main/java/com/scanpilot/scanner/controller/ScanController.java` validating database repository existence before triggering scan pipeline.
+- Updated `backend/src/main/resources/application-prod.yml` setting `frontend-url` default to `https://scan-pilot.ai.studio`.
+- Updated `UserAndSessionPersistenceTest.java` adding `@BeforeEach` database cleanup for deterministic test isolation.
+
+## 2026-08-19 — GitHub Deployments Production Environment Widget (PR #43)
+
+**Status:** Committed — `56f0fdf` (PR #43)
+
+**Scope:** Configured GitHub Actions CD workflow to register production deployment environment with live Cloud Run URL on repository sidebar.
+
+### Changed
+
+- Updated `.github/workflows/deploy-cloud-run.yml` declaring `environment.name: production` and `environment.url: https://scan-pilot-api-drbjfwrlxq-as.a.run.app`.
+
+## 2026-08-19 — Production GitHub OAuth App Secrets & Dynamic Redirect (PR #42)
+
+**Status:** Committed — `eb46e81` (PR #42)
+
+**Scope:** Integrated production GitHub OAuth App credentials, enabled dynamic return redirect via `redirect_uri` / `Referer`, and configured cross-origin `SameSite=None; Secure` session cookies.
+
+### Changed
+
+- Updated `backend/src/main/java/com/scanpilot/auth/controller/AuthController.java` supporting dynamic `redirect_uri` parameter resolution.
+- Updated `backend/src/main/java/com/scanpilot/auth/service/SessionService.java` setting `SameSite=None` when `cookieSecure` is enabled.
+- Updated `frontend/src/api/authApi.ts` transmitting `window.location.origin` in login request.
+- Updated `.github/workflows/deploy-cloud-run.yml` passing `GH_APP_CLIENT_ID` and `GH_APP_CLIENT_SECRET` secrets to Cloud Run deployment.
 
 ## 2026-08-19 — GitHub Actions CD Workflow for Cloud Run Deployment (Issue #40)
 

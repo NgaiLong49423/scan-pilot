@@ -85,7 +85,11 @@ public class ScanController {
             }
         }
 
-        // If repositoryId is not provided in request, resolve from active monitored project
+        // If repositoryId is not in PostgreSQL, re-resolve from active monitored project
+        if (repositoryId != null && !repositoryRepository.existsById(repositoryId)) {
+            repositoryId = null;
+        }
+
         if (repositoryId == null) {
             Optional<MonitoredProject> currentProject = projectService.getCurrentProject(session);
             if (currentProject.isPresent()) {

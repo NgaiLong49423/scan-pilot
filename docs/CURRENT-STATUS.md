@@ -33,9 +33,7 @@ The Scan Pilot MVP backend is successfully containerized and deployed live on Go
 - Parent Eligibility Spike: Issue `#2`
 - Spike work items: Issues `#3` through `#8`
 - Delivery states: `Backlog → Planning → In Progress → Review → Done`; `Blocked` is a separate label.
-- Current schedule signal on 2026-08-16: Eligibility Spike Issues `#3` through `#8` are complete. The Product Owner authorized a conditional implementation start; no separate contingency day exists and the remaining `DEC-054` conditions must be scheduled before their relevant gates.
-- `agent-delivery-governance` v1.0.0 is active under `FULL_TRACKED`: the Integration Check passed on 2026-08-17 (Codex accessed the branch/PR handoff, `.agent-work/` is Git-ignored, no secrets detected).
-- Delivery automation follows an accepted staged direction: CI is the next automation candidate; required `main` checks follow verified CI evidence; CD/public deployment remains deferred to a separately authorized release work item. No GitHub Actions workflow is configured yet.
+- Delivery automation: Continuous Integration (`.github/workflows/ci.yml`) and Continuous Deployment to Google Cloud Run (`.github/workflows/deploy-cloud-run.yml`) are active and verified. Merges to `main` automatically test, build container images via Cloud Build, and deploy live to Cloud Run (`asia-southeast1`).
 
 ## Completed
 
