@@ -13,7 +13,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-19 — Frontend Modular Architecture & Dual-Stage Stitch Design System (PR #46)
 
-**Status:** Working tree
+**Status:** Committed — `28e7c16` (PR #46)
 
 **Scope:** Established official `frontend/` source layout (React 19 + TypeScript + Vite + Tailwind CSS v4) with modular component architecture, 3D perspective hero landing page, dark slate design system, dual-stage scan progression stepper (working tree & git history), interactive health score gauge, and side-by-side Gemini AI remediation diff viewer.
 
