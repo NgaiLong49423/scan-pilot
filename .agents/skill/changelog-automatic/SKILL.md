@@ -5,8 +5,15 @@ risk: medium
 source: customized
 version: v1.0.0
 created_date: 2026-06-29
-last_updated_date: 2026-06-29
+last_updated_date: 2026-08-19
 ---
+
+> **Document:** Changelog Automation Skill  
+> **File:** `.agents/skill/changelog-automatic/SKILL.md`  
+> **Version:** v1.0.0  
+> **Created:** 2026-06-29  
+> **Last Updated:** 2026-08-19  
+> **Status:** Active  
 
 # Changelog Automation
 

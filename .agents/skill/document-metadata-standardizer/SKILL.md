@@ -3,10 +3,17 @@ name: document-metadata-standardizer
 description: Use this skill when the user asks to add, update, audit, or standardize metadata at the top of Markdown documentation files, including document version, created date, last updated date, status, and version bump decisions after document edits.
 risk: low
 source: self
-version: v1.1.1
+version: v1.1.2
 created_date: 2026-06-29
-last_updated_date: 2026-08-13
+last_updated_date: 2026-08-19
 ---
+
+> **Document:** Document Metadata Standardizer Skill  
+> **File:** `.agents/skill/document-metadata-standardizer/SKILL.md`  
+> **Version:** v1.1.2  
+> **Created:** 2026-06-29  
+> **Last Updated:** 2026-08-19  
+> **Status:** Active  
 
 # Document Metadata Standardizer
 

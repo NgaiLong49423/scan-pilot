@@ -1,13 +1,19 @@
 ---
-
 name: repo-template-doc-sync-auditor
 description: Use this skill when the user asks to audit, review, synchronize, or fix documentation consistency in a repository that follows the standard Java webapp project template. This skill checks contradictions across README, SRS, project requirements, database docs, GitHub templates, changelog, AGENTS.md, and agent contract files before making any edits.
 risk: medium
 source: self
-version: v1.0.2
+version: v1.0.3
 created_date: 2026-06-29
-last_updated_date: 2026-08-13
+last_updated_date: 2026-08-19
 ---
+
+> **Document:** Repo Template Documentation Sync Auditor Skill  
+> **File:** `.agents/skill/repo-template-doc-sync-auditor/SKILL.md`  
+> **Version:** v1.0.3  
+> **Created:** 2026-06-29  
+> **Last Updated:** 2026-08-19  
+> **Status:** Active  
 
 # Repo Template Documentation Sync Auditor
 

@@ -4,10 +4,17 @@ description: Convert PRD, SRS, product specs, requirement documents, or planning
 risk: critical
 source: self
 source_type: custom
-version: v1.1.1
+version: v1.1.2
 created_date: 2026-06-27
-last_updated_date: 2026-08-13
+last_updated_date: 2026-08-19
 ---
+
+> **Document:** SRS to GitHub Issues Skill  
+> **File:** `.agents/skill/srs-to-github-issues/SKILL.md`  
+> **Version:** v1.1.2  
+> **Created:** 2026-06-27  
+> **Last Updated:** 2026-08-19  
+> **Status:** Active  
 
 # SRS to GitHub Issues
 
