@@ -14,7 +14,6 @@ permissions:
   id-token: write
 
 env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID || 'gen-lang-client-0098508328' }}
   REGION: asia-southeast1
   SERVICE_NAME: scan-pilot-api
 
@@ -58,17 +57,22 @@ jobs:
 
       - name: Build Container Image via Cloud Build
         run: |
+          PROJECT_ID="${{ secrets.GCP_PROJECT_ID }}"
+          if [ -z "$PROJECT_ID" ]; then
+            PROJECT_ID="gen-lang-client-0098508328"
+          fi
           IMAGE_TAG="asia-southeast1-docker.pkg.dev/${PROJECT_ID}/scan-pilot/api:${{ github.sha }}"
           LATEST_TAG="asia-southeast1-docker.pkg.dev/${PROJECT_ID}/scan-pilot/api:latest"
           gcloud builds submit --tag "${IMAGE_TAG}" --suppress-logs backend/
           gcloud artifacts docker tags add "${IMAGE_TAG}" "${LATEST_TAG}" || true
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
 
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: ${{ env.SERVICE_NAME }}
           region: ${{ env.REGION }}
-          image: asia-southeast1-docker.pkg.dev/${{ env.PROJECT_ID }}/scan-pilot/api:${{ github.sha }}
+          image: ${{ env.IMAGE_TAG }}
           flags: |
             --min-instances=0
             --max-instances=2
