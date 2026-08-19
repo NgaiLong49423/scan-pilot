@@ -1,0 +1,86 @@
+name: Continuous Deployment (Cloud Run)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-cloud-run.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID || 'gen-lang-client-0098508328' }}
+  REGION: asia-southeast1
+  SERVICE_NAME: scan-pilot-api
+
+jobs:
+  test-and-verify:
+    name: Backend Pre-Deployment Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run complete test suite
+        run: mvn clean test
+
+  deploy-backend:
+    name: Build & Deploy to Google Cloud Run
+    needs: test-and-verify
+    runs-on: ubuntu-latest
+    if: github.repository == 'NgaiLong49423/scan-pilot'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build Container Image via Cloud Build
+        run: |
+          IMAGE_TAG="asia-southeast1-docker.pkg.dev/${PROJECT_ID}/scan-pilot/api:${{ github.sha }}"
+          LATEST_TAG="asia-southeast1-docker.pkg.dev/${PROJECT_ID}/scan-pilot/api:latest"
+          gcloud builds submit --tag "${IMAGE_TAG}" backend/
+          gcloud artifacts docker tags add "${IMAGE_TAG}" "${LATEST_TAG}" || true
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: asia-southeast1-docker.pkg.dev/${{ env.PROJECT_ID }}/scan-pilot/api:${{ github.sha }}
+          flags: |
+            --min-instances=0
+            --max-instances=2
+            --memory=512Mi
+            --cpu=1
+            --allow-unauthenticated
+            --set-env-vars=SPRING_PROFILES_ACTIVE=prod,SCANPILOT_CORS_ALLOWED_ORIGINS=https://aistudio.google.com
+
+      - name: Verify Public Cloud Run URL
+        run: |
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format 'value(status.url)')
+          echo "===================================================="
+          echo "🚀 Scan Pilot Backend successfully deployed to Cloud Run!"
+          echo "🔗 URL: ${SERVICE_URL}"
+          echo "===================================================="
