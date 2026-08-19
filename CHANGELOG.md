@@ -11,9 +11,21 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-19 — GitHub Actions CD Workflow for Cloud Run Deployment (Issue #40)
+
+**Status:** Committed — `454d03b`
+
+**Scope:** Implemented automated Continuous Deployment (CD) pipeline via GitHub Actions to build Docker images and deploy Backend Spring Boot service to Google Cloud Run upon merges to `main`.
+
+### Added
+
+- Added `.github/workflows/deploy-cloud-run.yml` executing pre-deployment tests, Google Cloud authentication, Cloud Build image packaging, and automated Cloud Run deployment (`scan-pilot-api`).
+- Configured Google Cloud Service Account `scan-pilot-deployer` with least-privilege IAM roles (`run.admin`, `artifactregistry.writer`, `cloudbuild.builds.editor`, `storage.admin`, `iam.serviceAccountUser`).
+- Configured encrypted GitHub Repository Secrets `GCP_SA_KEY` and `GCP_PROJECT_ID`.
+
 ## 2026-08-19 — Frontend AI Studio Integration & Cloud Run Dual-Origin (Issue #37)
 
-**Status:** Committed — `ebe659b`
+**Status:** Committed — `806bada`
 
 **Scope:** Implemented dynamic `VITE_API_BASE_URL` resolution, TypeScript environment typings, and step-by-step Google AI Studio synchronization and deployment runbook under Issue `#37`.
 
