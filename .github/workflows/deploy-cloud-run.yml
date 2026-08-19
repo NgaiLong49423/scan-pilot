@@ -43,6 +43,9 @@ jobs:
     needs: test-and-verify
     runs-on: ubuntu-latest
     if: github.repository == 'NgaiLong49423/scan-pilot'
+    environment:
+      name: production
+      url: https://scan-pilot-api-drbjfwrlxq-as.a.run.app
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
