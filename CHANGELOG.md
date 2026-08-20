@@ -28,7 +28,6 @@ Each entry states whether it is already committed or still in the working tree. 
 - Added `frontend/src/components/CoverageAuditView.tsx` rendering deterministic audit trails and multi-stage coverage metrics.
 - Added `frontend/src/components/FindingCard.tsx` and `RemediationDiff.tsx` providing zero-raw-secret masking and 1-click Gemini AI remediation diffs.
 - Added `frontend/src/components/RepoSelectModal.tsx` providing repository search with `Ctrl+K` shortcut support.
-
 ## 2026-08-19 — Remote GitHub Snapshot Auto-Redirect & Default Branch Fallback (PR #45)
 
 **Status:** Working tree — `feature/real-github-snapshot-download`
