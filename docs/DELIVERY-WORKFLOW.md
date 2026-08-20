@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Delivery Workflow
 > **File:** `docs/DELIVERY-WORKFLOW.md`
-> **Version:** v1.3.0
+> **Version:** v2.0.0
 > **Created:** 2026-08-16
 > **Last Updated:** 2026-08-20
 > **Status:** Active
@@ -17,16 +17,16 @@ When the `agent-delivery-governance` skill is active for this project, use this 
 
 | Role | Responsibility |
 |---|---|
-| Agent 4 — Delivery Gatekeeper / Coordinator | agent coordinator & gatekeeper; named in Issue before `BUILD`; names Agent 1, 2, 3 in execution plan; verifies Coder + QA + AppSec handoffs on exact same reviewed head SHA; outputs summary report (`READY_FOR_TECH_LEAD_REVIEW` in `.agent-work/acceptance/acceptance-<issue>.md`) and reports to Codex |
-| Agent 1 — Coder | primary implementer (named by Agent 4); writes scoped code, unit/integration tests, local handoff report (`.agent-work/reports/handoff-<issue>.md`) |
-| Agent 2 — QA Reviewer | independent code quality reviewer (named by Agent 4); audits logic, Ponytail standards, unit/integration tests, UI (`APPROVED` / `REQUEST_CHANGES` in `.agent-work/qa-reviews/qa-<issue>.md`) |
-| Agent 3 — AppSec Auditor | independent security auditor (named by Agent 4); audits security controls, OAuth, cookies, secrets, OWASP compliance (`APPROVED` / `BLOCKED` in `.agent-work/security-audits/sec-<issue>.md`) |
-| Codex — Technical Manager / Tech Lead | independent technical reviewer & architectural sign-off (separate from Agent 4); reviews quality/security/scope evidence and outputs `APPROVED_FOR_PO_ACCEPTANCE` |
+| Agent 4 — Delivery Gatekeeper / Coordinator | agent coordinator; named in Issue before `BUILD`; names Agent 1, 2, 3 in its execution plan; freezes the local review target; verifies Coder + QA + AppSec reports against the unchanged local diff; outputs `READY_FOR_TECH_LEAD_REVIEW` and reports to Codex |
+| Agent 1 — Coder | primary implementer (named by Agent 4); writes scoped code/tests and a local handoff report; does not commit, push, or create a PR before Product Owner authorization |
+| Agent 2 — QA Reviewer | independent reviewer (named by Agent 4); audits the frozen local diff (`APPROVED` / `REQUEST_CHANGES` in `.agent-work/qa-reviews/qa-<issue>.md`) |
+| Agent 3 — AppSec Auditor | independent reviewer (named by Agent 4); audits the same frozen local diff (`APPROVED` / `BLOCKED` in `.agent-work/security-audits/sec-<issue>.md`) |
+| Codex — Technical Manager / Tech Lead | independent reviewer outside Agent 4; reviews the local diff/package, performs RCA for workflow failures, and outputs `APPROVED_FOR_PO_ACCEPTANCE`, `CHANGES_NEEDED`, or `BLOCKED` |
 | Product Owner (User) | product scope, UI/UX, cost, permissions, final acceptance decision (`PO ACCEPTED`), and sole merge authority |
 
 Before implementation (`BUILD`) begins, the work item's implementation brief / contract must explicitly name Agent 4 (Delivery Gatekeeper / Coordinator). In Agent 4's execution plan, Agent 4 must explicitly name Agent 1 (Coder), Agent 2 (independent QA Reviewer), and Agent 3 (independent AppSec Auditor). Codex is recorded separately as Technical Lead / Technical Manager (not Agent 4, and not a subagent of Agent 4).
 
-The `FULL_TRACKED` workflow is active. Every Git-tracked implementation requires the full Issue → branch → PR → Multi-Gate Review → Product Owner decision path.
+The `FULL_TRACKED` workflow is active. Every Git-tracked implementation uses Issue → local branch/worktree → multi-agent local review → Codex Tech Lead review → Product Owner decision → separately authorized commit → separately authorized push/PR/merge.
 
 ## Operational Sources of Truth
 
@@ -80,26 +80,28 @@ The instruction does not authorize creating unrelated Issues, closing the Issue,
 - Do not combine unrelated Issues merely to reduce branch or commit count.
 - Reference the active Issue in progress reports and checkpoint proposals.
 
-When `FULL_TRACKED` is active, every Git-tracked implementation needs a pull request. The PR is the reviewable handoff artifact; use `Refs #N` until its merge will satisfy every acceptance criterion, then use `Closes #N` only with Product Owner merge authority.
+Before Product Owner acceptance, the reviewable artifact is a frozen uncommitted local diff, not a commit or pull request. The Coder and Agent 4 must not create a commit, push, or PR merely to obtain a SHA. After Product Owner explicitly authorizes a commit, push and pull-request creation remain separate permissions. The eventual PR uses `Refs #N` until its merge will satisfy every acceptance criterion, then uses `Closes #N` only with Product Owner merge authority; its head must equal the Product Owner-approved commit or the review cycle restarts.
 
 ## Handoff Channel Contract
 
 | Channel | Required content |
 |---|---|
 | Issue | requirements, acceptance criteria, scope/exclusions, source links, and Product Owner decisions |
-| `.agent-work/reports/handoff-<issue>.md` | Coder handoff report: changed files, test evidence, verification, limits |
-| `.agent-work/qa-reviews/qa-<issue>.md` | QA review report: Ponytail compliance, logic, test coverage (`APPROVED` / `REQUEST_CHANGES`) |
-| `.agent-work/security-audits/sec-<issue>.md` | AppSec audit report: security controls, secrets, cookies, OAuth (`APPROVED` / `BLOCKED`) |
-| `.agent-work/acceptance/acceptance-<issue>.md` | Delivery Gatekeeper report: 3-gate verification summary & recommendation (`READY_FOR_TECH_LEAD_REVIEW`) |
+| `.agent-work/reports/handoff-<issue>.md` | Coder handoff: `uncommitted local worktree`, base commit for context, changed files, test evidence, verification, limits |
+| `.agent-work/qa-reviews/qa-<issue>.md` | QA review of the frozen local diff (`APPROVED` / `REQUEST_CHANGES`) |
+| `.agent-work/security-audits/sec-<issue>.md` | AppSec audit of the same frozen local diff (`APPROVED` / `BLOCKED`) |
+| `.agent-work/acceptance/acceptance-<issue>.md` | Agent 4 local-diff consistency verification (`READY_FOR_TECH_LEAD_REVIEW`) |
+| `.agent-work/acceptance/tech-lead-<issue>.md` | Codex technical review (`APPROVED_FOR_PO_ACCEPTANCE` / `CHANGES_NEEDED` / `BLOCKED`) |
+| `.agent-work/diagnostics/rca-<issue>.md` | Codex root-cause analysis and prevention/re-dispatch plan when a workflow or contract failure is found |
 | Branch | Coder implementation according to the project branch convention |
-| Pull request | exact diff, `Refs #N`, compact secret-safe summary with head SHA and gate status references (`QA`, `AppSec`, `Gatekeeper`, `Tech Lead`) |
+| Pull request | created only after separately authorized commit and push; exact approved commit, `Refs #N`, compact secret-safe summary and gate status references |
 | Project #13 | status, priority, dates, workstream, and progress only |
 
-Do not duplicate agent discussion on GitHub. A shared local file is never sole approval evidence: the PR summary and reviewed head SHA must establish the minimum public handoff.
+Do not duplicate agent discussion on GitHub. Before a commit exists, local reports establish the review evidence; after an authorized PR exists, its summary and exact approved head commit establish the minimum public handoff.
 
 ## Review and Completion Gate
 
-Before moving an Issue to `Review`, the Coder must provide the required PR, compact handoff summary, and local handoff report `.agent-work/reports/handoff-<issue>.md`. Coder MUST NOT self-approve as QA or AppSec.
+Before the Product Owner decision, the Coder provides a local handoff report and Agent 4 freezes the local diff. Coder MUST NOT self-approve as QA/AppSec or commit, push, or open a PR without Product Owner authorization.
 
 The review workflow follows the Nested Coordination Model (Mô hình Phối hợp Lồng nhau):
 
@@ -115,14 +117,14 @@ Product Owner (User)
 ```
 
 1. **Pre-BUILD Assignment & Execution Plan:** Issue contract names Agent 4 (Delivery Gatekeeper / Coordinator). Agent 4's execution plan explicitly names Agent 1 (Coder), Agent 2 (QA Reviewer), and Agent 3 (AppSec Auditor) before `BUILD` starts.
-2. **Gate 1 — Coder Implementation & Handoff (Agent 1):** Implements code and tests, produces `.agent-work/reports/handoff-<issue>.md`, and submits secret-safe PR with reviewed head SHA. Coder MUST NOT self-approve as QA or AppSec.
-3. **Gate 2 — Quality Gate (Agent 2 - QA Reviewer):** Audits code quality, Ponytail standards, logic correctness, exception handling, unit/integration test suite, and UX completeness. Produces strictly `APPROVED` or `REQUEST_CHANGES` in `.agent-work/qa-reviews/qa-<issue>.md`.
-4. **Gate 3 — Security Gate (Agent 3 - AppSec Auditor):** Audits task-relevant security controls, OAuth PKCE, cookie security, CORS, and zero secret exposure. Produces strictly `APPROVED` or `BLOCKED` in `.agent-work/security-audits/sec-<issue>.md`.
-5. **Gate 4 — Delivery Coordination Gate (Agent 4 - Delivery Gatekeeper / Coordinator):** Verifies that Coder handoff + QA APPROVED + AppSec APPROVED exist for the exact same reviewed head SHA. Produces `READY_FOR_TECH_LEAD_REVIEW` in `.agent-work/acceptance/acceptance-<issue>.md` and reports to Codex.
-6. **Gate 5 — Technical Lead Gate (Codex - Technical Manager / Tech Lead):** Conducts overall technical, architectural, and security review. Produces `APPROVED_FOR_PO_ACCEPTANCE`.
-7. **Gate 6 — Product Owner Gate (Product Owner - User):** Evaluates product value and final acceptance. Records `PO ACCEPTED` (or `PO RETURNED`) and grants explicit merge authority.
+2. **Gate 1 — Local Coder Handoff (Agent 1):** Implements code/tests locally and hands off an uncommitted worktree diff. Agent 4 records the worktree path, base commit for context only, and changed-file list, then freezes edits.
+3. **Gate 2 — Quality Gate (Agent 2):** Audits that frozen local diff and produces strictly `APPROVED` or `REQUEST_CHANGES`.
+4. **Gate 3 — Security Gate (Agent 3):** Audits the same frozen local diff and produces strictly `APPROVED` or `BLOCKED`.
+5. **Gate 4 — Delivery Coordination (Agent 4):** Confirms the local review target did not change and that Coder/QA/AppSec evidence agrees; produces `READY_FOR_TECH_LEAD_REVIEW`.
+6. **Gate 5 — Technical Lead (Codex):** Independently reviews the same local diff and package. On a workflow, contract, or evidence failure, performs RCA and may correct accepted delivery artifacts. The RCA is the corrective-change handoff; Agent 4 then obtains fresh independent QA/AppSec evidence on that local diff before re-dispatching Codex. Codex does not self-approve its own correction. Produces `APPROVED_FOR_PO_ACCEPTANCE`, `CHANGES_NEEDED`, or `BLOCKED`.
+7. **Gate 6 — Product Owner:** Records `PO ACCEPTED` or `PO RETURNED`. `PO ACCEPTED` may explicitly authorize the local commit only; push, PR creation, merge, Issue closure, and deployment remain separate decisions.
 
-Remediation loop: If QA returns `REQUEST_CHANGES`, AppSec returns `BLOCKED`, or Tech Lead rejects the submission, the Issue returns to `In Progress` (Coder). After Coder remediation, new QA, AppSec, Gatekeeper, and Tech Lead reviews are required for the new head SHA.
+Remediation loop: If QA returns `REQUEST_CHANGES`, AppSec returns `BLOCKED`, or Codex returns `CHANGES_NEEDED`/`BLOCKED`, Agent 4 returns work to Coder. Any changed local diff invalidates prior reviews and requires fresh QA, AppSec, Gatekeeper, and Tech Lead evidence. If the Product Owner does not authorize commit, the accepted local diff remains uncommitted.
 
 Product Owner acceptance: `Review` remains the active state while Gatekeeper review, Tech Lead sign-off, and Product Owner acceptance are pending. The Product Owner records `PO ACCEPTED` or `PO RETURNED` in the Issue and provides explicit merge authorization. Codex Tech Lead recommendations do NOT replace Product Owner acceptance or merge permission. Only explicit Product Owner merge authority permits PR merge and Issue closure.
 

@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.32.0
+> **Version:** v2.33.0
 > **Created:** 2026-08-11
 > **Last Updated:** 2026-08-20
 > **Status:** Active
@@ -11,9 +11,29 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-20 — Review-Before-Commit and Technical Lead RCA Correction (Issue #60)
+
+**Status:** Working tree
+
+**Scope:** Corrected the Issue #60 delivery workflow after Product Owner feedback. All Agent 1/2/3/4 and Codex review occurs on one frozen uncommitted local worktree diff. Product Owner acceptance is required before a local commit; push, pull-request creation, merge, Issue closure, and deployment remain separate authorizations. Added Codex Technical Lead root-cause analysis and prevention/re-dispatch responsibilities for workflow failures.
+
+### Changed
+
+- Updated `AGENTS.md`, `docs/DELIVERY-WORKFLOW.md`, and `docs/MULTI-AGENT-GOVERNANCE-WORKFLOW.md` to prohibit autonomous pre-acceptance commit, push, and PR creation.
+- Replaced pre-commit reviewed-head-SHA requirements with a frozen local-review-target contract: worktree path, base commit for context only, and changed-file list.
+- Added the Codex RCA report template and the requirement to correct accepted delivery artifacts when the root cause lies in a workflow, contract, brief, or template.
+- Classified the active governance-document version changes as MAJOR because the delivery contract and source-of-truth behavior changed; updated the changelog document version as a MINOR record addition.
+
+### Affected files
+
+- `AGENTS.md`
+- `docs/DELIVERY-WORKFLOW.md`
+- `docs/MULTI-AGENT-GOVERNANCE-WORKFLOW.md`
+- `CHANGELOG.md`
+
 ## 2026-08-20 — Executable Multi-Agent Governance Gates & Coordinator Role Refinement (Issue #60)
 
-**Status:** Committed — eecb8b7
+**Status:** Committed — 4af79f4
 
 **Scope:** Refined Scan Pilot's active `FULL_TRACKED` delivery contract and multi-agent governance model (Issue #60). Replaced five-tier sequence terminology with the Nested Coordination Model (Agent 4 coordinating Agent 1 Coder, Agent 2 QA, Agent 3 AppSec -> Codex Tech Lead -> Product Owner). Added explicit pre-BUILD assignment rules naming Agent 4 in the Issue contract, and naming Agent 1, Agent 2, and Agent 3 in Agent 4's execution plan, while recording Codex separately as Technical Lead.
 
