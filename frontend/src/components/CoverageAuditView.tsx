@@ -165,7 +165,7 @@ export const CoverageAuditView: React.FC<CoverageAuditViewProps> = ({ repo, cove
                   {isScanned ? `HEAD Commit (${scannedFiles} text files)` : 'HEAD Commit (Pending)'}
                 </td>
                 <td className="px-5 py-3.5 text-[#8b949e]">
-                  {isScanned && repo.scanDurationSeconds ? `${repo.scanDurationSeconds}s` : (isScanned ? 'Real-time' : '—')}
+                  {isScanned ? 'Not available' : '—'}
                 </td>
                 <td className="px-5 py-3.5">
                   {isScanned ? (

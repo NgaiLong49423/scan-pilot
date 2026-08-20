@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Check, Copy, Wand2 } from 'lucide-react';
+import { Sparkles, Check, Copy } from 'lucide-react';
 import { CodeDiffSnippet } from '../types';
 
 interface RemediationDiffProps {
@@ -11,9 +11,6 @@ interface RemediationDiffProps {
 
 export const RemediationDiff: React.FC<RemediationDiffProps> = ({ 
   diff, 
-  findingId, 
-  isResolved, 
-  onApplyFix 
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -21,12 +18,6 @@ export const RemediationDiff: React.FC<RemediationDiffProps> = ({
     navigator.clipboard.writeText(diff.suggestedFixSnippet);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleApply = () => {
-    if (onApplyFix && findingId) {
-      onApplyFix(findingId);
-    }
   };
 
   return (
@@ -45,34 +36,14 @@ export const RemediationDiff: React.FC<RemediationDiffProps> = ({
           <button
             type="button"
             onClick={handleCopy}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#21262d] hover:bg-[#30363d] text-[#c9d1d9] text-xs font-medium transition-all duration-150 active:scale-95 border border-[#30363d]"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1f6feb] hover:bg-[#388bfd] text-white text-xs font-medium transition-all duration-150 active:scale-95 shadow-sm"
           >
-            {copied ? <Check className="w-3.5 h-3.5 text-[#3fb950]" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? 'Copied' : 'Copy Fix'}</span>
+            {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copied ? 'Code Copied to Clipboard!' : 'Copy Remediation Code'}</span>
           </button>
-
-          <button
-            type="button"
-            onClick={handleApply}
-            disabled={isResolved}
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium shadow-sm transition-all duration-150 active:scale-95 ${
-              isResolved
-                ? 'bg-[#238636]/20 text-[#3fb950] border border-[#238636]/40 cursor-default'
-                : 'bg-[#238636] hover:bg-[#2ea043] text-white shadow-sm'
-            }`}
-          >
-            {isResolved ? (
-              <>
-                <Check className="w-3.5 h-3.5" />
-                <span>Fix Applied (Safe)</span>
-              </>
-            ) : (
-              <>
-                <Wand2 className="w-3.5 h-3.5" />
-                <span>Apply AI Fix</span>
-              </>
-            )}
-          </button>
+          <span className="text-[10px] text-[#8b949e] bg-[#21262d] px-2 py-1 rounded border border-[#30363d] font-sans font-medium">
+            Guidance-only (Manual Apply)
+          </span>
         </div>
       </div>
 
@@ -93,7 +64,7 @@ export const RemediationDiff: React.FC<RemediationDiffProps> = ({
         <div className="p-4 bg-[#238636]/5 text-[#3fb950] space-y-1">
           <div className="text-[10px] font-sans font-semibold uppercase tracking-wider text-[#3fb950] mb-2 flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-[#3fb950]" />
-            <span>1-Click Safe Remediation</span>
+            <span>Suggested Safe Remediation (Guidance Only)</span>
           </div>
           <pre className="overflow-x-auto whitespace-pre leading-relaxed">
             {diff.suggestedFixSnippet}

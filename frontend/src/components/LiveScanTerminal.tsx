@@ -28,7 +28,6 @@ interface LiveScanTerminalProps {
   scannedCount: number;
   totalFiles: number;
   leaksFoundCount: number;
-  elapsedSeconds: number;
   onClose?: () => void;
 }
 
@@ -40,7 +39,6 @@ export const LiveScanTerminal: React.FC<LiveScanTerminalProps> = ({
   scannedCount,
   totalFiles,
   leaksFoundCount,
-  elapsedSeconds,
   onClose,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -59,7 +57,7 @@ export const LiveScanTerminal: React.FC<LiveScanTerminalProps> = ({
 
   const percentage = totalFiles > 0 
     ? Math.min(100, Math.round((scannedCount / totalFiles) * 100))
-    : (isScanning ? 45 : 100);
+    : 0;
 
   const handleCopyLogs = () => {
     const text = logs.map((l) => `[${l.timestamp}] [${l.level}] ${l.message}`).join('\n');
@@ -84,7 +82,7 @@ export const LiveScanTerminal: React.FC<LiveScanTerminalProps> = ({
 
           <div className="flex items-center gap-2 ml-2 text-[#f0f6fc] font-bold text-[11px] tracking-wide">
             <TerminalIcon className="w-3.5 h-3.5 text-[#58a6ff]" />
-            <span>SCAN PILOT RUNNER CLI • LIVE TELEMETRY</span>
+            <span>SCAN PILOT RUNNER CLI • SCAN EXECUTION LOGS</span>
           </div>
 
           {isScanning ? (
@@ -105,13 +103,13 @@ export const LiveScanTerminal: React.FC<LiveScanTerminalProps> = ({
           {/* Progress % Pill */}
           <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#0d1117] border border-[#30363d] text-[#c9d1d9]">
             <Activity className="w-3 h-3 text-[#58a6ff]" />
-            <span>Progress: <strong className="text-[#58a6ff]">{percentage}%</strong></span>
+            <span>Progress: <strong className="text-[#58a6ff]">{isScanning ? 'Not available' : (totalFiles > 0 ? `${percentage}%` : 'Not available')}</strong></span>
           </div>
 
           {/* Files Audited Pill */}
           <div className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#0d1117] border border-[#30363d] text-[#c9d1d9]">
             <FileCode className="w-3 h-3 text-[#3fb950]" />
-            <span>Files: <strong>{scannedCount}</strong>/{totalFiles}</span>
+            <span>Files: <strong>{scannedCount > 0 || totalFiles > 0 ? `${scannedCount}/${totalFiles}` : 'Not available'}</strong></span>
           </div>
 
           {/* Leaks Counter Pill */}
@@ -121,12 +119,12 @@ export const LiveScanTerminal: React.FC<LiveScanTerminalProps> = ({
               : 'bg-[#0d1117] text-[#8b949e] border-[#30363d]'
           }`}>
             <ShieldAlert className="w-3 h-3" />
-            <span>{leaksFoundCount} Leaks</span>
+            <span>{isScanning ? 'In progress' : `${leaksFoundCount} Leaks`}</span>
           </div>
 
           {/* Timer */}
           <span className="text-[#8b949e] font-mono">
-            {elapsedSeconds.toFixed(1)}s
+            Not available
           </span>
 
           {/* Buttons: Copy, Expand, Close */}
@@ -167,18 +165,16 @@ export const LiveScanTerminal: React.FC<LiveScanTerminalProps> = ({
       <div className="w-full bg-[#21262d] h-1">
         <div 
           className="h-full bg-gradient-to-r from-[#1f6feb] via-[#58a6ff] to-[#238636] transition-all duration-150"
-          style={{ width: `${percentage}%` }}
+          style={{ width: isScanning ? '0%' : `${percentage}%` }}
         />
       </div>
 
       {/* Active File Target Banner */}
-      {isScanning && currentFile && (
+      {isScanning && (
         <div className="px-4 py-1.5 bg-[#161b22]/70 border-b border-[#30363d]/60 text-[11px] text-[#8b949e] flex items-center justify-between gap-2 overflow-hidden">
           <div className="flex items-center gap-2 truncate">
-            <span className="text-[#58a6ff] shrink-0 animate-pulse">▶ Inspecting:</span>
-            <span className="text-[#f0f6fc] truncate font-mono">{currentFile}</span>
+            <span className="text-[#58a6ff] shrink-0 font-medium">Scan request in progress — live progress is not available yet</span>
           </div>
-          <span className="text-[10px] text-[#58a6ff] shrink-0 font-mono">AST & Pattern Match</span>
         </div>
       )}
 

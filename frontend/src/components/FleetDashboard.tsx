@@ -49,7 +49,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({
   const fleetGrade = scannedRepos.length === 0 
     ? 'Awaiting Initial Scan' 
     : averageHealthScore >= 90 
-    ? 'Grade A (Optimal)' 
+    ? 'No Open Findings Baseline'
     : averageHealthScore >= 70 
     ? 'Grade B (Moderate Risk)' 
     : 'Grade C (Action Required)';
@@ -94,7 +94,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({
             Organization Fleet Overview
           </h1>
           <p className="text-xs sm:text-sm text-[#8b949e] mt-1">
-            Real-time security posture and vulnerability management across your explicitly monitored repositories.
+            Security posture and vulnerability management across your explicitly monitored repositories.
           </p>
         </div>
 
@@ -146,7 +146,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({
             </span>
           </div>
           <div className="mt-3 pt-3 border-t border-[#30363d]/60 text-[11px] text-[#8b949e] font-mono">
-            {scannedRepos.length > 0 ? 'Real-time database metrics' : 'Requires initial scan'}
+            {scannedRepos.length > 0 ? 'Persisted database metrics' : 'Requires initial scan'}
           </div>
         </div>
 
@@ -228,7 +228,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({
                   : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d]'
               }`}
             >
-              Clean & Safe ({cleanRepos.length})
+              Clean ({cleanRepos.length})
             </button>
 
             <button
