@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Documentation Index
 > **File:** `docs/README.md`
-> **Version:** v1.18.0
+> **Version:** v1.19.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-16
+> **Last Updated:** 2026-08-20
 > **Status:** Active
 
 # Scan Pilot Documentation
@@ -16,14 +16,15 @@ This directory is the canonical source of product, research, and specification c
 | 1 | [Project Context](PROJECT-CONTEXT.md) | Product identity, users, direction, and open questions | Active |
 | 2 | [Accepted Decisions](DECISIONS.md) | Decisions an agent must not silently override | Active |
 | 3 | [Current Status](CURRENT-STATUS.md) | Current phase, checkpoint, and next logical task | Active |
-| 4 | [Delivery Workflow](DELIVERY-WORKFLOW.md) | GitHub Issue execution, review, acceptance, and authorization boundaries | Active |
-| 5 | [Cloud Budget and Cost Guardrails](CLOUD-BUDGET.md) | Accepted two-month funding envelope and cost constraints for design and operation | Active |
-| 6 | [AI Riser Vietnam 2026 Submission Context](research/submission/AI-RISER-VIETNAM-2026.md) | External submission constraints and evaluation signals for direction-setting work | Under Review |
-| 7 | [Product Definition](PRODUCT.md) | Product scope and MVP outcome | Under Review |
-| 8 | [Requirements](REQUIREMENTS.md) | High-level functional and quality requirements | Under Review |
-| 9 | [Inspection Specification](INSPECTION-SPEC.md) | Official rule contracts and rule candidates | Under Review |
-| 10 | [Evidence Model](EVIDENCE-MODEL.md) | Provenance, evidence types, scoped claims, and verification status | Active |
-| 11 | [Finding Tracking Model](FINDING-TRACKING.md) | Hybrid identity, repository versions, diff, workspaces, and re-scan tracking | Active |
+| 4 | [Implementation Baseline and Gap Register](IMPLEMENTATION-BASELINE.md) | Verified implementation, partial integrations, UI-only behavior, gaps, and planning order | Active |
+| 5 | [Delivery Workflow](DELIVERY-WORKFLOW.md) | GitHub Issue execution, review, acceptance, and authorization boundaries | Active |
+| 6 | [Cloud Budget and Cost Guardrails](CLOUD-BUDGET.md) | Accepted two-month funding envelope and cost constraints for design and operation | Active |
+| 7 | [AI Riser Vietnam 2026 Submission Context](research/submission/AI-RISER-VIETNAM-2026.md) | External submission constraints and evaluation signals for direction-setting work | Under Review |
+| 8 | [Product Definition](PRODUCT.md) | Product scope and MVP outcome | Under Review |
+| 9 | [Requirements](REQUIREMENTS.md) | High-level functional and quality requirements | Under Review |
+| 10 | [Inspection Specification](INSPECTION-SPEC.md) | Official rule contracts and rule candidates | Under Review |
+| 11 | [Evidence Model](EVIDENCE-MODEL.md) | Provenance, evidence types, scoped claims, and verification status | Active |
+| 12 | [Finding Tracking Model](FINDING-TRACKING.md) | Hybrid identity, repository versions, diff, workspaces, and re-scan tracking | Active |
 
 ## Design and Lifecycle
 
@@ -59,7 +60,8 @@ Research notes and submission-context documents may contain unresolved or time-s
 
 ## Legacy Template Documents
 
-- `requirements/PRD.md` and `requirements/SRS.md` are deprecated template documents retained only to prevent broken historical references.
+- `requirements/PRD.md` is a deprecated template retained only to prevent broken historical references.
+- `requirements/SRS.md` is the active formal SRS. Its target flows must be read together with `IMPLEMENTATION-BASELINE.md`; an active requirement does not by itself prove implementation.
 - `diagrams/` and `reports/` contain reusable template guidance; they are not current Scan Pilot specifications.
 
 ## Documentation Metadata

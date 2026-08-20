@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Research Sources  
 > **File:** `docs/RESEARCH-SOURCES.md`  
-> **Version:** v1.9.0  
+> **Version:** v1.10.0
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-15  
+> **Last Updated:** 2026-08-20
 > **Status:** Active  
 
 # Scan Pilot Research Sources
@@ -58,7 +58,8 @@ When sources disagree, report the difference and the product context behind it i
 - Official: https://owasp.org/Top10/
 - A01: https://owasp.org/Top10/2025/A01_2025-Broken_Access_Control/
 - A02: https://owasp.org/Top10/2025/A02_2025-Security_Misconfiguration/
-- Status: A01 reviewed; A02 in progress.
+- A03: https://owasp.org/Top10/2025/A03_2025-Software_Supply_Chain_Failures/
+- Status: A01 reviewed; A02 in progress; A03 bounded rule research recorded for `SP-CI-001`.
 
 ### OWASP ASVS 5.0.0
 
@@ -118,6 +119,8 @@ These are benchmarks, not security standards.
 | SonarQube | project health, quality gates, new-code model | Quality-gate evidence reuse reviewed on 2026-08-14 for the release-oriented size-policy distinction; broader product-health research pending |
 | Snyk | dependency monitoring and remediation UX | Pending |
 | Trivy | configuration-family detection and family-specific misconfiguration checks | Configuration Awareness direction reviewed and accepted as `DEC-038`; exact adapter or reuse decision remains open |
+| GitHub Actions security hardening | immutable action references, workflow permission boundaries, and syntax distinctions | `SP-CI-001` research recorded on 2026-08-20; no GitHub policy enforcement is assumed |
+| OpenSSF Scorecard | pinned workflow dependency policy, medium-risk wording, and update-process trade-off | `SP-CI-001` comparative research recorded on 2026-08-20; Scan Pilot does not reuse Scorecard code or scoring |
 | Spring Boot | repository and runtime configuration sources, profiles, imports, and override precedence | Reviewed on 2026-08-14 to bound repository-declared configuration claims |
 | Docker Compose | family-specific environment precedence, interpolation, and ordered override-file merge | Reviewed on 2026-08-14 for scenario-bounded configuration effect |
 | Terraform | configuration-change planning versus current state and speculative-result limits | Reviewed on 2026-08-14 as a non-MVP benchmark for separating text change from runtime effect |

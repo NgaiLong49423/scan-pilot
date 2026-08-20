@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Project Context
 > **File:** `docs/PROJECT-CONTEXT.md`
-> **Version:** v2.1.0
+> **Version:** v2.1.1
 > **Created:** 2026-08-12
-> **Last Updated:** 2026-08-16
+> **Last Updated:** 2026-08-20
 > **Status:** Active
 
 # Scan Pilot Project Context
@@ -169,6 +169,8 @@ Priority: MUST
 Automability: PARTIAL
 Detection: STATIC
 ```
+
+`SP-CI-001 — Mutable Remote GitHub Actions Reference` is the accepted second-rule direction, but remains gated stretch scope. It contributes a narrow static CI/CD supply-chain policy check and does not change the requirement to stabilize the core secret-scanning loop first.
 
 The current work remains documentation, research, and specification. Implementation requires an explicit phase change from the user.
 

@@ -1,13 +1,15 @@
 > **Document:** Scan Pilot Use Cases Specification
 > **File:** `docs/USE-CASES.md`
-> **Version:** v1.0.0
+> **Version:** v1.1.0
 > **Created:** 2026-08-19
-> **Last Updated:** 2026-08-19
+> **Last Updated:** 2026-08-20
 > **Status:** Active
 
 # Scan Pilot Use Cases Specification
 
 This document defines the canonical Use Cases (`UC-001` through `UC-006`) for the Scan Pilot MVP, detailing the interaction flows between the user, the React frontend, the Spring Boot backend, the PostgreSQL database, GitHub APIs, and Google Gemini AI.
+
+These are target interaction contracts, not a completion report. Consult [`docs/IMPLEMENTATION-BASELINE.md`](IMPLEMENTATION-BASELINE.md) before using a step as evidence of current behavior.
 
 ---
 
@@ -21,6 +23,17 @@ This document defines the canonical Use Cases (`UC-001` through `UC-006`) for th
 | **UC-004** | Finding Inspection & AI-Assisted Remediation | Developer / User | Finding & AI Engine | `FR-004`, `FR-005`, `FR-014`, `FR-048`, `DEC-007`, `DEC-048`, `Issue #16`, `Issue #21` |
 | **UC-005** | Re-scan Lifecycle Tracking & Resolution Verification | Developer / User | Lifecycle Engine | `FR-007`, `FR-018`, `FR-019`, `FR-051`, `DEC-012`, `Issue #23` |
 | **UC-006** | Transparent Scan Coverage & Skipped Content Audit | Developer / User | Classifier & Coverage | `FR-028`, `FR-029`, `FR-031`, `FR-034`, `FR-035`, `FR-037`, `Issue #15` |
+
+## Current Implementation Status
+
+| Use Case | Status on 2026-08-20 | Main gap |
+|---|---|---|
+| `UC-001` | `PARTIAL` | Core OAuth/session flow exists; complete production revocation and private-source lifecycle were not revalidated. |
+| `UC-002` | `PARTIAL` | Repository persistence exists; secondary-branch persistence and GitHub default-branch event synchronization are incomplete. |
+| `UC-003` | `PARTIAL` | Manual real scan exists, but execution is synchronous, remote acquisition has no `.git`, frontend polling is absent, and progress telemetry is simulated. |
+| `UC-004` | `PARTIAL` | Findings and explanation APIs exist; some remediation content is synthesized client-side and `Apply fix` is not a durable remediation workflow. |
+| `UC-005` | `PARTIAL` | Lifecycle engine is tested, but remote full-history proof and client-side resolution behavior do not satisfy the complete contract. |
+| `UC-006` | `PARTIAL` | Coverage persistence/read APIs exist; some UI fallback counts and disclosures are not guaranteed to come from verified records. |
 
 ---
 

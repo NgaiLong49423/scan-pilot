@@ -1,8 +1,9 @@
-> **Document:** SP-CONFIG-001 Secret Detector Validation Benchmark Report  
-> **File:** `docs/research/benchmarks/BENCHMARK-RESULTS-SP-CONFIG-001.md`  
-> **Version:** v1.0.0  
-> **Created:** 2026-08-20 06:27:49 UTC  
-> **Status:** Verified (Independent Suite)  
+> **Document:** SP-CONFIG-001 Secret Detector Validation Benchmark Report
+> **File:** `docs/research/benchmarks/BENCHMARK-RESULTS-SP-CONFIG-001.md`
+> **Version:** v1.0.1
+> **Created:** 2026-08-20
+> **Last Updated:** 2026-08-20
+> **Status:** Active
 
 # SP-CONFIG-001 Secret Detector Benchmark Results
 
@@ -28,7 +29,7 @@ This document records the formal benchmark execution results for the **SP-CONFIG
 - **Total Test Battery Size:** 60 items
 - **Positive Candidates (True Secrets):** 32 items
 - **Negative Candidates (Benign Noise):** 28 items
-- **Total Benchmark Duration:** 349 ms
+- **Total Benchmark Duration:** 215 ms
 
 ## Confusion Matrix
 

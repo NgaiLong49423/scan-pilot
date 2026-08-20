@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Accepted Decisions
 > **File:** `docs/DECISIONS.md`
-> **Version:** v2.2.0
+> **Version:** v2.3.0
 > **Created:** 2026-08-12
-> **Last Updated:** 2026-08-16
+> **Last Updated:** 2026-08-20
 > **Status:** Active
 
 # Scan Pilot Accepted Decisions
@@ -816,9 +816,25 @@ Scan Pilot enforces a strict "Zero Mock Telemetry & Honest Proof" engineering st
 
 **Reason:** In security tooling, fake progress bars or deceptive "100% verified" claims destroy developer trust and violate fundamental security audit principles. Transparency builds confidence with both developers and evaluation judges.
 
+## DEC-061 — SP-CI-001 is the accepted second-rule direction, gated as stretch scope
+
+**Status:** Accepted
+
+The Product Owner accepts `SP-CI-001 — Mutable Remote GitHub Actions Reference` as the planned second Scan Pilot rule. It is a deterministic static policy check for remote GitHub Actions references in the form `OWNER/REPOSITORY@REF`. A full 40-character hexadecimal commit SHA satisfies its immutable-reference policy; tags, branches, short SHAs, and expression-backed references produce cautious policy-risk wording. Local actions, Docker actions, reusable workflows, and malformed workflow files are excluded or recorded as explicit coverage outcomes according to the rule contract.
+
+The rule is mapped to OWASP Top 10:2025 A03 Software Supply Chain Failures as a narrow inspection contribution, not a claim of A03 coverage or compromise detection. Its implementation is stretch scope and must not begin until the frontend truthfulness, Git-history coverage, and GitHub fail-closed/persistence gates are stable under their separately authorized Issues.
+
+**Reason:** The rule demonstrates that Scan Pilot has a reusable inspection engine beyond secret scanning while remaining deterministic, repository-local, explainable, and bounded enough for the submission schedule.
+
+**Expected benefit:** The product can show two distinct evidence-backed rule families: source-code secret exposure and CI/CD supply-chain reference hygiene.
+
+**Trade-off:** Full-SHA pinning requires an update workflow and may be stricter than a repository's current practice. A mutable reference is a policy risk, not proof of compromise.
+
+**Verification limit:** This decision does not prove parser correctness, workflow execution behavior, effective GitHub organization policy, or that the rule can be completed before the submission deadline.
+
 ## Intentionally Open Decisions
 - exact optional confidence scale beyond the accepted verification statuses;
-- exact broader Product V1 rule count and the identity of any submission stretch rules beyond `SP-CONFIG-001`;
+- exact broader Product V1 rule count and the identity of any submission stretch rules beyond `SP-CI-001`;
 - exact detectors for rule families beyond the accepted Gitleaks-backed `SP-CONFIG-001` path;
 - optional Phase 2 document-extraction consent, privacy, implementation, format, OCR, resource, retention, and fallback policies;
 - exact eligibility reason-code taxonomy and policies for non-document binary families, archived, linked, generated, dependency, and user-excluded content beyond the accepted size reason codes;

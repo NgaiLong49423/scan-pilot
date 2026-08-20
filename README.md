@@ -1,9 +1,9 @@
-> **Document:** Scan Pilot Project README  
-> **File:** `README.md`  
-> **Version:** v1.2.0  
-> **Created:** 2026-08-11  
-> **Last Updated:** 2026-08-17  
-> **Status:** Active  
+> **Document:** Scan Pilot Project README
+> **File:** `README.md`
+> **Version:** v1.3.1
+> **Created:** 2026-08-11
+> **Last Updated:** 2026-08-20
+> **Status:** Active
 
 # Scan Pilot
 
@@ -49,15 +49,17 @@ The MVP is intended to run against real repositories and demonstrate a complete 
 
 The first accepted MVP rule is `SP-CONFIG-001 — Source Code Secret Exposure`.
 
+The accepted second-rule direction is the gated stretch rule `SP-CI-001 — Mutable Remote GitHub Actions Reference`. It will check immutable-reference policy for supported remote GitHub Actions references only after the core scan path is stable; it does not claim broad OWASP coverage or compromise detection.
+
 ## Technology Direction
 
 | Area | Direction |
 |---|---|
-| Frontend | React 18, TypeScript, Vite, Tailwind CSS, Lucide Icons |
+| Frontend | React 19, TypeScript 5.8, Vite 6, Tailwind CSS 4, Lucide Icons |
 | Backend | Spring Boot 3.4.3, Java 21, Apache Maven, RESTful modular monolith |
 | Database | PostgreSQL, Spring Data JPA/Hibernate, Flyway migrations |
 | Security Inspection | Pinned SP-CONFIG-001 policy, Gitleaks engine, HMAC-SHA-256 fingerprinting |
-| AI Guidance | Google Gemini 1.5 Flash (Explanation, Scoped Claims, Before/After Fix Diffs) |
+| AI Guidance | Configurable Gemini REST integration with `gemini-1.5-flash` as the current default and deterministic fallback guidance |
 | Continuous Deployment | GitHub Actions automated CD pipeline to Google Cloud Run |
 
 ## Live Deployment
@@ -73,6 +75,7 @@ Detailed infrastructure choices that remain open are recorded in [Accepted Decis
 - [Project context](docs/PROJECT-CONTEXT.md)
 - [Accepted decisions](docs/DECISIONS.md)
 - [Current status](docs/CURRENT-STATUS.md)
+- [Implementation baseline and gap register](docs/IMPLEMENTATION-BASELINE.md)
 - [Product definition](docs/PRODUCT.md)
 - [Requirements](docs/REQUIREMENTS.md)
 - [Inspection specification](docs/INSPECTION-SPEC.md)
@@ -84,7 +87,9 @@ Agents must begin with [AGENTS.md](AGENTS.md).
 
 ## Current Phase
 
-The project is in **Implementation**. On 2026-08-16, the Product Owner accepted the Eligibility Spike `CONDITIONAL GO` and explicitly authorized implementation under `DEC-054`.
+The project is in **implementation stabilization and next-slice planning**. The backend scanning vertical slice, persistence, CI, and backend Cloud Run deployment exist, but the application must not yet be described as a complete continuous-monitoring product. The current frontend has a TypeScript lint failure, remote scans do not include complete Git history, scan execution is synchronous, and some dashboard telemetry remains simulated. See the [implementation baseline](docs/IMPLEMENTATION-BASELINE.md) for verified, partial, UI-only, and specified capabilities.
+
+On 2026-08-16, the Product Owner accepted the Eligibility Spike `CONDITIONAL GO` and authorized Issue-driven implementation under `DEC-054`; that decision did not waive the remaining security, cost, verification, or delivery gates.
 
 The official external submission deadline for AI Riser Vietnam 2026 is **2026-08-30 at 23:59 GMT+7**.
 

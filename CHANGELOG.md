@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.29.0
+> **Version:** v2.31.2
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-19
+> **Last Updated:** 2026-08-20
 > **Status:** Active
 
 # Scan Pilot Changelog
@@ -11,16 +11,56 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
-## 2026-08-20 — Multi-Repository Fleet Hub, Live Scan Radar Terminal, Real-Time Telemetry & Zero Mock Policy (PR #48)
+## 2026-08-20 — Implementation Baseline, Documentation Reconciliation, and Next-Feature Drafts
 
-**Status:** Committed — `c186986` (PR #48)
+**Status:** Working tree
 
-**Scope:** Implemented Organization Multi-Repository Fleet Overview Hub (`FleetDashboard.tsx`) with wide horizontal rows and dual-layer persistence (LocalStorage + PostgreSQL), interactive Live Scan Radar & CLI Terminal Feed (`LiveScanTerminal.tsx`) with real-time log streaming and progress tracking, deterministic health scoring model (`DEC-059`), transparent skipped files audit disclosures (`FR-031`, `DEC-060`), and strict unmonitored repository filtering in the Import modal.
+**Scope:** Reconciled current documentation with verified source behavior, local checks, live GitHub delivery state, and the public backend status endpoint. Added an explicit capability/gap baseline and created the reviewed GitHub work contracts for stabilization and subsequent product slices.
+
+### Added
+
+- Added `docs/IMPLEMENTATION-BASELINE.md` with `VERIFIED`, `PARTIAL`, `UI_ONLY`, `SPECIFIED`, and `BROKEN` capability states, evidence, limitations, and planning gates.
+- Added local drafts `021` through `027` and created live Issues `#51` through `#57` for frontend truthfulness, asynchronous scan jobs, production GitHub fail-closed behavior, event triggers, Finding-to-Issue workflow, Repository Profile/Configuration Map, and Review Requests.
+- Added `SP-CI-001` comparative research, an accepted gated stretch-rule direction, the proposed inspection contract and test matrix, plus Issue draft `028` and live Issue `#58` for the gated implementation work contract.
+
+### Changed
+
+- Replaced stale current-status content with the verified implementation phase, current blockers, live open Issues, and recommended execution order.
+- Corrected the README, active SRS, Use Cases, documentation index, local development guide, repository contract, and benchmark metadata.
+- Reconciled the local Issue index with closed Issues `#14`–`#24`, open Issues `#49`–`#57`, and the corresponding local issue drafts.
+- Synchronized product, project context, current status, inspection specification, and research sources with the accepted `SP-CI-001` direction without claiming it is implemented.
+- Refined Issue `#51` and its local source record to separate frontend truthfulness from asynchronous progress work owned by `#52`, with an explicit data-presentation contract and review-ready verification boundary.
+
+### Fixed
+
+- Removed documentation claims that CI/CD was both implemented and not implemented, or that Issue `#9` still awaited closeout.
+- Stopped presenting simulated frontend telemetry, client-only resolution, complete Git history, and unimplemented workflows as verified application behavior.
+- Corrected React/Spring versions, backend test count, active SRS classification, repository-relative draft links, and the benchmark metadata block.
+
+### Affected files
+
+- `README.md`
+- `CHANGELOG.md`
+- `.agents/repo-contract.yml`
+- `.agents/outputs/drafts/github-issues/**`
+- `docs/CURRENT-STATUS.md`
+- `docs/IMPLEMENTATION-BASELINE.md`
+- `docs/LOCAL-DEVELOPMENT-GUIDE.md`
+- `docs/README.md`
+- `docs/USE-CASES.md`
+- `docs/requirements/SRS.md`
+- `docs/research/benchmarks/BENCHMARK-RESULTS-SP-CONFIG-001.md`
+
+## 2026-08-20 — Multi-Repository Fleet Hub and Live Scan Radar Presentation (PR #48)
+
+**Status:** Committed — `c8ddbc5` (PR #48)
+
+**Scope:** Added the multi-repository Fleet Overview, repository drill-down, local/PostgreSQL synchronization, Live Scan Radar presentation, deterministic severity scoring, skipped-file disclosures, and monitored-repository filtering. The terminal's intermediate events/counts and several dashboard metrics remain client-generated; `DEC-060` records the required policy rather than verified compliance.
 
 ### Added
 
 - Added `frontend/src/components/FleetDashboard.tsx` implementing organization-level portfolio view with horizontal monitored repository rows, real-time status badges, health score gauge, and one-click deep posture navigation.
-- Added `frontend/src/components/LiveScanTerminal.tsx` featuring real-time CLI log streaming, smooth progress percentage bar (0% -> 100%), live file target inspection, leak detection counter, auto-scroll, and zero raw secret exposure (`SP_SECRET_FP_V1`).
+- Added `frontend/src/components/LiveScanTerminal.tsx` with terminal-style progress presentation, file target display, counters, copy behavior, and auto-scroll. At this checkpoint, intermediate events and counts are simulated in the client.
 - Added `@GetMapping("/monitored")` endpoint in `ProjectController.java` and `getAllMonitoredProjects` in `ProjectService.java` for database-backed repository synchronization.
 - Added `DEC-060` in `docs/DECISIONS.md` establishing zero mock telemetry and honest pipeline verification principles.
 
@@ -50,7 +90,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-19 — Frontend Modular Architecture & Dual-Stage Stitch Design System (PR #46)
 
-**Status:** Committed — `28e7c16` (PR #46)
+**Status:** Committed — `fef4daa` (PR #46)
 
 **Scope:** Established official `frontend/` source layout (React 19 + TypeScript + Vite + Tailwind CSS v4) with modular component architecture, 3D perspective hero landing page, dark slate design system, dual-stage scan progression stepper (working tree & git history), interactive health score gauge, and side-by-side Gemini AI remediation diff viewer.
 
@@ -67,7 +107,7 @@ Each entry states whether it is already committed or still in the working tree. 
 - Added `frontend/src/components/RepoSelectModal.tsx` providing repository search with `Ctrl+K` shortcut support.
 ## 2026-08-19 — Remote GitHub Snapshot Auto-Redirect & Default Branch Fallback (PR #45)
 
-**Status:** Working tree — `feature/real-github-snapshot-download`
+**Status:** Committed — `528ce1a` (PR #45)
 
 **Scope:** Resolved remote GitHub archive download issue by replacing HttpURLConnection with Java 21 `HttpClient` configured with `Redirect.ALWAYS` (handling cross-domain 302 redirects from `api.github.com` to `codeload.github.com`), and added automatic fallback to repository default branch when branch-specific URL returns 404.
 
