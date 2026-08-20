@@ -7,42 +7,44 @@
 
 # Scan Pilot Multi-Agent Governance Workflow
 
-Tài liệu này quy chuẩn hóa **Quy trình Phối hợp, Kiểm soát Chéo và Báo cáo (Peer-Review & Gatekeeping Protocol)** theo luồng vận hành năm cấp giữa Agent 4 (Delivery Gatekeeper / Coordinator) điều phối Agent 1 (Coder), Agent 2 (QA Reviewer), Agent 3 (AppSec Auditor), báo cáo Codex (Technical Manager / Tech Lead) và trình Product Owner (User) trong hệ thống **Scan Pilot**.
+Tài liệu này quy chuẩn hóa **Quy trình Phối hợp, Kiểm soát Chéo và Báo cáo (Peer-Review & Gatekeeping Protocol)** theo Mô hình Phối hợp Lồng nhau (Nested Coordination Model) trong đó Agent 4 (Delivery Gatekeeper / Coordinator) điều phối Agent 1 (Coder), Agent 2 (QA Reviewer độc lập), Agent 3 (AppSec Auditor độc lập), tổng hợp báo cáo trình Codex (Technical Manager / Tech Lead) review kỹ thuật và trình Product Owner (User) phê duyệt trong hệ thống **Scan Pilot**.
 
 ---
 
-## 1. Mô hình Phối hợp Năm Cấp (Five-Tier Governance Matrix)
+## 1. Mô hình Phối hợp Lồng nhau (Nested Coordination Model)
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
-│                   LUỒNG KIỂM SOÁT NĂM CẤP BẮT BUỘC                     │
+│               MÔ HÌNH PHỐI HỢP LỒNG NHAU (NESTED MODEL)                │
 ├────────────────────────────────────────────────────────────────────────┤
-│ 1. [AGENT 1: Coder]       --> Viết mã nguồn & test theo tiêu chuẩn Ponytail│
-│                                │                                       │
-│                                ▼ (Cổng 1: Quality Gate)                │
-│ 2. [AGENT 2: QA Reviewer] --> Audit logic, Clean Code, Test suite      │
-│                                │                                       │
-│                                ▼ (Cổng 2: Security Gate)               │
-│ 3. [AGENT 3: AppSec]      --> Kiểm toán Cookie, OAuth, Zero-Leak       │
-│                                │                                       │
-│                                ▼ (Cổng 3: Coordination Gate)           │
-│ 4. [AGENT 4: Gatekeeper]  --> Tổng hợp bằng chứng READY_FOR_TECH_LEAD_REVIEW│
-│                                │                                       │
-│                                ▼ (Cổng 4: Technical Lead Review)       │
-│ 5. [CODEX: Tech Lead]     --> Review kỹ thuật APPROVED_FOR_PO_ACCEPTANCE│
-│                                │                                       │
-│                                ▼ (Cổng 5: Product Owner Acceptance)    │
-│ 6. [PRODUCT OWNER: User]  --> Đưa ra quyết định PO ACCEPTED & cấp quyền Merge│
+│                                                                        │
+│            Agent 4 (Delivery Gatekeeper / Coordinator)                 │
+│            ├── Agent 1 (Coder)                                         │
+│            ├── Agent 2 (QA Reviewer độc lập)                           │
+│            └── Agent 3 (AppSec Auditor độc lập)                        │
+│                 │                                                      │
+│                 ▼ Báo cáo READY_FOR_TECH_LEAD_REVIEW                     │
+│            Codex (Technical Manager / Tech Lead)                       │
+│                 │                                                      │
+│                 ▼ Review APPROVED_FOR_PO_ACCEPTANCE                    │
+│            Product Owner (User)                                        │
+│                 │                                                      │
+│                 ▼ Quyết định PO ACCEPTED & Cấp quyền Merge PR          │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
+> **Quy định Phân công trước BUILD (Before BUILD Assignment Rule):**
+> 1. Trước khi `BUILD` bắt đầu, tác vụ (Issue) phải chỉ định rõ tên **Agent 4 (Delivery Gatekeeper / Coordinator)**;
+> 2. Trong Kế hoạch thực thi của Agent 4 phải ghi rõ tên **Agent 1 (Coder)**, **Agent 2 (QA Reviewer độc lập)**, và **Agent 3 (AppSec Auditor độc lập)**;
+> 3. **Codex** được ghi nhận riêng biệt là **Technical Lead / Technical Manager** (không phải Agent 4 và không phải subagent của Agent 4).
+
 | Agent / Role | Vai trò chuyên môn | Kỹ năng bắt buộc (Repo Skills) | Quyền hạn & Trạng thái đầu ra |
 | :--- | :--- | :--- | :--- |
-| **Agent 1** | **Primary Implementer (Coder)** | `ponytail`, `full-output-enforcement`, `design-taste-frontend` | Thực thi mã nguồn, unit/integration tests, nộp báo cáo bàn giao. **Không được tự duyệt QA/AppSec cho chính mình.** |
-| **Agent 2** | **Code Quality & QA Reviewer** | `ponytail-review`, `ui-design-audit` | Kiểm toán Clean Code, Ponytail standards, logic, tests, UX. Quyết định: **`APPROVED`** hoặc **`REQUEST_CHANGES`**. |
-| **Agent 3** | **Security & Compliance Auditor** | `agent-delivery-governance`, OWASP ASVS/AISVS | Kiểm toán an toàn thông tin theo loại thay đổi. Quyết định: **`APPROVED`** hoặc **`BLOCKED`**. |
-| **Agent 4** | **Delivery Gatekeeper / Coordinator** | `agent-delivery-governance`, `document-metadata-standardizer` | Điều phối Agents 1, 2, 3, kiểm tra 3 Cổng trên cùng head SHA. Báo cáo: **`READY_FOR_TECH_LEAD_REVIEW`** trình Codex. |
-| **Codex** | **Technical Manager / Tech Lead** | `agent-delivery-governance`, repository review | Review kỹ thuật, kiến trúc, bảo mật & chất lượng tổng thể. Trạng thái: **`APPROVED_FOR_PO_ACCEPTANCE`** trình Product Owner. |
+| **Agent 4** | **Delivery Gatekeeper / Coordinator** | `agent-delivery-governance`, `document-metadata-standardizer` | Được chỉ định trước `BUILD`. Lập kế hoạch phân công Agent 1, 2, 3; điều phối và kiểm tra 3 Cổng trên cùng head SHA. Báo cáo: **`READY_FOR_TECH_LEAD_REVIEW`** trình Codex. |
+| **Agent 1** | **Primary Implementer (Coder)** | `ponytail`, `full-output-enforcement`, `design-taste-frontend` | Được Agent 4 chỉ định. Thực thi mã nguồn, unit/integration tests, nộp báo cáo bàn giao. **Không được tự duyệt QA/AppSec cho chính mình.** |
+| **Agent 2** | **Code Quality & QA Reviewer** | `ponytail-review`, `ui-design-audit` | Được Agent 4 chỉ định. Kiểm toán Clean Code, Ponytail standards, logic, tests, UX. Quyết định: **`APPROVED`** hoặc **`REQUEST_CHANGES`**. |
+| **Agent 3** | **Security & Compliance Auditor** | `agent-delivery-governance`, OWASP ASVS/AISVS | Được Agent 4 chỉ định. Kiểm toán an toàn thông tin theo loại thay đổi. Quyết định: **`APPROVED`** hoặc **`BLOCKED`**. |
+| **Codex** | **Technical Manager / Tech Lead** | `agent-delivery-governance`, repository review | Tech Lead độc lập (không phải Agent 4 hay subagent của Agent 4). Review kỹ thuật, kiến trúc, bảo mật & chất lượng tổng thể. Trạng thái: **`APPROVED_FOR_PO_ACCEPTANCE`** trình Product Owner. |
 | **Product Owner** | **Product Owner (User)** | final product authority | Đưa ra quyết định chấp nhận nghiệp vụ (**`PO ACCEPTED`**) và cấp quyền merge PR. |
 
 ---
@@ -130,6 +132,13 @@ Mọi ghi chép trung gian, log kiểm thử, kết quả phân tích chi tiết
 
 ```markdown
 # [AGENT 4: DELIVERY GATEKEEPER REPORT]
+- **Mã tác vụ:** <Issue # hoặc Tên tác vụ>
+- **Phân công Nhân sự trước BUILD:**
+  - Agent 4 (Coordinator): <Tên Agent 4>
+  - Agent 1 (Coder): <Tên Agent 1>
+  - Agent 2 (QA Reviewer độc lập): <Tên Agent 2>
+  - Agent 3 (AppSec Auditor độc lập): <Tên Agent 3>
+  - Technical Lead: Codex (Technical Manager / Tech Lead)
 - **Reviewed Head SHA:** <Exact SHA-1 matching Coder, QA, and AppSec>
 - **Trạng thái khuyến nghị:** [READY_FOR_TECH_LEAD_REVIEW / CHANGES_NEEDED / BLOCKED]
 - **Tóm tắt giải pháp kỹ thuật:** <Giải thích 2-3 câu ngắn gọn, dễ hiểu>
@@ -160,8 +169,9 @@ Mọi ghi chép trung gian, log kiểm thử, kết quả phân tích chi tiết
 
 ## 4. Nguyên tắc Vận hành Cốt lõi
 
-1. **Không bỏ bước (No Skipping Gates):** Delivery Gatekeeper (Agent 4) chỉ báo cáo `READY_FOR_TECH_LEAD_REVIEW` khi có đầy đủ Coder handoff + QA `APPROVED` + AppSec `APPROVED` trên cùng một reviewed head SHA. Codex (Tech Lead) chỉ cấp `APPROVED_FOR_PO_ACCEPTANCE` khi Agent 4 đã hoàn tất nghiệm thu 3 cổng.
-2. **Nguyên tắc Độc lập:** Coder không được tự ký duyệt QA hoặc AppSec cho commit/head SHA do mình tạo ra. Agent 2 và Agent 3 phải là các Agent chuyên trách độc lập.
-3. **Quy trình Sửa lỗi (Remediation Loop):** Nếu Agent 2 chọn `REQUEST_CHANGES`, Agent 3 chọn `BLOCKED`, hoặc Codex chọn `REJECTED`, tác vụ lập tức quay lại trạng thái `In Progress` cho Agent 1 (Coder). Sau khi sửa xong, bắt buộc phải có review mới từ đầu trên head SHA mới.
-4. **Báo cáo Tỷ lệ thuận (Proportional Checklists):** Danh mục kiểm tra của QA và AppSec phải phù hợp với bản chất thay đổi (Frontend UI, Backend REST API, Auth/GitHub integration, Database migration, CI/Workflow). Không áp dụng checklist OAuth/cookie máy móc cho các thay đổi CSS/giao diện thuần túy.
-5. **Quyền Quyết định Tối cao (Product Owner Authority):** Báo cáo của Agent 4 và Codex là khuyến nghị kỹ thuật. Product Owner (Người dùng) là người duy nhất có quyền đưa ra quyết định chấp nhận (`PO ACCEPTED`) và cấp quyền bấm **Merge PR**.
+1. **Phân công Nhân sự trước BUILD:** Trước khi `BUILD` bắt đầu, tác vụ (Issue) phải chỉ định tên Agent 4 (Delivery Gatekeeper / Coordinator). Trong Kế hoạch thực thi của Agent 4 phải phân công rõ Agent 1 (Coder), Agent 2 (QA Reviewer độc lập), và Agent 3 (AppSec Auditor độc lập). Codex được xác định riêng biệt là Technical Manager / Tech Lead.
+2. **Không bỏ bước (No Skipping Gates):** Delivery Gatekeeper (Agent 4) chỉ báo cáo `READY_FOR_TECH_LEAD_REVIEW` khi có đầy đủ Coder handoff + QA `APPROVED` + AppSec `APPROVED` trên cùng một reviewed head SHA. Codex (Tech Lead) chỉ cấp `APPROVED_FOR_PO_ACCEPTANCE` khi Agent 4 đã hoàn tất nghiệm thu 3 cổng.
+3. **Nguyên tắc Độc lập:** Coder không được tự ký duyệt QA hoặc AppSec cho commit/head SHA do mình tạo ra. Agent 2 và Agent 3 phải là các Agent chuyên trách độc lập.
+4. **Quy trình Sửa lỗi (Remediation Loop):** Nếu Agent 2 chọn `REQUEST_CHANGES`, Agent 3 chọn `BLOCKED`, hoặc Codex chọn `REJECTED`, tác vụ lập tức quay lại trạng thái `In Progress` cho Agent 1 (Coder). Sau khi sửa xong, bắt buộc phải có review mới từ đầu trên head SHA mới.
+5. **Báo cáo Tỷ lệ thuận (Proportional Checklists):** Danh mục kiểm tra của QA và AppSec phải phù hợp với bản chất thay đổi (Frontend UI, Backend REST API, Auth/GitHub integration, Database migration, CI/Workflow). Không áp dụng checklist OAuth/cookie máy móc cho các thay đổi CSS/giao diện thuần túy.
+6. **Quyền Quyết định Tối cao (Product Owner Authority):** Báo cáo của Agent 4 và Codex là khuyến nghị kỹ thuật. Product Owner (Người dùng) là người duy nhất có quyền đưa ra quyết định chấp nhận (`PO ACCEPTED`) và cấp quyền bấm **Merge PR**.

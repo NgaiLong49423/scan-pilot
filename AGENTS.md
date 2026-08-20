@@ -190,13 +190,13 @@ All agent skills are installed in `.agents/skill/`. Agents must consult and appl
 
 > **Status:** Active (`FULL_TRACKED`)
 > **Installed skill:** `.agents/skill/agent-delivery-governance/` v1.0.0
-> **Delivery mode:** `FULL_TRACKED` (Integration Check passed on 2026-08-17; five-tier agent workflow active on 2026-08-20)
+> **Delivery mode:** `FULL_TRACKED` (Integration Check passed on 2026-08-17; nested four-agent delivery workflow active on 2026-08-20)
 > **Product Owner / final acceptance & merge authority:** User
-> **Agent 1 — Coder (Primary Implementer):** Antigravity / delegated coding agent
-> **Agent 2 — QA Reviewer (Independent Code Quality):** named per work item
-> **Agent 3 — AppSec Auditor (Independent Security):** named per work item
-> **Agent 4 — Delivery Gatekeeper / Coordinator:** agent coordinator & 3-gate compliance verifier
-> **Codex — Technical Manager / Tech Lead:** technical reviewer & architectural sign-off
+> **Agent 4 — Delivery Gatekeeper / Coordinator:** agent coordinator & 3-gate compliance verifier (assigns Agent 1, 2, 3 in execution plan before BUILD)
+> **Agent 1 — Coder (Primary Implementer):** Antigravity / delegated coding agent (named by Agent 4)
+> **Agent 2 — QA Reviewer (Independent Code Quality):** named by Agent 4 per work item
+> **Agent 3 — AppSec Auditor (Independent Security):** named by Agent 4 per work item
+> **Codex — Technical Manager / Tech Lead:** independent technical reviewer & architectural sign-off (separate from Agent 4)
 > **Executable work tracker:** GitHub Issues in `NgaiLong49423/scan-pilot`
 > **Operational status board:** GitHub Project #13
 > **Branch convention:** `codex/<issue-number>-<short-kebab-name>`
@@ -207,16 +207,30 @@ The Integration Check **PASSED** on 2026-08-17:
 - `.agent-work/` is properly Git-ignored;
 - No secrets, tokens, or private credentials were detected in the review scope.
 
-Every Git-tracked code change must follow the mandatory five-tier delivery workflow:
+Every Git-tracked code change must follow the mandatory Nested Coordination Model (Mô hình Phối hợp Lồng nhau):
 
-1. **Agent 1 (Coder):** Implements code/tests under an authorized brief, creates `.agent-work/reports/handoff-<issue>.md`, and submits a secret-safe PR with reviewed head SHA. Coder MUST NOT self-approve as QA or AppSec.
-2. **Agent 2 (QA Reviewer):** Independently audits logic, Ponytail standards, unit/integration tests, and UX. Outputs strictly `APPROVED` or `REQUEST_CHANGES` in `.agent-work/qa-reviews/qa-<issue>.md`.
-3. **Agent 3 (AppSec Auditor):** Independently audits security controls, OAuth, cookies, secrets, and OWASP compliance scaled to change type. Outputs strictly `APPROVED` or `BLOCKED` in `.agent-work/security-audits/sec-<issue>.md`.
-4. **Agent 4 (Delivery Gatekeeper / Coordinator):** Coordinates Agents 1, 2, and 3; verifies all three gates on exact same reviewed head SHA. Reports `READY_FOR_TECH_LEAD_REVIEW` in `.agent-work/acceptance/acceptance-<issue>.md` and hands off to Codex.
-5. **Codex (Technical Manager / Tech Lead):** Conducts technical & architectural review on quality, security, and scope evidence. Marks item `APPROVED_FOR_PO_ACCEPTANCE` when satisfied.
+```text
+Agent 4 (Coordinator / Delivery Gatekeeper)
+├── Agent 1 (Coder)
+├── Agent 2 (QA Reviewer)
+└── Agent 3 (AppSec Auditor)
+     ↓
+Codex (Tech Lead)
+     ↓
+Product Owner (User)
+```
+
+**Pre-BUILD Assignment Rule:** Before `BUILD` starts, the Issue contract must explicitly name Agent 4 (Delivery Gatekeeper / Coordinator). In Agent 4's execution plan, Agent 4 must explicitly name Agent 1 (Coder), Agent 2 (independent QA Reviewer), and Agent 3 (independent AppSec Auditor). Codex is recorded separately as Technical Lead / Technical Manager (not Agent 4, and not a subagent of Agent 4).
+
+1. **Agent 4 (Delivery Gatekeeper / Coordinator):** Assigned to the Issue before `BUILD` starts; specifies Agent 1, Agent 2, and Agent 3 in its execution plan. Coordinates Agents 1, 2, and 3; verifies all three gates on exact same reviewed head SHA. Reports `READY_FOR_TECH_LEAD_REVIEW` in `.agent-work/acceptance/acceptance-<issue>.md` and hands off to Codex.
+2. **Agent 1 (Coder):** Named by Agent 4; implements code/tests under an authorized brief, creates `.agent-work/reports/handoff-<issue>.md`, and submits a secret-safe PR with reviewed head SHA. Coder MUST NOT self-approve as QA or AppSec.
+3. **Agent 2 (QA Reviewer):** Named by Agent 4; independently audits logic, Ponytail standards, unit/integration tests, and UX. Outputs strictly `APPROVED` or `REQUEST_CHANGES` in `.agent-work/qa-reviews/qa-<issue>.md`.
+4. **Agent 3 (AppSec Auditor):** Named by Agent 4; independently audits security controls, OAuth, cookies, secrets, and OWASP compliance scaled to change type. Outputs strictly `APPROVED` or `BLOCKED` in `.agent-work/security-audits/sec-<issue>.md`.
+5. **Codex (Technical Manager / Tech Lead):** Independent Technical Lead (separate from Agent 4); conducts technical & architectural review on quality, security, and scope evidence. Marks item `APPROVED_FOR_PO_ACCEPTANCE` when satisfied.
 6. **Product Owner (User):** Holds final acceptance authority (`PO ACCEPTED`) and sole permission to authorize PR merge. Tech Lead sign-offs do NOT replace Product Owner acceptance or merge permission.
 
 Remediation rule: Any QA `REQUEST_CHANGES`, AppSec `BLOCKED`, or Tech Lead rejection returns the item to `In Progress` (Coder). After remediation, fresh QA, AppSec, Gatekeeper, and Tech Lead reviews are required for the new head SHA. Keep detailed briefs, reports, logs, and intermediate analysis in `.agent-work/`; keep PR descriptions compact, secret-safe, and limited to head SHA and gate outcome references.
+
 
 ## Delivery Automation Policy
 

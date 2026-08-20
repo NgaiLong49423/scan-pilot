@@ -11,11 +11,11 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
-## 2026-08-20 — Executable Multi-Agent Governance Gates (Issue #60)
+## 2026-08-20 — Executable Multi-Agent Governance Gates & Coordinator Role Refinement (Issue #60)
 
-**Status:** Working tree
+**Status:** Committed — eecb8b7
 
-**Scope:** Reconciled Scan Pilot's active `FULL_TRACKED` delivery contract with the accepted five-tier governance model (Issue #60). Specified independent Coder handoff, QA Reviewer approval, AppSec Auditor approval, Delivery Gatekeeper coordination (`READY_FOR_TECH_LEAD_REVIEW`), and Codex Tech Lead sign-off (`APPROVED_FOR_PO_ACCEPTANCE`) before Product Owner acceptance (`PO ACCEPTED`) and merge authority.
+**Scope:** Refined Scan Pilot's active `FULL_TRACKED` delivery contract and multi-agent governance model (Issue #60). Replaced five-tier sequence terminology with the Nested Coordination Model (Agent 4 coordinating Agent 1 Coder, Agent 2 QA, Agent 3 AppSec -> Codex Tech Lead -> Product Owner). Added explicit pre-BUILD assignment rules naming Agent 4 in the Issue contract, and naming Agent 1, Agent 2, and Agent 3 in Agent 4's execution plan, while recording Codex separately as Technical Lead.
 
 ### Added
 
@@ -24,13 +24,13 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ### Changed
 
-- Updated `AGENTS.md` and `docs/DELIVERY-WORKFLOW.md` to define the mandatory 5-tier governance role matrix (Coder, QA Reviewer, AppSec Auditor, Delivery Gatekeeper, Technical Lead, Product Owner), pre-implementation QA/AppSec assignment naming rule, strict independence requirements, and reviewed head SHA matching rule.
+- Updated `AGENTS.md`, `docs/DELIVERY-WORKFLOW.md`, and `docs/MULTI-AGENT-GOVERNANCE-WORKFLOW.md` to define the Nested Coordination Model (Mô hình Phối hợp Lồng nhau) and explicit pre-BUILD assignment naming rules (Agent 4 in Issue contract; Agent 1, 2, 3 in Agent 4 execution plan; Codex recorded separately as Technical Lead).
 - Reconciled `docs/MULTI-AGENT-GOVERNANCE-WORKFLOW.md` to enforce exact output states (`APPROVED`/`REQUEST_CHANGES` for QA, `APPROVED`/`BLOCKED` for AppSec, `READY_FOR_TECH_LEAD_REVIEW` for Delivery Gatekeeper, `APPROVED_FOR_PO_ACCEPTANCE` for Tech Lead), remediation loops, and local `.agent-work/` vs compact secret-safe PR summary boundaries.
 
 ### Fixed
 
-- Removed stale delivery tables from `docs/DELIVERY-WORKFLOW.md` that conflicted with the multi-agent governance model.
-- Explicitly prohibited Coder self-approval as QA/AppSec and clarified that Delivery Gatekeeper and Tech Lead sign-offs do not replace Product Owner merge authority.
+- Removed stale delivery tables and "five-tier sequence" terminology that conflicted with the Nested Coordination Model.
+- Explicitly prohibited Coder self-approval as QA/AppSec, clarified that Codex Tech Lead is separate from Agent 4, and affirmed that Delivery Gatekeeper and Tech Lead sign-offs do not replace Product Owner merge authority.
 
 ### Affected files
 

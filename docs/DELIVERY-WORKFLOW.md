@@ -13,18 +13,18 @@ This document defines how accepted requirements become GitHub work items and how
 
 ## Agent Delivery Governance
 
-When the `agent-delivery-governance` skill is active for this project, use this five-tier governance model:
+When the `agent-delivery-governance` skill is active for this project, use this Nested Coordination Model (Mô hình Phối hợp Lồng nhau):
 
 | Role | Responsibility |
 |---|---|
-| Agent 1 — Coder | primary implementer; writes scoped code, unit/integration tests, local handoff report (`.agent-work/reports/handoff-<issue>.md`) |
-| Agent 2 — QA Reviewer | independent code quality reviewer; audits logic, Ponytail standards, unit/integration tests, UI (`APPROVED` / `REQUEST_CHANGES` in `.agent-work/qa-reviews/qa-<issue>.md`) |
-| Agent 3 — AppSec Auditor | independent security auditor; audits security controls, OAuth, cookies, secrets, OWASP compliance (`APPROVED` / `BLOCKED` in `.agent-work/security-audits/sec-<issue>.md`) |
-| Agent 4 — Delivery Gatekeeper / Coordinator | agent coordinator & gatekeeper; verifies Coder + QA + AppSec handoffs on exact same reviewed head SHA; outputs summary report (`READY_FOR_TECH_LEAD_REVIEW` in `.agent-work/acceptance/acceptance-<issue>.md`) and reports to Codex |
-| Codex — Technical Manager / Tech Lead | technical reviewer & architectural sign-off; reviews quality/security/scope evidence and outputs `APPROVED_FOR_PO_ACCEPTANCE` |
+| Agent 4 — Delivery Gatekeeper / Coordinator | agent coordinator & gatekeeper; named in Issue before `BUILD`; names Agent 1, 2, 3 in execution plan; verifies Coder + QA + AppSec handoffs on exact same reviewed head SHA; outputs summary report (`READY_FOR_TECH_LEAD_REVIEW` in `.agent-work/acceptance/acceptance-<issue>.md`) and reports to Codex |
+| Agent 1 — Coder | primary implementer (named by Agent 4); writes scoped code, unit/integration tests, local handoff report (`.agent-work/reports/handoff-<issue>.md`) |
+| Agent 2 — QA Reviewer | independent code quality reviewer (named by Agent 4); audits logic, Ponytail standards, unit/integration tests, UI (`APPROVED` / `REQUEST_CHANGES` in `.agent-work/qa-reviews/qa-<issue>.md`) |
+| Agent 3 — AppSec Auditor | independent security auditor (named by Agent 4); audits security controls, OAuth, cookies, secrets, OWASP compliance (`APPROVED` / `BLOCKED` in `.agent-work/security-audits/sec-<issue>.md`) |
+| Codex — Technical Manager / Tech Lead | independent technical reviewer & architectural sign-off (separate from Agent 4); reviews quality/security/scope evidence and outputs `APPROVED_FOR_PO_ACCEPTANCE` |
 | Product Owner (User) | product scope, UI/UX, cost, permissions, final acceptance decision (`PO ACCEPTED`), and sole merge authority |
 
-Before implementation (`BUILD`) begins, the work item's implementation brief / contract must explicitly name the assigned QA Reviewer (Agent 2) and AppSec Auditor (Agent 3).
+Before implementation (`BUILD`) begins, the work item's implementation brief / contract must explicitly name Agent 4 (Delivery Gatekeeper / Coordinator). In Agent 4's execution plan, Agent 4 must explicitly name Agent 1 (Coder), Agent 2 (independent QA Reviewer), and Agent 3 (independent AppSec Auditor). Codex is recorded separately as Technical Lead / Technical Manager (not Agent 4, and not a subagent of Agent 4).
 
 The `FULL_TRACKED` workflow is active. Every Git-tracked implementation requires the full Issue → branch → PR → Multi-Gate Review → Product Owner decision path.
 
@@ -101,13 +101,26 @@ Do not duplicate agent discussion on GitHub. A shared local file is never sole a
 
 Before moving an Issue to `Review`, the Coder must provide the required PR, compact handoff summary, and local handoff report `.agent-work/reports/handoff-<issue>.md`. Coder MUST NOT self-approve as QA or AppSec.
 
-The multi-tier review workflow proceeds as follows:
+The review workflow follows the Nested Coordination Model (Mô hình Phối hợp Lồng nhau):
 
-1. **Gate 1 — Quality Gate (Agent 2 - QA Reviewer):** Audits code quality, Ponytail standards, logic correctness, exception handling, unit/integration test suite, and UX completeness. Produces strictly `APPROVED` or `REQUEST_CHANGES` in `.agent-work/qa-reviews/qa-<issue>.md`.
-2. **Gate 2 — Security Gate (Agent 3 - AppSec Auditor):** Audits task-relevant security controls, OAuth PKCE, cookie security, CORS, and zero secret exposure. Produces strictly `APPROVED` or `BLOCKED` in `.agent-work/security-audits/sec-<issue>.md`.
-3. **Gate 3 — Delivery Coordination Gate (Agent 4 - Delivery Gatekeeper / Coordinator):** Verifies that Coder handoff + QA APPROVED + AppSec APPROVED exist for the exact same reviewed head SHA. Produces `READY_FOR_TECH_LEAD_REVIEW` in `.agent-work/acceptance/acceptance-<issue>.md` and reports to Codex.
-4. **Gate 4 — Technical Lead Gate (Codex - Technical Manager / Tech Lead):** Conducts overall technical, architectural, and security review. Produces `APPROVED_FOR_PO_ACCEPTANCE`.
-5. **Gate 5 — Product Owner Gate (Product Owner - User):** Evaluates product value and final acceptance. Records `PO ACCEPTED` (or `PO RETURNED`) and grants explicit merge authority.
+```text
+Agent 4 (Coordinator / Delivery Gatekeeper)
+├── Agent 1 (Coder)
+├── Agent 2 (QA Reviewer)
+└── Agent 3 (AppSec Auditor)
+     ↓
+Codex (Tech Lead)
+     ↓
+Product Owner (User)
+```
+
+1. **Pre-BUILD Assignment & Execution Plan:** Issue contract names Agent 4 (Delivery Gatekeeper / Coordinator). Agent 4's execution plan explicitly names Agent 1 (Coder), Agent 2 (QA Reviewer), and Agent 3 (AppSec Auditor) before `BUILD` starts.
+2. **Gate 1 — Coder Implementation & Handoff (Agent 1):** Implements code and tests, produces `.agent-work/reports/handoff-<issue>.md`, and submits secret-safe PR with reviewed head SHA. Coder MUST NOT self-approve as QA or AppSec.
+3. **Gate 2 — Quality Gate (Agent 2 - QA Reviewer):** Audits code quality, Ponytail standards, logic correctness, exception handling, unit/integration test suite, and UX completeness. Produces strictly `APPROVED` or `REQUEST_CHANGES` in `.agent-work/qa-reviews/qa-<issue>.md`.
+4. **Gate 3 — Security Gate (Agent 3 - AppSec Auditor):** Audits task-relevant security controls, OAuth PKCE, cookie security, CORS, and zero secret exposure. Produces strictly `APPROVED` or `BLOCKED` in `.agent-work/security-audits/sec-<issue>.md`.
+5. **Gate 4 — Delivery Coordination Gate (Agent 4 - Delivery Gatekeeper / Coordinator):** Verifies that Coder handoff + QA APPROVED + AppSec APPROVED exist for the exact same reviewed head SHA. Produces `READY_FOR_TECH_LEAD_REVIEW` in `.agent-work/acceptance/acceptance-<issue>.md` and reports to Codex.
+6. **Gate 5 — Technical Lead Gate (Codex - Technical Manager / Tech Lead):** Conducts overall technical, architectural, and security review. Produces `APPROVED_FOR_PO_ACCEPTANCE`.
+7. **Gate 6 — Product Owner Gate (Product Owner - User):** Evaluates product value and final acceptance. Records `PO ACCEPTED` (or `PO RETURNED`) and grants explicit merge authority.
 
 Remediation loop: If QA returns `REQUEST_CHANGES`, AppSec returns `BLOCKED`, or Tech Lead rejects the submission, the Issue returns to `In Progress` (Coder). After Coder remediation, new QA, AppSec, Gatekeeper, and Tech Lead reviews are required for the new head SHA.
 
