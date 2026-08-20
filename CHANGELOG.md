@@ -11,6 +11,23 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-19 — Frontend Modular Architecture & Dual-Stage Stitch Design System (PR #46)
+
+**Status:** Committed — `28e7c16` (PR #46)
+
+**Scope:** Established official `frontend/` source layout (React 19 + TypeScript + Vite + Tailwind CSS v4) with modular component architecture, 3D perspective hero landing page, dark slate design system, dual-stage scan progression stepper (working tree & git history), interactive health score gauge, and side-by-side Gemini AI remediation diff viewer.
+
+### Added
+
+- Added `frontend/src/types/index.ts` defining strict TypeScript interfaces for repositories, findings, diff snippets, and health metrics.
+- Added `frontend/src/services/api.ts` providing typed service abstractions with interactive mock data and backend endpoint connectors.
+- Added `frontend/src/components/Navbar.tsx` featuring repository & branch dropdown and 2 main navigation tabs (`Findings & Remediation` vs `Coverage & Audit`).
+- Added `frontend/src/components/HeroLanding.tsx` featuring ambient neon aura glow, 3D perspective tilt mockup card, and enterprise analysis engine bento grid.
+- Added `frontend/src/components/HealthGauge.tsx` and `TrendSparkline.tsx` rendering visual health scores (`92/100 Safe - Grade A`) and 30-day leak reduction curves.
+- Added `frontend/src/components/ScanProgressStepper.tsx` displaying 4-step dual-stage scan progression (Snapshot HEAD vs Git History tree).
+- Added `frontend/src/components/CoverageAuditView.tsx` rendering deterministic audit trails and multi-stage coverage metrics.
+- Added `frontend/src/components/FindingCard.tsx` and `RemediationDiff.tsx` providing zero-raw-secret masking and 1-click Gemini AI remediation diffs.
+- Added `frontend/src/components/RepoSelectModal.tsx` providing repository search with `Ctrl+K` shortcut support.
 ## 2026-08-19 — Remote GitHub Snapshot Auto-Redirect & Default Branch Fallback (PR #45)
 
 **Status:** Working tree — `feature/real-github-snapshot-download`
