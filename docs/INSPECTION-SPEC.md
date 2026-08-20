@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Inspection Specification  
 > **File:** `docs/INSPECTION-SPEC.md`  
-> **Version:** v0.12.0  
+> **Version:** v0.13.0
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-14  
+> **Last Updated:** 2026-08-20
 > **Status:** Under Review  
 
 # Scan Pilot Inspection Specification
@@ -234,6 +234,51 @@ Tool references:
 
 - Gitleaks official repository and CLI documentation: https://github.com/gitleaks/gitleaks
 - Git ancestor check: https://git-scm.com/docs/git-merge-base
+
+## Proposed Stretch Rule Contracts
+
+### SP-CI-001 — Mutable Remote GitHub Actions Reference
+
+| Property | Value |
+|---|---|
+| Status | Accepted direction; implementation gated by `DEC-061` |
+| Priority | Stretch scope |
+| Automability | FULL for supported syntax; explicit coverage otherwise |
+| Detection | STATIC |
+| Primary basis | OWASP Top 10:2025 A03 — Software Supply Chain Failures |
+| Supporting guidance | GitHub Actions security hardening; OpenSSF Scorecard Pinned-Dependencies |
+
+#### Purpose
+
+Detect a remote GitHub Action reference in a workflow `uses:` node that does not use an exact full commit SHA. The rule reports a mutable-reference policy risk, never a confirmed compromise.
+
+#### Supported Scope and Classification
+
+The initial scope is readable YAML workflow files under `.github/workflows/` and remote action syntax `OWNER/REPOSITORY@REF`. A compliant `REF` matches exactly `^[0-9a-fA-F]{40}$`.
+
+- tag, branch, short SHA, or expression-backed `REF`: produce `Potential Mutable Remote GitHub Actions Reference`;
+- local `./` action: `NOT_APPLICABLE_LOCAL_ACTION`, no Finding;
+- `docker://` action: `NOT_APPLICABLE_DOCKER_ACTION`, no Finding;
+- reusable workflow path containing `/.github/workflows/`: `NOT_APPLICABLE_REUSABLE_WORKFLOW`, no Finding;
+- malformed YAML or unsupported form: explicit coverage outcome, never a clean claim.
+
+The implementation must inspect semantic YAML `uses:` nodes, not apply a raw text rule to every occurrence of `uses:`. It must not execute a workflow, resolve an action remotely, expand expressions, or transmit workflow content to Gemini.
+
+#### Evidence, Severity, and Remediation
+
+Each Finding must retain the captured source commit, repository-relative workflow path, YAML location, normalized remote action reference, reference classification, rule/config version, and coverage status. Do not persist workflow secrets or expanded expressions.
+
+Default severity is `Medium`. Remediation is to replace the reference with a reviewed full commit SHA and maintain it through an approved update process. Finding wording must explain that a mutable reference reduces assurance of the reviewed action version; it must not state that the repository or action is compromised.
+
+#### Lifecycle and Verification
+
+The Finding identity is a deterministic rule-scoped semantic identity over stable repository identity, `SP-CI-001`, normalized workflow path, and normalized remote action target. A compatible successful re-scan that observes a full SHA at the same identity may resolve the Finding; incomplete, skipped, or parse-failed coverage cannot resolve it. A later mutable reference at the same identity is `REGRESSED`.
+
+The implementation requires the test matrix in [`SP-CI-001 research`](research/security/SP-CI-001-MUTABLE-GITHUB-ACTIONS-REFERENCE.md#test-matrix-required-before-implementation-is-accepted), including tags, branches, full SHA, expressions, local actions, Docker actions, reusable workflows, invalid YAML, and re-scan behavior.
+
+#### Verification Limit
+
+The rule establishes only static syntax and snapshot evidence. It does not establish the safety of SHA-pinned code, the effective GitHub organization policy, workflow runtime behavior, action permissions, or full OWASP A03 coverage.
 
 ## A01 Research Candidates
 

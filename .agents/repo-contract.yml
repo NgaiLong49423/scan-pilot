@@ -1,6 +1,6 @@
 project_name: Scan Pilot
 project_type: ai-security-monitoring-platform
-current_phase: research-and-specification
+current_phase: implementation-stabilization-and-planning
 
 canonical_docs:
   agent_instructions: AGENTS.md
@@ -8,6 +8,7 @@ canonical_docs:
   project_context: docs/PROJECT-CONTEXT.md
   accepted_decisions: docs/DECISIONS.md
   current_status: docs/CURRENT-STATUS.md
+  implementation_baseline: docs/IMPLEMENTATION-BASELINE.md
   delivery_workflow: docs/DELIVERY-WORKFLOW.md
   product: docs/PRODUCT.md
   requirements: docs/REQUIREMENTS.md
@@ -22,7 +23,6 @@ canonical_docs:
 
 deprecated_docs:
   - docs/requirements/PRD.md
-  - docs/requirements/SRS.md
   - App/README.md
 
 source_of_truth_precedence:

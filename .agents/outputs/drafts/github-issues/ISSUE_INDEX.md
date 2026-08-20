@@ -1,11 +1,51 @@
 > **Document:** Scan Pilot GitHub Issue Index
 > **File:** `.agents/outputs/drafts/github-issues/ISSUE_INDEX.md`
-> **Version:** v2.0.0
+> **Version:** v3.2.1
 > **Created:** 2026-08-16
-> **Last Updated:** 2026-08-18
+> **Last Updated:** 2026-08-20
 > **Status:** Active
 
 # Scan Pilot GitHub Issue Index
+
+## 2026-08-20 Reconciliation
+
+This section supersedes older live-status and next-step statements later in the historical index. The older decomposition is retained for traceability.
+
+- **Implementation evidence:** `docs/IMPLEMENTATION-BASELINE.md`
+- **Live GitHub state checked:** 2026-08-20
+- **Previously created implementation Issues:** `#14` through `#24` are closed.
+- **Other completed delivery Issues:** `#9`, `#36`, `#37`, and `#40` are closed.
+- **Open work:** `#49` Git history, `#50` localization, parent spike `#2`, Issues `#51` through `#58` below.
+- **Mode for entries 021–027:** Created as live GitHub Issues on 2026-08-20. GitHub Project fields and milestone were deliberately not changed.
+
+### Open Live Issues Requiring Review
+
+| Issue | Scope | Planning note |
+|---|---|---|
+| `#49` | Authenticated Git acquisition and history traversal | Must resolve the contradiction between `--depth 50` and the acceptance criterion claiming all reachable commits. |
+| `#50` | English/Vietnamese localization | Schedule after the frontend baseline is buildable and primary UI strings stabilize. |
+
+Historical foundation draft: [`009-production-foundation-and-antigravity-handoff.md`](009-production-foundation-and-antigravity-handoff.md).
+
+### Created Next-Feature Issues
+
+| Draft | Title | Priority | Size | Points | Primary trace | Status |
+|---|---|---|---|---:|---|---|
+| [`021`](021-frontend-integrity-honest-telemetry.md) | Restore Build Integrity and Evidence-Backed Telemetry | Critical | M | 5 | `DEC-060`, `FR-004`, `FR-007`, `FR-028` | Created [#51](https://github.com/NgaiLong49423/scan-pilot/issues/51) |
+| [`022`](022-async-scan-job-progress.md) | Dispatch Asynchronous Scan Jobs and Expose Real Progress | High | L | 8 | `FR-002`, `NFR-001`, `UC-003` | Created [#52](https://github.com/NgaiLong49423/scan-pilot/issues/52) |
+| [`023`](023-production-github-fail-closed-persistence.md) | Fail Closed and Persist Repository Configuration | Critical | L | 8 | `FR-020`, `FR-047`, `DEC-054` | Created [#53](https://github.com/NgaiLong49423/scan-pilot/issues/53) |
+| [`024`](024-event-driven-scan-triggers.md) | Add Authorized Event-Driven Scan Triggers | High | L | 8 | `FR-003`, `DEC-003`, `DEC-004` | Created [#54](https://github.com/NgaiLong49423/scan-pilot/issues/54) |
+| [`025`](025-finding-github-issue-workflow.md) | Create a Secret-Safe GitHub Issue from a Finding | Medium | M | 5 | `FR-006`, `FR-014` | Created [#55](https://github.com/NgaiLong49423/scan-pilot/issues/55) |
+| [`026`](026-repository-profile-configuration-map.md) | Build Repository Profile and Configuration Inventory | Medium | XL | 13 | `FR-010`, `FR-039`–`FR-044` | Created [#56](https://github.com/NgaiLong49423/scan-pilot/issues/56); PO family decision needed |
+| [`027`](027-review-request-workflow.md) | Implement Asynchronous Review Requests | Medium | L | 8 | `FR-012`–`FR-014` | Created [#57](https://github.com/NgaiLong49423/scan-pilot/issues/57) |
+
+Recommended order: `021` → refine/execute live `#49` → `022` and `023` → `024` → `025` → `026`/`027` → live `#50`.
+
+### Gated Stretch-Rule Issue
+
+| Draft | Title | Priority | Size | Points | Primary trace | Status |
+|---|---|---|---|---:|---|---|
+| [`028`](028-ci-mutable-actions-reference.md) | Detect Mutable Remote GitHub Actions References | Medium | M | 5 | `DEC-061`, `SP-CI-001`, OWASP A03:2025 | Created [#58](https://github.com/NgaiLong49423/scan-pilot/issues/58); blocked by #51, #49, #53 |
 
 ## Summary
 
@@ -87,17 +127,17 @@
 
 | No | Draft File | Title | Type | Size | Story Points | Priority | Source Trace | Dependencies | Relationships | Labels | Suggested Branch | Status | GitHub Issue |
 |---|---|---|---|---|---:|---|---|---|---|---|---|---|---|
-| **010** | [`010-ci-delivery-automation.md`](file:///d:/Github-Projects/scan-pilot/.agents/outputs/drafts/github-issues/010-ci-delivery-automation.md) | `[CI][Automation] Implement Continuous Integration Workflow for Frontend and Backend` | Task | S | 3 | High | `AGENTS.md`, `DEC-055`, `FR-036` | Issue #9 (merged) | Blocking: 011–020 | `📋 Task`, `🛠️ Backend`, `🎨 Frontend`, `🔴 priority-high` | `codex/18-ci-delivery-automation` | Created | [#18](https://github.com/NgaiLong49423/scan-pilot/issues/18) |
-| **011** | [`011-github-auth-session.md`](file:///d:/Github-Projects/scan-pilot/.agents/outputs/drafts/github-issues/011-github-auth-session.md) | `[Auth][FR-001][FR-047] Implement GitHub OAuth Sign-In and Server-Side Session Management` | Feature | M | 5 | High | `FR-001`, `FR-046`, `FR-047`, `DEC-047`, `DEC-054` | 010 | Blocked by: #18; Blocking: #14, #17 | `🚀 Feature`, `🔒 Security`, `🛠️ Backend`, `🔴 priority-high` | `codex/19-github-auth-session` | Created | [#19](https://github.com/NgaiLong49423/scan-pilot/issues/19) |
-| **012** | [`012-github-app-linking-repo-selection.md`](file:///d:/Github-Projects/scan-pilot/.agents/outputs/drafts/github-issues/012-github-app-linking-repo-selection.md) | `[GitHub][FR-001][FR-020][FR-047] Support GitHub App Installation Linking and Repository Selection` | Feature | M | 5 | High | `FR-001`, `FR-020`, `FR-022`, `FR-023`, `FR-047`, `DEC-047` | 011 | Blocked by: #19; Blocking: #22, #23, #17 | `🚀 Feature`, `🛠️ Backend`, `🔴 priority-high` | `codex/14-github-app-linking-repo-selection` | Created | [#14](https://github.com/NgaiLong49423/scan-pilot/issues/14) |
-| **013** | [`013-content-classifier-file-eligibility.md`](file:///d:/Github-Projects/scan-pilot/.agents/outputs/drafts/github-issues/013-content-classifier-file-eligibility.md) | `[Scanner][FR-031][FR-035][FR-037] Implement Layered Content Classifier and File Eligibility Policy` | Feature | M | 5 | High | `FR-031`, `FR-034`, `FR-035`, `FR-037`, `DEC-035`, `DEC-036` | Issue #9 | Blocked by: None; Blocking: #20, #23 | `🚀 Feature`, `🛠️ Backend`, `🔴 priority-high` | `codex/15-content-classifier-file-eligibility` | Created | [#15](https://github.com/NgaiLong49423/scan-pilot/issues/15) |
-| **014** | [`014-gitleaks-detector-adapter.md`](file:///d:/Github-Projects/scan-pilot/.agents/outputs/drafts/github-issues/014-gitleaks-detector-adapter.md) | `[Detector][FR-009][FR-026][FR-038] Implement Gitleaks Detector Adapter with Trusted SP-CONFIG-001 Policy` | Feature | M | 5 | High | `FR-009`, `FR-026`, `FR-038`, `DEC-037`, `DEC-053` | 013 | Blocked by: #15; Blocking: #21, #23 | `🚀 Feature`, `🔒 Security`, `🛠️ Backend`, `🔴 priority-high` | `codex/20-gitleaks-detector-adapter` | Created | [#20](https://github.com/NgaiLong49423/scan-pilot/issues/20) |
-| **015** | [`015-secret-fingerprinting-redaction.md`](file:///d:/Github-Projects/scan-pilot/.agents/outputs/drafts/github-issues/015-secret-fingerprinting-redaction.md) | `[Security][FR-017] Implement SP_SECRET_FP_V1 HMAC-SHA-256 Fingerprinting and Redaction Engine` | Feature | S | 3 | High | `FR-017`, `FR-004`, `DEC-038`, `DEC-048` | Issue #9 | Blocked by: None; Blocking: #22, #23, #16 | `🚀 Feature`, `🔒 Security`, `🛠️ Backend`, `🔴 priority-high` | `codex/21-secret-fingerprinting-redaction` | Created | [#21](https://github.com/NgaiLong49423/scan-pilot/issues/21) |
-| **016** | [`016-postgresql-core-persistence.md`](file:///d:/Github-Projects/scan-pilot/.agents/outputs/drafts/github-issues/016-postgresql-core-persistence.md) | `[Database][FR-010][FR-011][FR-014] Implement PostgreSQL Schema and Repositories for Scan Pilot Core Entities` | Feature | M | 5 | High | `FR-010`, `FR-011`, `FR-014`, `FR-015`, `DEC-006`, `DEC-039` | 011, 012, 015 | Blocked by: #19, #14, #21; Blocking: #23, #17 | `🚀 Feature`, `🗄️ Database`, `🛠️ Backend`, `🔴 priority-high` | `codex/22-postgresql-core-persistence` | Created | [#22](https://github.com/NgaiLong49423/scan-pilot/issues/22) |
-| **017** | [`017-scan-pipeline-finding-lifecycle.md`](file:///d:/Github-Projects/scan-pilot/.agents/outputs/drafts/github-issues/017-scan-pipeline-finding-lifecycle.md) | `[Scan][FR-002][FR-007][FR-018][FR-025][FR-051] Implement Snapshot and Git History Scan Pipeline with Finding Lifecycle` | Feature | L | 8 | Critical | `FR-002`, `FR-007`, `FR-018`, `FR-019`, `FR-025`, `FR-051`, `DEC-040` | 012, 013, 014, 015, 016 | Blocked by: #14, #15, #20, #21, #22; Blocking: #16, #17, #24 | `🚀 Feature`, `🛠️ Backend`, `🚨 Critical` | `codex/23-scan-pipeline-finding-lifecycle` | Created | [#23](https://github.com/NgaiLong49423/scan-pilot/issues/23) |
-| **018** | [`018-gemini-ai-explanation-service.md`](file:///d:/Github-Projects/scan-pilot/.agents/outputs/drafts/github-issues/018-gemini-ai-explanation-service.md) | `[AI][FR-005][FR-048] Implement Gemini Explanation and Remediation Guidance Service` | Feature | M | 5 | High | `FR-005`, `FR-048`, `DEC-007`, `DEC-048` | 015, 017 | Blocked by: #21, #23; Blocking: #17, #24 | `🚀 Feature`, `🛠️ Backend`, `🔴 priority-high` | `codex/16-gemini-ai-explanation-service` | Created | [#16](https://github.com/NgaiLong49423/scan-pilot/issues/16) |
-| **019** | [`019-frontend-real-api-integration.md`](file:///d:/Github-Projects/scan-pilot/.agents/outputs/drafts/github-issues/019-frontend-real-api-integration.md) | `[Frontend][FR-004][FR-008][FR-044] Connect React Dashboard to Real Scan Pilot Backend REST APIs` | Feature | M | 5 | High | `FR-004`, `FR-008`, `FR-044`, `DEC-002`, `DEC-005`, `DEC-043` | 011, 012, 017, 018 | Blocked by: #19, #14, #23, #16; Blocking: #24 | `🚀 Feature`, `🎨 Frontend`, `🔴 priority-high` | `codex/17-frontend-real-api-integration` | Created | [#17](https://github.com/NgaiLong49423/scan-pilot/issues/17) |
-| **020** | [`020-security-lab-e2e-benchmark.md`](file:///d:/Github-Projects/scan-pilot/.agents/outputs/drafts/github-issues/020-security-lab-e2e-benchmark.md) | `[Verification][FR-049][FR-050][FR-051] Execute Security-Lab E2E Lifecycle Verification and Independent Secret Benchmark` | Testing | M | 5 | Critical | `FR-049`, `FR-050`, `FR-051`, `DEC-049`, `DEC-050` | 017, 018, 019 | Blocked by: #23, #16, #17; Blocking: Final Submission | `🧪 Testing`, `🔒 Security`, `🚨 Critical` | `codex/24-security-lab-e2e-benchmark` | Created | [#24](https://github.com/NgaiLong49423/scan-pilot/issues/24) |
+| **010** | [`010-ci-delivery-automation.md`](010-ci-delivery-automation.md) | `[CI][Automation] Implement Continuous Integration Workflow for Frontend and Backend` | Task | S | 3 | High | `AGENTS.md`, `DEC-055`, `FR-036` | Issue #9 (merged) | Blocking: 011–020 | `📋 Task`, `🛠️ Backend`, `🎨 Frontend`, `🔴 priority-high` | `codex/18-ci-delivery-automation` | Created | [#18](https://github.com/NgaiLong49423/scan-pilot/issues/18) |
+| **011** | [`011-github-auth-session.md`](011-github-auth-session.md) | `[Auth][FR-001][FR-047] Implement GitHub OAuth Sign-In and Server-Side Session Management` | Feature | M | 5 | High | `FR-001`, `FR-046`, `FR-047`, `DEC-047`, `DEC-054` | 010 | Blocked by: #18; Blocking: #14, #17 | `🚀 Feature`, `🔒 Security`, `🛠️ Backend`, `🔴 priority-high` | `codex/19-github-auth-session` | Created | [#19](https://github.com/NgaiLong49423/scan-pilot/issues/19) |
+| **012** | [`012-github-app-linking-repo-selection.md`](012-github-app-linking-repo-selection.md) | `[GitHub][FR-001][FR-020][FR-047] Support GitHub App Installation Linking and Repository Selection` | Feature | M | 5 | High | `FR-001`, `FR-020`, `FR-022`, `FR-023`, `FR-047`, `DEC-047` | 011 | Blocked by: #19; Blocking: #22, #23, #17 | `🚀 Feature`, `🛠️ Backend`, `🔴 priority-high` | `codex/14-github-app-linking-repo-selection` | Created | [#14](https://github.com/NgaiLong49423/scan-pilot/issues/14) |
+| **013** | [`013-content-classifier-file-eligibility.md`](013-content-classifier-file-eligibility.md) | `[Scanner][FR-031][FR-035][FR-037] Implement Layered Content Classifier and File Eligibility Policy` | Feature | M | 5 | High | `FR-031`, `FR-034`, `FR-035`, `FR-037`, `DEC-035`, `DEC-036` | Issue #9 | Blocked by: None; Blocking: #20, #23 | `🚀 Feature`, `🛠️ Backend`, `🔴 priority-high` | `codex/15-content-classifier-file-eligibility` | Created | [#15](https://github.com/NgaiLong49423/scan-pilot/issues/15) |
+| **014** | [`014-gitleaks-detector-adapter.md`](014-gitleaks-detector-adapter.md) | `[Detector][FR-009][FR-026][FR-038] Implement Gitleaks Detector Adapter with Trusted SP-CONFIG-001 Policy` | Feature | M | 5 | High | `FR-009`, `FR-026`, `FR-038`, `DEC-037`, `DEC-053` | 013 | Blocked by: #15; Blocking: #21, #23 | `🚀 Feature`, `🔒 Security`, `🛠️ Backend`, `🔴 priority-high` | `codex/20-gitleaks-detector-adapter` | Created | [#20](https://github.com/NgaiLong49423/scan-pilot/issues/20) |
+| **015** | [`015-secret-fingerprinting-redaction.md`](015-secret-fingerprinting-redaction.md) | `[Security][FR-017] Implement SP_SECRET_FP_V1 HMAC-SHA-256 Fingerprinting and Redaction Engine` | Feature | S | 3 | High | `FR-017`, `FR-004`, `DEC-038`, `DEC-048` | Issue #9 | Blocked by: None; Blocking: #22, #23, #16 | `🚀 Feature`, `🔒 Security`, `🛠️ Backend`, `🔴 priority-high` | `codex/21-secret-fingerprinting-redaction` | Created | [#21](https://github.com/NgaiLong49423/scan-pilot/issues/21) |
+| **016** | [`016-postgresql-core-persistence.md`](016-postgresql-core-persistence.md) | `[Database][FR-010][FR-011][FR-014] Implement PostgreSQL Schema and Repositories for Scan Pilot Core Entities` | Feature | M | 5 | High | `FR-010`, `FR-011`, `FR-014`, `FR-015`, `DEC-006`, `DEC-039` | 011, 012, 015 | Blocked by: #19, #14, #21; Blocking: #23, #17 | `🚀 Feature`, `🗄️ Database`, `🛠️ Backend`, `🔴 priority-high` | `codex/22-postgresql-core-persistence` | Created | [#22](https://github.com/NgaiLong49423/scan-pilot/issues/22) |
+| **017** | [`017-scan-pipeline-finding-lifecycle.md`](017-scan-pipeline-finding-lifecycle.md) | `[Scan][FR-002][FR-007][FR-018][FR-025][FR-051] Implement Snapshot and Git History Scan Pipeline with Finding Lifecycle` | Feature | L | 8 | Critical | `FR-002`, `FR-007`, `FR-018`, `FR-019`, `FR-025`, `FR-051`, `DEC-040` | 012, 013, 014, 015, 016 | Blocked by: #14, #15, #20, #21, #22; Blocking: #16, #17, #24 | `🚀 Feature`, `🛠️ Backend`, `🚨 Critical` | `codex/23-scan-pipeline-finding-lifecycle` | Created | [#23](https://github.com/NgaiLong49423/scan-pilot/issues/23) |
+| **018** | [`018-gemini-ai-explanation-service.md`](018-gemini-ai-explanation-service.md) | `[AI][FR-005][FR-048] Implement Gemini Explanation and Remediation Guidance Service` | Feature | M | 5 | High | `FR-005`, `FR-048`, `DEC-007`, `DEC-048` | 015, 017 | Blocked by: #21, #23; Blocking: #17, #24 | `🚀 Feature`, `🛠️ Backend`, `🔴 priority-high` | `codex/16-gemini-ai-explanation-service` | Created | [#16](https://github.com/NgaiLong49423/scan-pilot/issues/16) |
+| **019** | [`019-frontend-real-api-integration.md`](019-frontend-real-api-integration.md) | `[Frontend][FR-004][FR-008][FR-044] Connect React Dashboard to Real Scan Pilot Backend REST APIs` | Feature | M | 5 | High | `FR-004`, `FR-008`, `FR-044`, `DEC-002`, `DEC-005`, `DEC-043` | 011, 012, 017, 018 | Blocked by: #19, #14, #23, #16; Blocking: #24 | `🚀 Feature`, `🎨 Frontend`, `🔴 priority-high` | `codex/17-frontend-real-api-integration` | Created | [#17](https://github.com/NgaiLong49423/scan-pilot/issues/17) |
+| **020** | [`020-security-lab-e2e-benchmark.md`](020-security-lab-e2e-benchmark.md) | `[Verification][FR-049][FR-050][FR-051] Execute Security-Lab E2E Lifecycle Verification and Independent Secret Benchmark` | Testing | M | 5 | Critical | `FR-049`, `FR-050`, `FR-051`, `DEC-049`, `DEC-050` | 017, 018, 019 | Blocked by: #23, #16, #17; Blocking: Final Submission | `🧪 Testing`, `🔒 Security`, `🚨 Critical` | `codex/24-security-lab-e2e-benchmark` | Created | [#24](https://github.com/NgaiLong49423/scan-pilot/issues/24) |
 
 **Total Estimated Story Points for Submission MVP:** 49 Story Points (11 work items).
 
@@ -107,7 +147,7 @@
 
 | Issue | Relationship | Source Trace | Points | Priority | Status | Description / Outcome |
 |---|---|---|---:|---|---|---|
-| [#2](https://github.com/NgaiLong49423/scan-pilot/issues/2) | Parent Epic | `DEC-044`–`DEC-051` | — | Critical | Closed / Completed | Validate AI Riser submission architecture |
+| [#2](https://github.com/NgaiLong49423/scan-pilot/issues/2) | Parent Epic | `DEC-044`–`DEC-051` | — | Critical | Open / Evidence complete | Validate AI Riser submission architecture; closure remains a Product Owner action. |
 | [#3](https://github.com/NgaiLong49423/scan-pilot/issues/3) | Child of #2 | `DEC-051` | 1 | Critical | Closed / Completed | Confirm submission requirements and deadline (PASS: 2026-08-30) |
 | [#4](https://github.com/NgaiLong49423/scan-pilot/issues/4) | Child of #2 | `DEC-045` | 2 | Critical | Closed / Completed | Verify signed-out AI Studio access (PASS) |
 | [#5](https://github.com/NgaiLong49423/scan-pilot/issues/5) | Child of #2 | `DEC-044` | 2 | High | Closed / Completed | Verify export and frozen evidence (PASS) |
@@ -138,8 +178,5 @@
 
 ## Review Notes
 
-1. **Operating Mode:** All work items 010 through 020 are currently in `Draft` status in `.agents/outputs/drafts/github-issues/`. No live GitHub issues have been created yet.
-2. **Next Steps for Product Owner:**
-   - Review the decomposition, story points, and dependency graph.
-   - Authorize Issue creation on GitHub for approved drafts when ready.
-   - After creation, `ISSUE_INDEX.md` will be updated with live GitHub Issue URLs and synchronized with Project #13.
+1. **Historical note:** Work items 010 through 020 were used to create live Issues `#18`–`#24`, `#14`–`#17`, and related delivery work; those Issues are now closed. Treat their older draft-state wording as historical only.
+2. **Next Product Owner review:** approve, reject, regroup, or reprioritize drafts 021 through 027. Authorization to review drafts is not authorization to create Issues, change Project #13, implement code, commit, or push.

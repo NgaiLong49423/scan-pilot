@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Local Development and Run Guide
 > **File:** `docs/LOCAL-DEVELOPMENT-GUIDE.md`
-> **Version:** v1.0.0
+> **Version:** v1.1.0
 > **Created:** 2026-08-18
-> **Last Updated:** 2026-08-18
+> **Last Updated:** 2026-08-20
 > **Status:** Active
 
 # Hướng dẫn Khởi chạy và Kiểm thử Scan Pilot trên máy Local
@@ -86,11 +86,12 @@ Mở trình duyệt (Chrome, Edge, Firefox, Brave, ...) và truy cập:
 👉 [**`http://localhost:3000`**](http://localhost:3000)
 
 **Các tính năng bạn có thể tương tác trực tiếp:**
-* **Dashboard Tổng quan:** Xem số lượng dự án, điểm sức khỏe an ninh, biểu đồ trạng thái.
-* **Tab Findings:** Lọc các lỗ hổng theo mức độ nghiêm trọng (`Critical`, `High`, `Medium`, `Low`), bấm vào từng lỗ hổng để xem mã nguồn vi phạm và gợi ý sửa lỗi AI.
-* **Tab Configuration Map:** Xem danh mục các file cấu hình được phân loại tự động.
-* **Tab Review Requests:** Xem danh sách các yêu cầu xác minh ngữ cảnh cần người dùng trả lời.
-* **Giao diện Sáng / Tối:** Bấm icon Mặt trời / Mặt trăng ở góc trên để đổi theme.
+* **Fleet Dashboard:** Xem các repository đã monitor và mở trang chi tiết từng repository.
+* **Tab Findings:** Lọc Finding theo severity/trạng thái và xem hướng dẫn remediation. Nút `Apply fix` hiện chỉ đổi state phía frontend, không phải sửa repository hoặc xác minh re-scan.
+* **Tab Coverage & Audit:** Xem coverage và nội dung bị skip khi backend đã có bản ghi tương ứng.
+* **Live Scan Terminal:** Chỉ dùng để kiểm tra giao diện ở baseline hiện tại; các log/count trung gian vẫn được mô phỏng bằng timer, không phải backend telemetry.
+
+`Configuration Map`, `Review Requests`, event-driven scan và localization chưa phải luồng hoàn chỉnh trong app hiện tại. Xem `docs/IMPLEMENTATION-BASELINE.md` trước khi demo.
 
 ---
 
@@ -116,7 +117,7 @@ Nếu bạn muốn chạy kiểm tra toàn bộ unit test trên máy trước kh
   cd d:\Github-Projects\scan-pilot\backend
   mvn clean test
   ```
-  *(Tất cả 28 tests sẽ chạy và báo `BUILD SUCCESS`)*
+  *(Baseline ngày 2026-08-20: 210 tests, 0 failures, `BUILD SUCCESS`.)*
 
 * **Kiểm tra TypeScript & Build Frontend:**
   ```powershell
@@ -124,6 +125,8 @@ Nếu bạn muốn chạy kiểm tra toàn bộ unit test trên máy trước kh
   npm run lint
   npm run build
   ```
+
+  Baseline ngày 2026-08-20: `npm run lint` đang fail do `App.tsx` truyền prop `isScanned` không tồn tại trong `HealthGaugeProps`. Không coi frontend là đã verify cho đến khi lint và build cùng pass.
 
 ---
 

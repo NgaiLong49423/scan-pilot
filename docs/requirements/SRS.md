@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Software Requirements Specification (SRS)
 > **File:** `docs/requirements/SRS.md`
-> **Version:** v2.0.0
+> **Version:** v2.1.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-19
+> **Last Updated:** 2026-08-20
 > **Status:** Active
 
 # Scan Pilot Software Requirements Specification (SRS)
@@ -24,6 +24,9 @@ Scan Pilot solves the security gap in modern software engineering where develope
 6. **Finding Tracking & Lifecycle Model:** [`docs/FINDING-TRACKING.md`](../FINDING-TRACKING.md)
 7. **Cloud Budget & Guardrails:** [`docs/CLOUD-BUDGET.md`](../CLOUD-BUDGET.md)
 8. **Accepted Architectural Decisions:** [`docs/DECISIONS.md`](../DECISIONS.md)
+9. **Implementation Evidence and Gaps:** [`docs/IMPLEMENTATION-BASELINE.md`](../IMPLEMENTATION-BASELINE.md)
+
+This SRS defines the required product contract. It is not a completion report. Capability claims must use the implementation baseline and current verification evidence.
 
 ---
 
@@ -31,7 +34,7 @@ Scan Pilot solves the security gap in modern software engineering where develope
 
 ```mermaid
 graph TD
-    Client["React 18 + TypeScript + Vite + Tailwind CSS<br><i>(Port 5173 / Cloud Run)</i>"]
+    Client["React 19 + TypeScript + Vite + Tailwind CSS<br><i>(Port 3000 / Cloud Run target)</i>"]
     Gateway["Spring Boot 3 + Java 21 REST API<br><i>(Port 8080 / Cloud Run)</i>"]
     DB[(PostgreSQL 16 + Flyway Migrations)]
     GitHub["GitHub API & GitHub App OAuth"]
@@ -45,11 +48,15 @@ graph TD
     Gateway -->|Local ProcessBuilder / JGit| Worker
 ```
 
-* **Frontend:** React 18, TypeScript, Vite, Tailwind CSS (following `design-taste-frontend` and WCAG AA standards).
-* **Backend:** Spring Boot 3.3, Java 21 LTS, Maven, Spring Data JPA, Hibernate, Flyway.
+* **Frontend:** React 19, TypeScript 5.8, Vite 6, Tailwind CSS 4. WCAG AA remains a requirement and was not reverified by this documentation audit.
+* **Backend:** Spring Boot 3.4.3, Java 21 target, Maven, Spring Data JPA, Hibernate, Flyway.
 * **Database:** PostgreSQL 16 (12 core tables initialized via `V1__init_core_schema.sql`).
 * **AI Provider:** Google Gemini (`gemini-1.5-flash` default via Spring 6 `RestClient`).
 * **Security Scanner:** Gitleaks Detector Adapter with trusted `SP-CONFIG-001` policy + Embedded Regex Fallback.
+
+### 2.1 Current Implementation Boundary
+
+The implemented backend currently runs scan execution synchronously from the trigger request and acquires remote repositories through GitHub zipball snapshots. Therefore, the asynchronous-worker and complete reachable-history paths shown in the target architecture are not yet complete. The current frontend also contains simulated progress/metric values and fails TypeScript lint at the reviewed commit. Exact statuses are maintained in `docs/IMPLEMENTATION-BASELINE.md`.
 
 ---
 

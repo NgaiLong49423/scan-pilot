@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Product Definition  
 > **File:** `docs/PRODUCT.md`  
-> **Version:** v0.13.0  
+> **Version:** v0.14.0
 > **Created:** 2026-08-12  
-> **Last Updated:** 2026-08-16  
+> **Last Updated:** 2026-08-20
 > **Status:** Under Review  
 
 # Scan Pilot Product Definition
@@ -54,6 +54,8 @@ The Google AI Studio project remains submission evidence for the build stage. Th
 The approved AI Studio prototype is frozen as submission evidence after its one-way handoff. Production source then evolves in GitHub as the source of truth. The two workspaces are not maintained as parallel production codebases.
 
 Submission evidence must include the AI Studio link, the public Cloud Run deployment when available, a public demo video, source access through the actual submission mechanism, and independent validation evidence. Broader Product V1 capabilities are included only after the real end-to-end secret-scanning loop is stable.
+
+The accepted stretch-rule direction is `SP-CI-001 — Mutable Remote GitHub Actions Reference`. It observes mutable remote action references as a bounded Software Supply Chain policy risk; it does not claim compromise or comprehensive OWASP coverage. Its implementation remains blocked until the core stabilization gates in its delivery Issue are complete.
 
 Gemini explains redacted findings, remediation steps, and lifecycle transitions. It does not modify repositories, create patches, commit or push code, rewrite Git history, revoke credentials, or decide Finding lifecycle state.
 
