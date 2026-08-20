@@ -136,6 +136,36 @@ public class ProjectService {
     }
 
     /**
+     * Retrieves all repositories explicitly monitored by the authenticated user from PostgreSQL.
+     */
+    public List<MonitoredProject> getAllMonitoredProjects(UserSession user) {
+        if (user == null || userRepository == null || repositoryRepository == null) {
+            return List.of();
+        }
+        Optional<com.scanpilot.persistence.entity.UserEntity> userEntity = userRepository.findByGithubUserId(user.getGithubUserId());
+        if (userEntity.isEmpty()) {
+            return List.of();
+        }
+        List<com.scanpilot.persistence.entity.RepositoryEntity> entities = repositoryRepository.findByUserId(userEntity.get().getId());
+        return entities.stream()
+                .map(e -> new MonitoredProject(
+                        e.getId().toString(),
+                        user.getGithubUserId(),
+                        e.getGithubRepoId(),
+                        e.getOwner(),
+                        e.getName(),
+                        e.getFullName(),
+                        e.getDefaultBranch(),
+                        e.getPrimaryBranch() != null ? e.getPrimaryBranch() : e.getDefaultBranch(),
+                        List.of(),
+                        Boolean.TRUE.equals(e.getIsPrivate()),
+                        e.getMonitoredAt() != null ? e.getMonitoredAt() : Instant.now(),
+                        e.getStatus() != null ? e.getStatus() : "ACTIVE"
+                ))
+                .toList();
+    }
+
+    /**
      * Configures up to 2 secondary branches for monitoring (FR-020, FR-023).
      */
     public MonitoredProject updateBranchConfiguration(UserSession user, BranchConfigRequest request) {

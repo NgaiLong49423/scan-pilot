@@ -748,9 +748,75 @@ Scan Pilot adopts a decoupled multi-service Google Cloud Run deployment architec
 
 **Reason:** Aligns with the official *Google AI & Vibe Coding Handbook* workflow (Prototype in AI Studio -> Deploy to Cloud Run -> Scale on Google Cloud) while preserving Spring Boot security logic, PostgreSQL persistence, and zero idle cost. The trade-off is managing CORS and environment variables across two Cloud Run domains. The verification limit is that Cloud Run deployment and CORS communication require live verification in the target GCP environment.
 
-## Intentionally Open Decisions
+## DEC-057 — 100% English UI Standard with Deferred Localization
 
-- exact scoring formula and status thresholds;
+**Status:** Accepted
+
+The entire Scan Pilot user interface (Landing page, Fleet Dashboard, Repository Health Views, Finding cards, Steppers, Modals, and Remediation diffs) is standardized to 100% professional developer English. All mixed Vietnamese UI labels are eliminated to maintain international developer-grade aesthetics and clear evaluation standards for hackathons and public judges.
+
+Localization and multi-language support (including Vietnamese UI translation) are formally deferred as post-MVP Product V1 enhancements.
+
+**Reason:** Professional security engineering and developer platforms default to English terminology for vulnerability classifications (e.g. "Action Required", "Verified Complete", "Snapshot Scan", "Coverage & Audit"). A unified language prevents awkward mixed-language UI strings. The trade-off is that non-English speakers use the standard English interface for the MVP.
+
+## DEC-058 — Multi-Repository Fleet Overview Hub as Top-Level Organization Entry
+
+**Status:** Accepted
+
+Scan Pilot adopts a multi-tier navigation flow designed for managing organizations with multiple repositories:
+
+```text
+Sign in with GitHub
+→ Global Multi-Repository Fleet Overview Hub (Organization Portfolio View)
+→ Click on an individual repository card
+→ Single Repository Deep Health, Findings & Remediation Dashboard
+```
+
+1. **Global Fleet Overview Hub:** Provides organization-level telemetry (Fleet Health Score, Total Monitored Repos, Global Open Leaks Count, AI Remediation Velocity) and an interactive repository portfolio grid with status filters (`All`, `Action Required`, `Clean & Safe`, `Awaiting Scan`).
+2. **Single Repository Deep View:** Retains the dual-stage stepper, single-repo health gauge, 30-day sparkline, SP-CONFIG-001 findings stream, and side-by-side Gemini AI remediation diffs.
+
+**Reason:** Scan Pilot is architected as a continuous multi-project monitoring platform. A global organization dashboard provides security leads with immediate visibility across their entire repository fleet before drilling down into specific repository findings.
+
+## DEC-059 — Deterministic Weighted Severity Repository Health Scoring Model
+
+**Status:** Accepted
+
+Scan Pilot adopts a deterministic, weighted penalty health scoring model grounded in industry vulnerability standards (CVSS v3.1, SonarQube Security Rating, Snyk Health Index):
+
+$$\text{Health Score} = \max\left(0, \; 100 - \sum (\text{Count}_i \times \text{Weight}_i)\right)$$
+
+### 1. Severity Deduction Weights
+
+| Severity Level | Representative Vulnerability Examples (`SP-CONFIG-001`) | Deduction Penalty |
+| :--- | :--- | :---: |
+| **CRITICAL** | Root AWS Credentials, RSA Private Key, GCP Service Account Key, Master DB Passwords | **-15 points / leak** |
+| **HIGH** | Stripe Live Secret Key, GitHub Personal Access Token, SendGrid Master Token | **-8 points / leak** |
+| **MEDIUM** | Limited Scope API Tokens, Slack Webhook URLs, Non-Production Secrets | **-4 points / leak** |
+| **LOW / INFO** | Development Mock Tokens, Sample Dummy Keys | **-1 point / leak** |
+
+### 2. Rating Thresholds & Visual Status Badges
+
+- **Grade A (90 – 100):** `100% Safe (Optimal)` — Zero Critical/High vulnerabilities. Green badge (`#3fb950`).
+- **Grade B (70 – 89):** `Moderate Risk` — No Critical vulnerabilities; manageable Medium/Low issues. Amber badge (`#e3b341`).
+- **Grade C / Action Required (0 – 69):** `Critical Risk (Action Required)` — Contains active Critical/High secret exposures requiring immediate remediation before production deployment. Red badge (`#f85149`).
+- **Unscanned State:** Displays `—/100 (Not Scanned Yet)` with neutral grey track (`#30363d`) to prevent premature safety claims.
+
+**Reason:** In application security, a single exposed root private key can compromise an entire cloud infrastructure. A linear or unweighted count would trivialise critical credential leaks. A weighted penalty model provides actionable prioritization for developers and security teams.
+
+## DEC-060 — Zero Mock Telemetry & Honest Pipeline Verification Policy
+
+**Status:** Accepted
+
+Scan Pilot enforces a strict "Zero Mock Telemetry & Honest Proof" engineering standard across all user interfaces, API responses, telemetry meters, and documentation:
+
+1. **No Fake Stages or Mock Progress:** The user interface (Scan Stepper, Audit Tables, Progress Bars, Live Terminals) must strictly map 1-to-1 with the actual backend pipeline operations. A stage must never be reported as "Verified" or "Active" if the underlying backend worker did not execute that stage or if required artifacts (e.g. `.git/` history tree) were absent.
+2. **Deterministic Evidence Transparency:**
+   - When a repository is scanned via GitHub Snapshot archive without `.git/`, the UI must transparently declare `Working Tree HEAD Snapshot (Verified)` while marking Git History traversal as `Deferred / Requires Git Clone`.
+   - File counts, scanned payload sizes, durations, and finding counts must be populated directly from verified PostgreSQL records (`CoverageRecordEntity`, `FindingEntity`, `ScanJobEntity`) rather than static template placeholders.
+3. **Issue-Driven Incremental Enhancements:** Any architectural expansion of the scanner (such as introducing authenticated Git clone for full historical commit traversal) must be formally specified, decomposed into a GitHub Issue, and implemented end-to-end with verification evidence.
+
+**Reason:** In security tooling, fake progress bars or deceptive "100% verified" claims destroy developer trust and violate fundamental security audit principles. Transparency builds confidence with both developers and evaluation judges.
+
+## Intentionally Open Decisions
 - exact optional confidence scale beyond the accepted verification statuses;
 - exact broader Product V1 rule count and the identity of any submission stretch rules beyond `SP-CONFIG-001`;
 - exact detectors for rule families beyond the accepted Gitleaks-backed `SP-CONFIG-001` path;

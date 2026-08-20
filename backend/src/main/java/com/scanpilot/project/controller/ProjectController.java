@@ -8,6 +8,7 @@ import com.scanpilot.project.dto.MonitoredProjectDto;
 import com.scanpilot.project.dto.SelectRepositoryRequest;
 import com.scanpilot.project.model.MonitoredProject;
 import com.scanpilot.project.service.ProjectService;
+import java.util.List;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +52,18 @@ public class ProjectController {
                 .map(MonitoredProjectDto::from)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    }
+
+    /**
+     * Retrieves all repositories explicitly monitored by the user.
+     */
+    @GetMapping("/monitored")
+    @RequireAuth
+    public ResponseEntity<List<MonitoredProjectDto>> getAllMonitoredProjects(@CurrentUser UserSession session) {
+        List<MonitoredProjectDto> dtos = projectService.getAllMonitoredProjects(session).stream()
+                .map(MonitoredProjectDto::from)
+                .toList();
+        return ResponseEntity.ok(dtos);
     }
 
     /**

@@ -1,4 +1,4 @@
-export type AttentionStatus = 'Critical' | 'Warning' | 'Secure';
+export type AttentionStatus = 'Critical' | 'Warning' | 'Secure' | 'NotScanned';
 
 export type FindingStatus = 'OPEN' | 'RESOLVED' | 'SCANNING...';
 
@@ -16,11 +16,15 @@ export interface UserProfile {
 
 export interface Repository {
   id: string;
+  githubRepoId?: number;
+  dbRepositoryId?: string;
   name: string;
   branch: string;
   isPrivate: boolean;
   language: string;
-  lastScanned: string;
+  lastScanned?: string | null;
+  isScanned?: boolean;
+  scanDurationSeconds?: number;
   findingCount: number;
   healthScore: number;
   attentionStatus: AttentionStatus;
@@ -53,10 +57,13 @@ export interface HealthMetrics {
   healthScore: number;
   grade: string;
   scannedFilesCount: number;
+  totalFilesCount?: number;
+  skippedFilesCount?: number;
   openLeaksCount: number;
   resolvedLeaksCount: number;
   aiFixReadyCount: number;
   mttrMinutes: number;
   aiSuccessRate: number;
   trendData: number[];
+  isRealData?: boolean;
 }
