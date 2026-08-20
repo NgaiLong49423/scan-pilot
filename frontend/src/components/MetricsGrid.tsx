@@ -38,10 +38,10 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
         </div>
         <div className="mt-1">
           <div className="text-xl font-bold text-[#f0f6fc] tabular-nums">
-            {isScanned ? scannedFiles : '—'}
+            {isScanned ? scannedFiles : 'Not available'}
           </div>
           <span className="text-[10px] text-[#58a6ff] font-medium">
-            {isScanned ? `${coveragePercent}% Code Coverage` : 'Awaiting Scan'}
+            {isScanned ? (totalFiles > 0 ? `${coveragePercent}% Code Coverage` : 'Not available') : 'Awaiting scan'}
           </span>
         </div>
       </div>
@@ -59,10 +59,10 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
         </div>
         <div className="mt-1">
           <div className="text-xl font-bold text-[#d29922] tabular-nums">
-            {isScanned ? skippedFiles : '—'}
+            {isScanned ? skippedFiles : 'Not available'}
           </div>
           <div className="flex items-center justify-between text-[10px] text-[#8b949e] mt-0.5">
-            <span>{isScanned ? `${skippedPercent}% Excluded` : 'Awaiting Scan'}</span>
+            <span>{isScanned ? (totalFiles > 0 ? `${skippedPercent}% Excluded` : 'Not available') : 'Awaiting scan'}</span>
             {isScanned && onViewCoverage && (
               <span className="text-[#58a6ff] group-hover:underline flex items-center gap-0.5 font-sans">
                 <span>Audit</span>
@@ -81,10 +81,10 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
         </div>
         <div className="mt-1">
           <div className={`text-xl font-bold tabular-nums ${isScanned && metrics.openLeaksCount > 0 ? 'text-[#f85149]' : 'text-[#f0f6fc]'}`}>
-            {isScanned ? metrics.openLeaksCount : '—'}
+            {isScanned ? metrics.openLeaksCount : 'Not available'}
           </div>
           <span className={`text-[10px] ${isScanned && metrics.openLeaksCount > 0 ? 'text-[#f85149]/80 font-medium' : 'text-[#8b949e]'}`}>
-            {isScanned ? (metrics.openLeaksCount > 0 ? 'Action Required' : '0 Detected') : 'Awaiting Scan'}
+            {isScanned ? (metrics.openLeaksCount > 0 ? 'Action Required' : '0 Detected') : 'Awaiting scan'}
           </span>
         </div>
       </div>
@@ -97,10 +97,10 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
         </div>
         <div className="mt-1">
           <div className="text-xl font-bold text-[#58a6ff] tabular-nums">
-            {isScanned ? metrics.aiFixReadyCount : '—'}
+            {isScanned ? metrics.aiFixReadyCount : 'Not available'}
           </div>
           <span className="text-[10px] text-[#8b949e]">
-            {isScanned ? '1-Click Gemini Diffs' : 'Awaiting Scan'}
+            {isScanned ? 'Guidance-Only Fix Diffs' : 'Awaiting scan'}
           </span>
         </div>
       </div>
@@ -113,10 +113,10 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
         </div>
         <div className="mt-1">
           <div className="text-xl font-bold text-[#3fb950] tabular-nums">
-            {isScanned ? metrics.resolvedLeaksCount : '—'}
+            {isScanned ? metrics.resolvedLeaksCount : 'Not available'}
           </div>
           <span className="text-[10px] text-[#8b949e]">
-            {isScanned ? 'Verified Closed Findings' : 'Awaiting Scan'}
+            {isScanned ? 'Verified Closed Findings' : 'Awaiting scan'}
           </span>
         </div>
       </div>

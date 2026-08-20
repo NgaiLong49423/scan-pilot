@@ -24,7 +24,6 @@ export interface Repository {
   language: string;
   lastScanned?: string | null;
   isScanned?: boolean;
-  scanDurationSeconds?: number;
   findingCount: number;
   healthScore: number;
   attentionStatus: AttentionStatus;
@@ -63,7 +62,5 @@ export interface HealthMetrics {
   resolvedLeaksCount: number;
   aiFixReadyCount: number;
   mttrMinutes: number;
-  aiSuccessRate: number;
   trendData: number[];
-  isRealData?: boolean;
 }

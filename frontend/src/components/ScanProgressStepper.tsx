@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, Clock, RefreshCw, AlertCircle, Check, Terminal } from 'lucide-react';
+import { CheckCircle2, Clock, RefreshCw, AlertCircle, Terminal } from 'lucide-react';
 
 interface ScanProgressStepperProps {
   isScanning: boolean;
@@ -7,7 +7,6 @@ interface ScanProgressStepperProps {
   isScanned?: boolean;
   findingCount?: number;
   scanDuration?: string | null;
-  currentStage?: number; // 1: Workspace Setup, 2: Working Tree Scan, 3: Finding & Evidence Sync, 4: Checkpoint Verified
   onToggleTerminal?: () => void;
   isTerminalOpen?: boolean;
 }
@@ -18,11 +17,10 @@ export const ScanProgressStepper: React.FC<ScanProgressStepperProps> = ({
   isScanned = false,
   findingCount = 0,
   scanDuration = null,
-  currentStage = 1,
   onToggleTerminal,
   isTerminalOpen = false,
 }) => {
-  const displayDuration = scanDuration || (isScanned ? 'Verified' : 'Pending Run');
+  const displayDuration = scanDuration || 'Not available';
 
   return (
     <div className="w-full bg-[#161b22] border border-[#30363d] rounded-2xl p-4 sm:p-5 shadow-sm space-y-3.5 animate-in fade-in duration-150">
@@ -61,25 +59,17 @@ export const ScanProgressStepper: React.FC<ScanProgressStepperProps> = ({
                   : 'bg-[#21262d] text-[#8b949e] border-[#30363d]'
               }`}>
                 {isScanning 
-                  ? 'ANALYZING PIPELINE' 
+                  ? 'SCAN REQUEST SENT'
                   : isScanned 
-                  ? 'WORKING TREE SNAPSHOT (VERIFIED)' 
+                  ? 'WORKING TREE SNAPSHOT'
                   : 'ENGINE STANDBY'}
               </span>
             </div>
             <p className="text-[#8b949e] text-[11px] mt-0.5">
               {isScanning 
-                ? (
-                  currentStage === 1
-                    ? 'Stage 1/4: Preparing isolated workspace & downloading snapshot archive from GitHub...'
-                    : currentStage === 2
-                    ? 'Stage 2/4: Executing Gitleaks pattern matching & AST analysis across all HEAD text files...'
-                    : currentStage === 3
-                    ? 'Stage 3/4: Applying SP_SECRET_FP_V1 redaction and persisting findings to PostgreSQL...'
-                    : 'Stage 4/4: Validating coverage record and advancing verified checkpoint...'
-                )
+                ? 'Scan request in progress — live progress is not available yet.'
                 : isScanned
-                ? `Analysis finished in ${displayDuration}. All active working tree files audited against SP-CONFIG-001 rules.`
+                ? (scanDuration ? `Analysis finished in ${scanDuration}. All active working tree files audited against SP-CONFIG-001 rules.` : 'Analysis finished. All active working tree files audited against SP-CONFIG-001 rules.')
                 : `Click 'Trigger Rescan' to download the latest ${branchName} snapshot and execute deep secret analysis.`}
             </p>
           </div>
@@ -107,102 +97,9 @@ export const ScanProgressStepper: React.FC<ScanProgressStepperProps> = ({
             <span className="font-mono text-[#c9d1d9]">{displayDuration}</span>
             <span className="text-[#30363d]">•</span>
             <span className={isScanned ? (findingCount === 0 ? 'text-[#3fb950] font-medium' : 'text-[#f85149] font-medium') : 'text-[#8b949e]'}>
-              {isScanned ? `${findingCount} Leaks Detected` : 'Zero Scan Data'}
+              {isScanned ? `${findingCount} Leaks Detected` : 'Awaiting scan'}
             </span>
           </div>
-        </div>
-      </div>
-
-      {/* 4-Stage Stepper Bar (Accurately mapping to real backend pipeline) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-1 font-mono text-xs">
-        {/* Stage 1: Workspace Setup */}
-        <div className={`p-2.5 rounded-xl border flex items-center justify-between transition-all duration-150 ${
-          isScanning && currentStage === 1
-            ? 'bg-[#1f6feb]/15 border-[#1f6feb]/50 text-[#58a6ff]'
-            : (isScanning && currentStage > 1) || isScanned
-            ? 'bg-[#238636]/15 border-[#238636]/30 text-[#3fb950]'
-            : 'bg-[#0d1117]/60 border-[#30363d]/60 text-[#8b949e]'
-        }`}>
-          <div className="flex items-center gap-2 truncate">
-            {isScanning && currentStage === 1 ? (
-              <RefreshCw className="w-3 h-3 animate-spin text-[#58a6ff] shrink-0" />
-            ) : (isScanning && currentStage > 1) || isScanned ? (
-              <Check className="w-3 h-3 text-[#3fb950] shrink-0" />
-            ) : (
-              <span className="w-2 h-2 rounded-full bg-[#8b949e] shrink-0" />
-            )}
-            <span className="truncate font-semibold">1. Workspace Setup</span>
-          </div>
-          <span className="text-[10px] text-[#8b949e] bg-[#21262d] px-1.5 py-0.5 rounded shrink-0">
-            Init
-          </span>
-        </div>
-
-        {/* Stage 2: Working Tree Scan */}
-        <div className={`p-2.5 rounded-xl border flex items-center justify-between transition-all duration-150 ${
-          isScanning && currentStage === 2
-            ? 'bg-[#1f6feb]/15 border-[#1f6feb]/50 text-[#58a6ff]'
-            : (isScanning && currentStage > 2) || isScanned
-            ? 'bg-[#238636]/15 border-[#238636]/30 text-[#3fb950]'
-            : 'bg-[#0d1117]/60 border-[#30363d]/60 text-[#8b949e]'
-        }`}>
-          <div className="flex items-center gap-2 truncate">
-            {isScanning && currentStage === 2 ? (
-              <RefreshCw className="w-3 h-3 animate-spin text-[#58a6ff] shrink-0" />
-            ) : (isScanning && currentStage > 2) || isScanned ? (
-              <Check className="w-3 h-3 text-[#3fb950] shrink-0" />
-            ) : (
-              <span className="w-2 h-2 rounded-full bg-[#8b949e] shrink-0" />
-            )}
-            <span className="truncate font-semibold">2. Working Tree Scan</span>
-          </div>
-          <span className="text-[10px] text-[#8b949e] bg-[#21262d] px-1.5 py-0.5 rounded shrink-0">
-            Stage 1
-          </span>
-        </div>
-
-        {/* Stage 3: Evidence & Sync */}
-        <div className={`p-2.5 rounded-xl border flex items-center justify-between transition-all duration-150 ${
-          isScanning && currentStage === 3
-            ? 'bg-[#1f6feb]/15 border-[#1f6feb]/50 text-[#58a6ff]'
-            : (isScanning && currentStage > 3) || isScanned
-            ? 'bg-[#238636]/15 border-[#238636]/30 text-[#3fb950]'
-            : 'bg-[#0d1117]/60 border-[#30363d]/60 text-[#8b949e]'
-        }`}>
-          <div className="flex items-center gap-2 truncate">
-            {isScanning && currentStage === 3 ? (
-              <RefreshCw className="w-3 h-3 animate-spin text-[#58a6ff] shrink-0" />
-            ) : (isScanning && currentStage > 3) || isScanned ? (
-              <Check className="w-3 h-3 text-[#3fb950] shrink-0" />
-            ) : (
-              <span className="w-2 h-2 rounded-full bg-[#8b949e] shrink-0" />
-            )}
-            <span className="truncate font-semibold">3. Evidence & Sync</span>
-          </div>
-          <span className="text-[10px] text-[#8b949e] bg-[#21262d] px-1.5 py-0.5 rounded shrink-0">
-            Stage 2
-          </span>
-        </div>
-
-        {/* Stage 4: Checkpoint Verified */}
-        <div className={`p-2.5 rounded-xl border flex items-center justify-between transition-all duration-150 ${
-          isScanning && currentStage === 4
-            ? 'bg-[#1f6feb]/15 border-[#1f6feb]/50 text-[#58a6ff]'
-            : isScanned
-            ? 'bg-[#238636]/15 border-[#238636]/30 text-[#3fb950]'
-            : 'bg-[#0d1117]/60 border-[#30363d]/60 text-[#8b949e]'
-        }`}>
-          <div className="flex items-center gap-2 truncate">
-            {isScanned ? (
-              <Check className="w-3 h-3 text-[#3fb950] shrink-0" />
-            ) : (
-              <span className="w-2 h-2 rounded-full bg-[#8b949e] shrink-0" />
-            )}
-            <span className="truncate font-semibold">4. Checkpoint Verified</span>
-          </div>
-          <span className="text-[10px] text-[#8b949e] bg-[#21262d] px-1.5 py-0.5 rounded shrink-0">
-            Audit
-          </span>
         </div>
       </div>
     </div>

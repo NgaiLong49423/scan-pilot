@@ -52,7 +52,6 @@ export default function App() {
   const [coverageData, setCoverageData] = useState<any | null>(null);
   const [metrics, setMetrics] = useState<HealthMetrics | null>(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [scanStage, setScanStage] = useState<number>(1);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [severityFilter, setSeverityFilter] = useState<'ALL' | 'CRITICAL' | 'HIGH' | 'RESOLVED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,10 +60,8 @@ export default function App() {
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
   const [scanLogs, setScanLogs] = useState<ScanLogEntry[]>([]);
   const [currentInspectingFile, setCurrentInspectingFile] = useState<string>('');
-  const [elapsedScanSeconds, setElapsedScanSeconds] = useState<number>(0);
   const [liveScannedCount, setLiveScannedCount] = useState<number>(0);
   const [liveLeaksCount, setLiveLeaksCount] = useState<number>(0);
-  const timerRef = useRef<any>(null);
 
   // Persist monitored repos to localStorage whenever it changes
   useEffect(() => {
@@ -212,7 +209,7 @@ export default function App() {
       const grade = !isActuallyScanned
         ? 'Not Scanned Yet'
         : healthScore >= 90
-        ? '100% Safe (Grade A)'
+        ? 'No open findings in this completed scan'
         : healthScore >= 70
         ? 'Grade B (Moderate Risk)'
         : 'Action Required (Critical Risk)';
@@ -226,10 +223,8 @@ export default function App() {
         openLeaksCount: openCount,
         resolvedLeaksCount: resolvedCount,
         aiFixReadyCount: openCount,
-        mttrMinutes: openCount > 0 ? 12 : 0,
-        aiSuccessRate: 98,
-        trendData: isActuallyScanned ? [12, 10, 8, 6, 4, 3, openCount] : [],
-        isRealData: true,
+        mttrMinutes: 0,
+        trendData: [],
       });
 
       // Update in monitored list & localStorage
@@ -257,35 +252,25 @@ export default function App() {
         resolvedLeaksCount: 0,
         aiFixReadyCount: 0,
         mttrMinutes: 0,
-        aiSuccessRate: 100,
         trendData: [],
-        isRealData: true,
       });
     }
 
     setCurrentView('dashboard');
   };
 
-  // Handle trigger real repository scan on Backend with live streaming telemetry
+  // Handle trigger real repository scan on Backend with execution logs
   const handleTriggerRescan = async () => {
     if (!selectedRepo) return;
     setIsScanning(true);
     setIsTerminalOpen(true);
-    setScanStage(1);
     setScanLogs([]);
-    setElapsedScanSeconds(0);
     setLiveScannedCount(0);
     setLiveLeaksCount(0);
     setCurrentInspectingFile('');
 
-    const startTime = performance.now();
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setElapsedScanSeconds((performance.now() - startTime) / 1000);
-    }, 100);
-
-    appendLog('INIT', `🚀 Initializing isolated runner for repository ${selectedRepo.name} (${selectedRepo.branch})...`);
-    appendLog('WORKSPACE', `📦 Allocating ephemeral sandbox directory & requesting snapshot archive from GitHub API...`);
+    appendLog('INIT', `🚀 Initializing scan request for repository ${selectedRepo.name} (${selectedRepo.branch})...`);
+    appendLog('INFO', `Scan request in progress — live progress is not available yet.`);
 
     try {
       let dbRepoId = selectedRepo.dbRepositoryId;
@@ -293,47 +278,18 @@ export default function App() {
         dbRepoId = await selectRepositoryOnBackend(selectedRepo);
       }
 
-      setScanStage(2);
-      appendLog('SCAN', `🌳 Snapshot archive downloaded. Starting AST & Gitleaks inspection across working tree...`);
+      const scanResult = await triggerRealScan(dbRepoId || undefined, selectedRepo.branch);
 
-      const scanPromise = triggerRealScan(dbRepoId || undefined, selectedRepo.branch);
+      if (!scanResult.success) {
+        appendLog('ALERT', `❌ Scan pipeline failed: ${scanResult.message || 'Scan trigger failed'}`);
+        return;
+      }
 
-      // Progressive telemetry simulation during active scan execution
-      const t1 = setTimeout(() => {
-        setScanStage(2);
-        setLiveScannedCount(120);
-        appendLog('SCAN', `├── Inspecting backend/src/main/resources/application.yml ... [CLEAN]`, 'backend/src/main/resources/application.yml');
-      }, 300);
-
-      const t2 = setTimeout(() => {
-        setScanStage(2);
-        setLiveScannedCount(240);
-        appendLog('SCAN', `├── Inspecting src/config/credentials.properties ... [CLEAN]`, 'src/config/credentials.properties');
-      }, 600);
-
-      const t3 = setTimeout(() => {
-        setScanStage(3);
-        setLiveScannedCount(350);
-        appendLog('WORKSPACE', `🛡️ Parsing detected matches: Applying SP_SECRET_FP_V1 cryptographic masking...`);
-      }, 900);
-
-      await scanPromise;
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      
       if (dbRepoId) {
-        setScanStage(3);
         const [realFindings, realCoverage] = await Promise.all([
           fetchFindingsForRepo(dbRepoId),
           fetchCoverageForRepo(dbRepoId),
         ]);
-
-        setScanStage(4);
-        const endTime = performance.now();
-        const scanDuration = parseFloat(((endTime - startTime) / 1000).toFixed(2));
-        if (timerRef.current) clearInterval(timerRef.current);
-        setElapsedScanSeconds(scanDuration);
 
         const realFindingsList = realFindings || [];
         setFindings(realFindingsList);
@@ -344,7 +300,7 @@ export default function App() {
         const mediumCount = realFindingsList.filter(f => f.severity === 'MEDIUM' && f.status === 'OPEN').length;
         const openCount = realFindingsList.filter(f => f.status === 'OPEN').length;
         const resolvedCount = realFindingsList.filter(f => f.status === 'RESOLVED').length;
-        const scannedFiles = realCoverage?.scannedFiles || 375;
+        const scannedFiles = realCoverage?.scannedFiles || 0;
         const totalFiles = realCoverage?.totalFiles || scannedFiles;
         const skippedFiles = realCoverage?.skippedFiles || (totalFiles > scannedFiles ? totalFiles - scannedFiles : 0);
 
@@ -365,7 +321,7 @@ export default function App() {
         const totalDeductions = criticalCount * 15 + highCount * 8 + mediumCount * 4;
         const healthScore = Math.max(0, 100 - totalDeductions);
         const grade = healthScore >= 90
-          ? '100% Safe (Grade A)'
+          ? 'No open findings in this completed scan'
           : healthScore >= 70
           ? 'Grade B (Moderate Risk)'
           : 'Action Required (Critical Risk)';
@@ -379,10 +335,8 @@ export default function App() {
           openLeaksCount: openCount,
           resolvedLeaksCount: resolvedCount,
           aiFixReadyCount: openCount,
-          mttrMinutes: openCount > 0 ? 12 : 0,
-          aiSuccessRate: 98,
-          trendData: [12, 10, 8, 6, 4, openCount],
-          isRealData: true,
+          mttrMinutes: 0,
+          trendData: [],
         });
 
         setSelectedRepo((prev) =>
@@ -391,7 +345,6 @@ export default function App() {
                 ...prev,
                 isScanned: true,
                 lastScanned: 'Just now',
-                scanDurationSeconds: scanDuration,
                 findingCount: openCount,
                 healthScore,
               }
@@ -405,7 +358,6 @@ export default function App() {
                   ...r,
                   isScanned: true,
                   lastScanned: 'Just now',
-                  scanDurationSeconds: scanDuration,
                   findingCount: openCount,
                   healthScore,
                 }
@@ -418,38 +370,13 @@ export default function App() {
           appendLog('INFO', `ℹ️ File Eligibility (FR-031): ${scannedFiles} text files analyzed • ${skippedCount} non-text/binary files skipped (Reason: UNSUPPORTED_BINARY_FILE / UNSUPPORTED_BINARY_DOCUMENT).`);
         }
 
-        appendLog('SUCCESS', `✅ Scan completed successfully in ${scanDuration}s (${scannedFiles}/${totalFiles} files verified, ${openCount} open leaks). Sandbox purged.`);
+        appendLog('SUCCESS', `✅ Scan completed successfully (${scannedFiles}/${totalFiles} files verified, ${openCount} open leaks). Sandbox purged.`);
       }
     } catch (e: any) {
-      if (timerRef.current) clearInterval(timerRef.current);
       appendLog('ALERT', `❌ Scan pipeline encountered error: ${e.message || 'Execution failed'}`);
     } finally {
       setIsScanning(false);
       setCurrentInspectingFile('');
-    }
-  };
-
-  // Handle applying an AI fix
-  const handleApplyFix = (findingId: string) => {
-    setFindings((prev) =>
-      prev.map((f) =>
-        f.id === findingId
-          ? {
-              ...f,
-              status: 'RESOLVED',
-              remediationQuality: 'VERIFIED_COMPLETE',
-            }
-          : f
-      )
-    );
-
-    if (metrics) {
-      setMetrics({
-        ...metrics,
-        openLeaksCount: Math.max(0, metrics.openLeaksCount - 1),
-        resolvedLeaksCount: metrics.resolvedLeaksCount + 1,
-        healthScore: Math.min(100, metrics.healthScore + 15),
-      });
     }
   };
 
@@ -515,8 +442,7 @@ export default function App() {
                 branchName={selectedRepo.branch}
                 isScanned={isCurrentRepoScanned}
                 findingCount={findings.filter(f => f.status === 'OPEN').length}
-                scanDuration={selectedRepo.scanDurationSeconds ? `${selectedRepo.scanDurationSeconds}s` : null}
-                currentStage={scanStage}
+                scanDuration={null}
                 onToggleTerminal={() => setIsTerminalOpen(!isTerminalOpen)}
                 isTerminalOpen={isTerminalOpen}
               />
@@ -529,10 +455,9 @@ export default function App() {
                 isScanning={isScanning}
                 logs={scanLogs}
                 currentFile={currentInspectingFile}
-                scannedCount={liveScannedCount || (coverageData?.scannedFiles || (isCurrentRepoScanned ? 352 : 0))}
-                totalFiles={coverageData?.totalFiles || (isCurrentRepoScanned ? 375 : 0)}
+                scannedCount={liveScannedCount || coverageData?.scannedFiles || 0}
+                totalFiles={coverageData?.totalFiles || 0}
                 leaksFoundCount={liveLeaksCount || findings.filter(f => f.status === 'OPEN').length}
-                elapsedSeconds={elapsedScanSeconds}
                 onClose={() => setIsTerminalOpen(false)}
               />
             )}
@@ -550,7 +475,7 @@ export default function App() {
                         </h1>
                         <p className="text-xs sm:text-sm text-[#8b949e] mt-1">
                           {isCurrentRepoScanned 
-                            ? `Audited ${selectedRepo?.name} (${selectedRepo?.branch}) with real-time backend verification.`
+                            ? `Audited ${selectedRepo?.name} (${selectedRepo?.branch}).`
                             : `Repository ${selectedRepo?.name} has not been audited yet. Click 'Trigger Rescan' to inspect.`}
                         </p>
                       </div>
@@ -665,7 +590,6 @@ export default function App() {
                         <FindingCard
                           key={finding.id}
                           finding={finding}
-                          onApplyFix={handleApplyFix}
                         />
                       ))
                     ) : (
@@ -683,12 +607,12 @@ export default function App() {
                         </div>
                         <h3 className="text-base font-semibold text-[#f0f6fc]">
                           {isCurrentRepoScanned 
-                            ? 'Zero Security Leaks Detected' 
+                            ? 'No open findings in this completed scan'
                             : 'No Scan Data Available Yet'}
                         </h3>
                         <p className="text-xs text-[#8b949e] max-w-sm mx-auto">
                           {isCurrentRepoScanned
-                            ? 'All inspected files are clean across the verified commit history.'
+                            ? 'No open secret exposures were detected in the audited files for this scan snapshot.'
                             : 'Click "Trigger Rescan" to download snapshot and run the Gitleaks + AST analysis pipeline.'}
                         </p>
                       </div>

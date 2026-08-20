@@ -144,10 +144,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </>
                 ) : selectedRepo?.isScanned ? (
                   <>
-                    <span className="w-2 h-2 rounded-full bg-[#3fb950] animate-pulse" />
-                    <span>
-                      Verified • {selectedRepo.scanDurationSeconds ? `${selectedRepo.scanDurationSeconds}s` : 'Real-time'}
-                    </span>
+                    <span className="w-2 h-2 rounded-full bg-[#3fb950]" />
+                    <span>Not available</span>
                   </>
                 ) : (
                   <>

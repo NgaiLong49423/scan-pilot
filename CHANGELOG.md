@@ -11,6 +11,20 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-20 — Restore Build Integrity and Evidence-Backed Telemetry (Issue #51)
+
+**Status:** Committed — 3b9c0d6
+
+**Scope:** Restored build integrity and evidence-backed telemetry across the frontend. Removed all client-side fake progressive timer telemetry, fake file paths, fake counts, fallback numbers (375/352), static MTTR/AI success rates, and static 30-day trend arrays. Rendered neutral evidence states (`Awaiting scan`, `Not available`, `Scan request in progress — live progress is not available yet`) when backend data is missing or scan is in progress. Converted `Apply AI Fix` into copy/guidance-only presentation without client-side state mutation.
+
+### Changed
+
+- Updated `frontend/src/App.tsx`, `HealthGauge.tsx`, `MetricsGrid.tsx`, `TrendSparkline.tsx`, `ScanProgressStepper.tsx`, `LiveScanTerminal.tsx`, `RemediationDiff.tsx`, `CoverageAuditView.tsx`, `Navbar.tsx`, `FleetDashboard.tsx`, and `types/index.ts`.
+- Repaired `HealthGauge` prop interface (`isScanned?: boolean`) and caller props.
+- Removed client-side timer `setInterval` and `scanDurationSeconds` property.
+- Handled `triggerRealScan()` failure by transitioning UI to error alert state without executing pipeline.
+- Replaced absolute safety claims (`100% Safe`, `Grade A`) with bounded snapshot messaging (`No open findings in this completed scan`).
+
 ## 2026-08-20 — Review-Before-Commit and Technical Lead RCA Correction (Issue #60)
 
 **Status:** Committed — 70f6769

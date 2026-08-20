@@ -89,9 +89,9 @@ export const TrendSparkline: React.FC<TrendSparklineProps> = ({ data, isScanned 
       </div>
 
       <div className="flex items-center justify-between text-[11px] text-[#8b949e] border-t border-[#30363d]/60 pt-2 font-mono">
-        <span>30d Baseline: {hasRealData ? `${firstVal} leaks` : '—'}</span>
+        <span>30d Baseline: {hasRealData ? `${firstVal} leaks` : 'Not available'}</span>
         <span className={hasRealData ? (isIncreased ? 'text-[#f85149] font-semibold' : 'text-[#3fb950] font-semibold') : 'text-[#8b949e]'}>
-          Current: {hasRealData ? `${currentVal} leaks` : '—'}
+          Current: {hasRealData ? `${currentVal} leaks` : (isScanned ? `${currentVal} leaks` : 'Not available')}
         </span>
       </div>
     </div>
