@@ -1,22 +1,29 @@
 > **Document:** Scan Pilot Current Status
 > **File:** `docs/CURRENT-STATUS.md`
-> **Version:** v2.3.0
+> **Version:** v2.4.0
 > **Created:** 2026-08-12
-> **Last Updated:** 2026-08-19
+> **Last Updated:** 2026-08-20
 > **Status:** Active
 
 # Scan Pilot Current Status
 
 ## Current Phase
 
-**Live Cloud Run Deployment & Submission Finalization.**
+**Live Cloud Run Deployment, Multi-Repository Fleet Hub & Submission Finalization.**
 The Scan Pilot MVP backend is successfully containerized and deployed live on Google Cloud Run (`asia-southeast1`). Continuous Integration (CI) and Continuous Deployment (CD) are active via GitHub Actions.
 
 - **Live Backend API:** [`https://scan-pilot-api-drbjfwrlxq-as.a.run.app`](https://scan-pilot-api-drbjfwrlxq-as.a.run.app/api/v1/system/status)
 - **Live Health Status:** `HEALTHY` (Scale-to-Zero, 0 idle cost envelope)
-- **Frontend Workspace:** React 18 + Vite + TypeScript dashboard ready for native deployment via Google AI Studio (`docs/AI-STUDIO-DEPLOYMENT-GUIDE.md`).
+- **Frontend Architecture:** React 19 + Vite + TypeScript + Tailwind CSS v4 dashboard featuring:
+  - Authentic GitHub Dark theme (`#0d1117` canvas, `#161b22` cards, `#30363d` borders, `#238636` green accents);
+  - 100% English UI standardization (`DEC-057`);
+  - Multi-tier navigation with Organization Fleet Overview Hub as the top-level entry point (`DEC-058`);
+  - Deterministic weighted severity health scoring model (`DEC-059`);
+  - Zero mock telemetry & transparent pipeline verification standard (`DEC-060`);
+  - Dual-layer persistence (LocalStorage cache + PostgreSQL synchronization) for imported repositories;
+  - Dual-stage scan progression stepper and 1-click Gemini AI remediation diffs.
 - **Core Inspection Pipeline:** `SP-CONFIG-001` secret scanner with Gitleaks adapter, `SP_SECRET_FP_V1` redaction/fingerprinting, 3-stage lifecycle tracking, and Gemini AI remediation guidance.
-- **Verification Evidence:** 210/210 backend tests passing, 100% precision/recall on 60-case ground-truth synthetic benchmark suite.
+- **Verification Evidence:** 210/210 backend tests passing, 100% precision/recall on 60-case ground-truth synthetic benchmark suite, 0 frontend TypeScript lint errors.
 
 ## Submission Context
 

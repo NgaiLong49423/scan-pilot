@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   ShieldCheck, 
-  ChevronDown, 
   RefreshCw, 
   FolderGit2, 
   GitBranch,
@@ -9,30 +8,34 @@ import {
   FileCheck,
   LogOut,
   ExternalLink,
-  Github
+  Github,
+  LayoutGrid,
+  ArrowLeft
 } from 'lucide-react';
 import { Repository, UserProfile } from '../types';
 
 interface NavbarProps {
+  currentView: 'fleet' | 'dashboard';
   selectedRepo: Repository | null;
   currentUser: UserProfile | null;
   activeTab: 'findings' | 'coverage';
   onTabChange: (tab: 'findings' | 'coverage') => void;
   isScanning: boolean;
   onTriggerRescan: () => void;
-  onOpenRepoModal: () => void;
   onNavigateHome?: () => void;
+  onNavigateFleet?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
+  currentView,
   selectedRepo,
   currentUser,
   activeTab,
   onTabChange,
   isScanning,
   onTriggerRescan,
-  onOpenRepoModal,
   onNavigateHome,
+  onNavigateFleet,
 }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -51,12 +54,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="sticky top-0 z-30 w-full border-b border-[#30363d] bg-[#010409]/95 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Left: Logo + Repo Selector */}
-        <div className="flex items-center gap-3 sm:gap-6">
+        {/* Left: Logo + Navigation breadcrumb */}
+        <div className="flex items-center gap-3 sm:gap-4">
           <button
             type="button"
             onClick={onNavigateHome}
-            className="flex items-center gap-2.5 text-[#f0f6fc] font-bold text-lg tracking-tight hover:opacity-90 transition-opacity"
+            className="flex items-center gap-2.5 text-[#f0f6fc] font-bold text-lg tracking-tight hover:opacity-90 transition-opacity shrink-0"
           >
             <div className="p-2 rounded-xl bg-[#1f6feb]/15 border border-[#1f6feb]/30 text-[#58a6ff] shadow-sm">
               <ShieldCheck className="w-5 h-5" />
@@ -64,28 +67,42 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden sm:inline">Scan Pilot</span>
           </button>
 
-          {/* Repo & Branch Switcher Dropdown */}
-          {selectedRepo && (
-            <button
-              type="button"
-              onClick={onOpenRepoModal}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#161b22] border border-[#30363d] hover:border-[#8b949e] hover:bg-[#21262d] text-[#c9d1d9] text-xs font-medium transition-all duration-150 active:scale-98"
-            >
-              <FolderGit2 className="w-4 h-4 text-[#58a6ff]" />
-              <span className="max-w-[130px] sm:max-w-[180px] truncate font-mono text-[#f0f6fc]">
-                {selectedRepo.name}
-              </span>
-              <span className="hidden md:inline-flex items-center gap-1 text-[#8b949e] font-mono">
-                • <GitBranch className="w-3 h-3 text-[#8b949e]" /> {selectedRepo.branch}
-              </span>
-              <ChevronDown className="w-3.5 h-3.5 text-[#8b949e] ml-0.5" />
-            </button>
+          {/* Breadcrumb / Back to Fleet Button */}
+          {currentView === 'dashboard' ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onNavigateFleet}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#161b22] border border-[#30363d] hover:bg-[#21262d] text-[#8b949e] hover:text-[#f0f6fc] text-xs font-medium transition-colors shrink-0"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Fleet Overview</span>
+              </button>
+
+              {/* Static Repo Badge (No dropdown, repo management only on Fleet Hub) */}
+              {selectedRepo && (
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#161b22] border border-[#30363d] text-[#c9d1d9] text-xs font-medium">
+                  <FolderGit2 className="w-4 h-4 text-[#58a6ff]" />
+                  <span className="max-w-[140px] md:max-w-[200px] truncate font-mono text-[#f0f6fc]">
+                    {selectedRepo.name}
+                  </span>
+                  <span className="hidden lg:inline-flex items-center gap-1 text-[#8b949e] font-mono">
+                    • <GitBranch className="w-3 h-3 text-[#8b949e]" /> {selectedRepo.branch}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="hidden sm:inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#161b22] border border-[#30363d] text-xs text-[#8b949e] font-mono">
+              <LayoutGrid className="w-3.5 h-3.5 text-[#58a6ff]" />
+              <span>Multi-Repository Fleet</span>
+            </div>
           )}
         </div>
 
-        {/* Center: 2 Navigation Tabs (Findings & Remediation vs Coverage & Audit) */}
-        {selectedRepo && (
-          <div className="flex items-center p-1 rounded-xl bg-[#161b22] border border-[#30363d] text-xs font-semibold">
+        {/* Center: 2 Navigation Tabs (Only in Single Repo Dashboard View) */}
+        {currentView === 'dashboard' && selectedRepo && (
+          <div className="hidden md:flex items-center p-1 rounded-xl bg-[#161b22] border border-[#30363d] text-xs font-semibold">
             <button
               type="button"
               onClick={() => onTabChange('findings')}
@@ -114,28 +131,48 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         )}
 
-        {/* Right: Monitoring status, Rescan button & Google-Style Profile Avatar */}
-        <div className="flex items-center gap-3 sm:gap-4">
-          {/* Live Status Pill */}
-          <div className="hidden lg:inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#161b22] border border-[#30363d] text-xs text-[#c9d1d9]">
-            <span className="w-2 h-2 rounded-full bg-[#3fb950] animate-pulse" />
-            <span>Dual-Stage Active • 4.3s</span>
-          </div>
+        {/* Right: Rescan CTA & User Profile Popover */}
+        <div className="flex items-center gap-3">
+          {currentView === 'dashboard' && (
+            <>
+              {/* Live Status Pill with Measured Scan Execution Time */}
+              <div className="hidden xl:inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#161b22] border border-[#30363d] text-xs text-[#c9d1d9]">
+                {isScanning ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-[#58a6ff] animate-ping" />
+                    <span className="text-[#58a6ff]">Scanning Active</span>
+                  </>
+                ) : selectedRepo?.isScanned ? (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-[#3fb950] animate-pulse" />
+                    <span>
+                      Verified • {selectedRepo.scanDurationSeconds ? `${selectedRepo.scanDurationSeconds}s` : 'Real-time'}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-[#8b949e]" />
+                    <span className="text-[#8b949e]">Engine Ready</span>
+                  </>
+                )}
+              </div>
 
-          {/* Trigger Rescan Button (GitHub Green Accent) */}
-          <button
-            type="button"
-            onClick={onTriggerRescan}
-            disabled={isScanning}
-            className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition-all duration-150 active:scale-95 ${
-              isScanning
-                ? 'bg-[#21262d] text-[#8b949e] cursor-not-allowed border border-[#30363d]'
-                : 'bg-[#238636] hover:bg-[#2ea043] text-white shadow-sm'
-            }`}
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin text-white' : ''}`} />
-            <span>{isScanning ? 'Scanning...' : 'Trigger Rescan'}</span>
-          </button>
+              {/* Trigger Rescan Button */}
+              <button
+                type="button"
+                onClick={onTriggerRescan}
+                disabled={isScanning}
+                className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition-all duration-150 active:scale-95 ${
+                  isScanning
+                    ? 'bg-[#21262d] text-[#8b949e] cursor-not-allowed border border-[#30363d]'
+                    : 'bg-[#238636] hover:bg-[#2ea043] text-white shadow-sm'
+                }`}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin text-white' : ''}`} />
+                <span>{isScanning ? 'Scanning...' : 'Trigger Rescan'}</span>
+              </button>
+            </>
+          )}
 
           {/* Real GitHub Avatar with Google-style Profile Popover */}
           <div className="relative" ref={profileRef}>
@@ -174,10 +211,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                   <div className="min-w-0">
                     <div className="text-sm font-bold text-[#f0f6fc] truncate">
-                      {currentUser?.name || currentUser?.login || 'Gia Long Ngô'}
+                      {currentUser?.name || currentUser?.login || 'Scan Pilot User'}
                     </div>
                     <div className="text-xs text-[#8b949e] truncate">
-                      {currentUser?.email || (currentUser?.login ? `@${currentUser.login}` : 'longgiango511@gmail.com')}
+                      {currentUser?.email || (currentUser?.login ? `@${currentUser.login}` : 'user@scanpilot.dev')}
                     </div>
                     <div className="inline-flex items-center gap-1 mt-1 text-[10px] text-[#3fb950] bg-[#238636]/15 px-1.5 py-0.5 rounded border border-[#238636]/30">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#3fb950]" />
@@ -196,7 +233,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     <span className="flex items-center gap-2">
                       <Github className="w-3.5 h-3.5 text-[#58a6ff]" />
-                      <span>GitHub Profile</span>
+                      <span>View GitHub Profile</span>
                     </span>
                     <ExternalLink className="w-3.5 h-3.5 text-[#8b949e]" />
                   </a>

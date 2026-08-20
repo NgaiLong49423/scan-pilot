@@ -11,9 +11,29 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-20 — Multi-Repository Fleet Hub, Live Scan Radar Terminal, Real-Time Telemetry & Zero Mock Policy (PR #48)
+
+**Status:** Committed — `c186986` (PR #48)
+
+**Scope:** Implemented Organization Multi-Repository Fleet Overview Hub (`FleetDashboard.tsx`) with wide horizontal rows and dual-layer persistence (LocalStorage + PostgreSQL), interactive Live Scan Radar & CLI Terminal Feed (`LiveScanTerminal.tsx`) with real-time log streaming and progress tracking, deterministic health scoring model (`DEC-059`), transparent skipped files audit disclosures (`FR-031`, `DEC-060`), and strict unmonitored repository filtering in the Import modal.
+
+### Added
+
+- Added `frontend/src/components/FleetDashboard.tsx` implementing organization-level portfolio view with horizontal monitored repository rows, real-time status badges, health score gauge, and one-click deep posture navigation.
+- Added `frontend/src/components/LiveScanTerminal.tsx` featuring real-time CLI log streaming, smooth progress percentage bar (0% -> 100%), live file target inspection, leak detection counter, auto-scroll, and zero raw secret exposure (`SP_SECRET_FP_V1`).
+- Added `@GetMapping("/monitored")` endpoint in `ProjectController.java` and `getAllMonitoredProjects` in `ProjectService.java` for database-backed repository synchronization.
+- Added `DEC-060` in `docs/DECISIONS.md` establishing zero mock telemetry and honest pipeline verification principles.
+
+### Changed
+
+- Updated `frontend/src/components/ScanProgressStepper.tsx` to honestly map the 4 real pipeline stages (`Workspace Setup`, `Working Tree Scan`, `Evidence & Sync`, `Checkpoint Verified`).
+- Updated `frontend/src/components/CoverageAuditView.tsx` with dedicated "Excluded Artifacts & Eligibility Disclosure" table reporting skipped binaries and assets with exact reason codes (`UNSUPPORTED_BINARY_FILE`, `UNSUPPORTED_BINARY_DOCUMENT`).
+- Updated `frontend/src/components/MetricsGrid.tsx` with exact mathematical code coverage percentage calculation and interactive Skipped Files audit link.
+- Updated `frontend/src/components/RepoSelectModal.tsx` and `frontend/src/App.tsx` to strictly filter out already-monitored repositories and only display unmonitored repositories.
+
 ## 2026-08-20 — GitHub Dark Theme, Profile Popover & Uniform Bento Grid (PR #47)
 
-**Status:** Committed — `a79022f` (PR #47)
+**Status:** Committed — `573998a` (PR #47)
 
 **Scope:** Migrated entire frontend to authentic GitHub Dark Theme (`#0d1117` canvas, `#161b22` cards, `#30363d` borders, `#238636` green accents), implemented Google-style account profile popover with live GitHub avatar, and restructured visual analytics bento banner to equal-height 3-column layout with 2x2 metric matrix.
 
