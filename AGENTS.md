@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Agent Instructions
 > **File:** `AGENTS.md`
-> **Version:** v2.4.0
+> **Version:** v3.0.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-19
+> **Last Updated:** 2026-08-20
 > **Status:** Active
 
 # Agent Instructions
@@ -190,10 +190,13 @@ All agent skills are installed in `.agents/skill/`. Agents must consult and appl
 
 > **Status:** Active (`FULL_TRACKED`)
 > **Installed skill:** `.agents/skill/agent-delivery-governance/` v1.0.0
-> **Delivery mode:** `FULL_TRACKED` (Integration Check passed on 2026-08-17)
-> **Product Owner / final acceptance:** User
-> **Technical Manager / reviewer:** Codex
-> **Primary Implementer:** Antigravity
+> **Delivery mode:** `FULL_TRACKED` (Integration Check passed on 2026-08-17; nested four-agent local-review-first workflow active on 2026-08-20)
+> **Product Owner / final acceptance & merge authority:** User
+> **Agent 4 — Delivery Gatekeeper / Coordinator:** agent coordinator & 3-gate compliance verifier (assigns Agent 1, 2, 3 in execution plan before BUILD)
+> **Agent 1 — Coder (Primary Implementer):** Antigravity / delegated coding agent (named by Agent 4)
+> **Agent 2 — QA Reviewer (Independent Code Quality):** named by Agent 4 per work item
+> **Agent 3 — AppSec Auditor (Independent Security):** named by Agent 4 per work item
+> **Codex — Technical Manager / Tech Lead:** independent technical reviewer & architectural sign-off (separate from Agent 4)
 > **Executable work tracker:** GitHub Issues in `NgaiLong49423/scan-pilot`
 > **Operational status board:** GitHub Project #13
 > **Branch convention:** `codex/<issue-number>-<short-kebab-name>`
@@ -204,7 +207,34 @@ The Integration Check **PASSED** on 2026-08-17:
 - `.agent-work/` is properly Git-ignored;
 - No secrets, tokens, or private credentials were detected in the review scope.
 
-`FULL_TRACKED` is now active for all Git-tracked implementation tasks following this checkpoint. Use the installed skill for every Git-tracked implementation: Issue contract, project-defined branch, mandatory pull request, Codex PR review, and Product Owner decision in the Issue. Keep detailed briefs, reports, intermediate discussion, and long logs in `.agent-work/`; keep only durable decisions and review evidence in GitHub.
+Every Git-tracked code change must follow the mandatory Nested Coordination Model (Mô hình Phối hợp Lồng nhau) and the review-before-commit boundary:
+
+```text
+Agent 4 (Coordinator / Delivery Gatekeeper)
+├── Agent 1 (Coder)
+├── Agent 2 (QA Reviewer)
+└── Agent 3 (AppSec Auditor)
+     ↓
+Codex (Tech Lead)
+     ↓
+Product Owner (User)
+```
+
+**Pre-BUILD Assignment Rule:** Before `BUILD` starts, the Issue contract must explicitly name Agent 4 (Delivery Gatekeeper / Coordinator). In Agent 4's execution plan, Agent 4 must explicitly name Agent 1 (Coder), Agent 2 (independent QA Reviewer), and Agent 3 (independent AppSec Auditor). Codex is recorded separately as Technical Lead / Technical Manager (not Agent 4, and not a subagent of Agent 4).
+
+1. **Agent 4 (Delivery Gatekeeper / Coordinator):** Assigned to the Issue before `BUILD`; names Agent 1, 2, and 3; freezes the local review target before specialist review; verifies all three local reports refer to that unchanged worktree diff; and reports `READY_FOR_TECH_LEAD_REVIEW` in `.agent-work/acceptance/acceptance-<issue>.md`.
+2. **Agent 1 (Coder):** Named by Agent 4; implements code/tests only in the local worktree; creates `.agent-work/reports/handoff-<issue>.md`; and MUST NOT commit, push, create a PR, or self-approve as QA/AppSec before explicit Product Owner authorization.
+3. **Agent 2 (QA Reviewer):** Named by Agent 4; independently audits the frozen local diff and outputs strictly `APPROVED` or `REQUEST_CHANGES` in `.agent-work/qa-reviews/qa-<issue>.md`.
+4. **Agent 3 (AppSec Auditor):** Named by Agent 4; independently audits the same frozen local diff and outputs strictly `APPROVED` or `BLOCKED` in `.agent-work/security-audits/sec-<issue>.md`.
+5. **Codex (Technical Manager / Tech Lead):** Independently reviews the same local diff and Agent 4 package. Before returning `CHANGES_NEEDED` or `BLOCKED`, Codex performs root-cause analysis and corrects the accepted contract, template, or brief when that is the cause. Codex returns `APPROVED_FOR_PO_ACCEPTANCE` only within the stated verification limit.
+6. **Product Owner (User):** Holds final acceptance authority. Only after explicit Product Owner acceptance may an agent commit the approved local diff. Push, pull-request creation, merge, Issue closure, and deployment each still require separate explicit Product Owner authorization.
+
+**Local review target:** Before any QA/AppSec/Tech Lead review, Agent 4 records the worktree path, base commit for context only, and changed-file list, then stops implementation edits. Every pre-commit report must state `uncommitted local worktree`; it must not invent an implementation commit SHA. Any change to that local diff invalidates the QA, AppSec, Gatekeeper, and Tech Lead reports and requires fresh review.
+
+**Technical Lead RCA and prevention:** For a workflow, contract, or evidence failure, Codex records `.agent-work/diagnostics/rca-<issue>.md` with the symptom, root cause, affected source-of-truth files/templates, bounded correction, prevention rule, and re-dispatch criteria. Codex may correct these delivery artifacts within the accepted Issue scope; the RCA is the corrective-change handoff and Agent 4 must obtain fresh independent QA/AppSec review of that local diff before returning it to Codex. Codex must not self-approve its correction. Any product, UI/UX, cost, privacy, permission, architecture, dependency, or external-state change still requires Product Owner direction.
+
+Remediation rule: Any QA `REQUEST_CHANGES`, AppSec `BLOCKED`, or Codex `CHANGES_NEEDED`/`BLOCKED` returns the item through Agent 4 to Coder. After remediation, fresh QA, AppSec, Gatekeeper, and Tech Lead reviews are required for the changed local diff. Keep detailed briefs, reports, logs, and intermediate analysis in `.agent-work/`; keep eventual PR descriptions compact and secret-safe.
+
 
 ## Delivery Automation Policy
 
