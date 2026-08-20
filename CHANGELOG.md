@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.31.2
+> **Version:** v2.32.0
 > **Created:** 2026-08-11
 > **Last Updated:** 2026-08-20
 > **Status:** Active
@@ -10,6 +10,34 @@
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
+
+## 2026-08-20 — Executable Multi-Agent Governance Gates (Issue #60)
+
+**Status:** Working tree
+
+**Scope:** Reconciled Scan Pilot's active `FULL_TRACKED` delivery contract with the accepted five-tier governance model (Issue #60). Specified independent Coder handoff, QA Reviewer approval, AppSec Auditor approval, Delivery Gatekeeper coordination (`READY_FOR_TECH_LEAD_REVIEW`), and Codex Tech Lead sign-off (`APPROVED_FOR_PO_ACCEPTANCE`) before Product Owner acceptance (`PO ACCEPTED`) and merge authority.
+
+### Added
+
+- Added change-proportional QA and AppSec evaluation checklists (Frontend/UI, Backend/API, Auth/GitHub Integration, Database/Migration, CI/Workflow) in `docs/DELIVERY-WORKFLOW.md` and `docs/MULTI-AGENT-GOVERNANCE-WORKFLOW.md`.
+- Added standard reporting templates for Codex Tech Lead Review (`APPROVED_FOR_PO_ACCEPTANCE`) in `docs/MULTI-AGENT-GOVERNANCE-WORKFLOW.md`.
+
+### Changed
+
+- Updated `AGENTS.md` and `docs/DELIVERY-WORKFLOW.md` to define the mandatory 5-tier governance role matrix (Coder, QA Reviewer, AppSec Auditor, Delivery Gatekeeper, Technical Lead, Product Owner), pre-implementation QA/AppSec assignment naming rule, strict independence requirements, and reviewed head SHA matching rule.
+- Reconciled `docs/MULTI-AGENT-GOVERNANCE-WORKFLOW.md` to enforce exact output states (`APPROVED`/`REQUEST_CHANGES` for QA, `APPROVED`/`BLOCKED` for AppSec, `READY_FOR_TECH_LEAD_REVIEW` for Delivery Gatekeeper, `APPROVED_FOR_PO_ACCEPTANCE` for Tech Lead), remediation loops, and local `.agent-work/` vs compact secret-safe PR summary boundaries.
+
+### Fixed
+
+- Removed stale delivery tables from `docs/DELIVERY-WORKFLOW.md` that conflicted with the multi-agent governance model.
+- Explicitly prohibited Coder self-approval as QA/AppSec and clarified that Delivery Gatekeeper and Tech Lead sign-offs do not replace Product Owner merge authority.
+
+### Affected files
+
+- `AGENTS.md`
+- `docs/DELIVERY-WORKFLOW.md`
+- `docs/MULTI-AGENT-GOVERNANCE-WORKFLOW.md`
+- `CHANGELOG.md`
 
 ## 2026-08-20 — Implementation Baseline, Documentation Reconciliation, and Next-Feature Drafts
 

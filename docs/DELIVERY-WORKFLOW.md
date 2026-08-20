@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Delivery Workflow
 > **File:** `docs/DELIVERY-WORKFLOW.md`
-> **Version:** v1.2.0
+> **Version:** v1.3.0
 > **Created:** 2026-08-16
-> **Last Updated:** 2026-08-17
+> **Last Updated:** 2026-08-20
 > **Status:** Active
 
 # Scan Pilot Delivery Workflow
@@ -13,15 +13,20 @@ This document defines how accepted requirements become GitHub work items and how
 
 ## Agent Delivery Governance
 
-When the `agent-delivery-governance` skill is active for this project, use these roles:
+When the `agent-delivery-governance` skill is active for this project, use this five-tier governance model:
 
 | Role | Responsibility |
 |---|---|
-| Product Owner | product scope, UI/UX, cost, permissions, final acceptance, and merge authority |
-| Codex | technical decomposition, implementation brief, PR review, risk escalation |
-| Antigravity | scoped implementation, tests, local implementation report, and PR handoff |
+| Agent 1 — Coder | primary implementer; writes scoped code, unit/integration tests, local handoff report (`.agent-work/reports/handoff-<issue>.md`) |
+| Agent 2 — QA Reviewer | independent code quality reviewer; audits logic, Ponytail standards, unit/integration tests, UI (`APPROVED` / `REQUEST_CHANGES` in `.agent-work/qa-reviews/qa-<issue>.md`) |
+| Agent 3 — AppSec Auditor | independent security auditor; audits security controls, OAuth, cookies, secrets, OWASP compliance (`APPROVED` / `BLOCKED` in `.agent-work/security-audits/sec-<issue>.md`) |
+| Agent 4 — Delivery Gatekeeper / Coordinator | agent coordinator & gatekeeper; verifies Coder + QA + AppSec handoffs on exact same reviewed head SHA; outputs summary report (`READY_FOR_TECH_LEAD_REVIEW` in `.agent-work/acceptance/acceptance-<issue>.md`) and reports to Codex |
+| Codex — Technical Manager / Tech Lead | technical reviewer & architectural sign-off; reviews quality/security/scope evidence and outputs `APPROVED_FOR_PO_ACCEPTANCE` |
+| Product Owner (User) | product scope, UI/UX, cost, permissions, final acceptance decision (`PO ACCEPTED`), and sole merge authority |
 
-The `FULL_TRACKED` workflow is active. Its Integration Check passed on 2026-08-17: Codex reviewed Antigravity branch/PR handoffs, and `.agent-work/` was confirmed Git-ignored and free of detected secrets in the reviewed scope. Every Git-tracked implementation now requires the full Issue → branch → PR → Codex review → Product Owner decision path.
+Before implementation (`BUILD`) begins, the work item's implementation brief / contract must explicitly name the assigned QA Reviewer (Agent 2) and AppSec Auditor (Agent 3).
+
+The `FULL_TRACKED` workflow is active. Every Git-tracked implementation requires the full Issue → branch → PR → Multi-Gate Review → Product Owner decision path.
 
 ## Operational Sources of Truth
 
@@ -82,27 +87,66 @@ When `FULL_TRACKED` is active, every Git-tracked implementation needs a pull req
 | Channel | Required content |
 |---|---|
 | Issue | requirements, acceptance criteria, scope/exclusions, source links, and Product Owner decisions |
-| `.agent-work/` | detailed Codex brief, detailed Antigravity report, long logs, and intermediate analysis; never secrets |
-| Branch | Antigravity implementation according to the project branch convention |
-| Pull request | exact diff, `Refs #N`, compact scope/verification/limitation summary |
-| PR review | Codex outcome and code-specific comments |
+| `.agent-work/reports/handoff-<issue>.md` | Coder handoff report: changed files, test evidence, verification, limits |
+| `.agent-work/qa-reviews/qa-<issue>.md` | QA review report: Ponytail compliance, logic, test coverage (`APPROVED` / `REQUEST_CHANGES`) |
+| `.agent-work/security-audits/sec-<issue>.md` | AppSec audit report: security controls, secrets, cookies, OAuth (`APPROVED` / `BLOCKED`) |
+| `.agent-work/acceptance/acceptance-<issue>.md` | Delivery Gatekeeper report: 3-gate verification summary & recommendation (`READY_FOR_TECH_LEAD_REVIEW`) |
+| Branch | Coder implementation according to the project branch convention |
+| Pull request | exact diff, `Refs #N`, compact secret-safe summary with head SHA and gate status references (`QA`, `AppSec`, `Gatekeeper`, `Tech Lead`) |
 | Project #13 | status, priority, dates, workstream, and progress only |
 
-Do not duplicate agent discussion on GitHub. A shared local file is never sole approval evidence: if Codex cannot access it, the PR summary and reviewed head SHA must still establish the minimum handoff.
+Do not duplicate agent discussion on GitHub. A shared local file is never sole approval evidence: the PR summary and reviewed head SHA must establish the minimum public handoff.
 
 ## Review and Completion Gate
 
-Before moving an Issue to `Review`, the implementer must provide the required PR and compact handoff summary. Codex then reviews the PR and must:
+Before moving an Issue to `Review`, the Coder must provide the required PR, compact handoff summary, and local handoff report `.agent-work/reports/handoff-<issue>.md`. Coder MUST NOT self-approve as QA or AppSec.
 
-- compare the result with every acceptance criterion;
-- run the narrowest relevant tests, then broader checks when practical;
-- inspect the final diff for unrelated files, secrets, credentials, generated artifacts, and accidental contract changes;
-- synchronize affected documentation, metadata, schema, and changelog entries;
-- report failed, skipped, and unavailable verification honestly; and
-- record one PR review outcome: `CHANGES_NEEDED`, `BLOCKED`, or `APPROVED_FOR_PO_ACCEPTANCE`; and
-- add a concise Issue comment linking to the approved PR only when Product Owner acceptance is requested.
+The multi-tier review workflow proceeds as follows:
 
-`Review` is the default agent handoff state. `CHANGES_NEEDED` returns the work to `In Progress`; `BLOCKED` retains `Review` with the `Blocked` label; `APPROVED_FOR_PO_ACCEPTANCE` remains in `Review` until the Product Owner comments `PO ACCEPTED` or `PO RETURNED` in the Issue. Only explicit Product Owner acceptance plus explicit merge authority permits merge or closure. A correctly linked pull request may close the Issue automatically after the authorized merge.
+1. **Gate 1 — Quality Gate (Agent 2 - QA Reviewer):** Audits code quality, Ponytail standards, logic correctness, exception handling, unit/integration test suite, and UX completeness. Produces strictly `APPROVED` or `REQUEST_CHANGES` in `.agent-work/qa-reviews/qa-<issue>.md`.
+2. **Gate 2 — Security Gate (Agent 3 - AppSec Auditor):** Audits task-relevant security controls, OAuth PKCE, cookie security, CORS, and zero secret exposure. Produces strictly `APPROVED` or `BLOCKED` in `.agent-work/security-audits/sec-<issue>.md`.
+3. **Gate 3 — Delivery Coordination Gate (Agent 4 - Delivery Gatekeeper / Coordinator):** Verifies that Coder handoff + QA APPROVED + AppSec APPROVED exist for the exact same reviewed head SHA. Produces `READY_FOR_TECH_LEAD_REVIEW` in `.agent-work/acceptance/acceptance-<issue>.md` and reports to Codex.
+4. **Gate 4 — Technical Lead Gate (Codex - Technical Manager / Tech Lead):** Conducts overall technical, architectural, and security review. Produces `APPROVED_FOR_PO_ACCEPTANCE`.
+5. **Gate 5 — Product Owner Gate (Product Owner - User):** Evaluates product value and final acceptance. Records `PO ACCEPTED` (or `PO RETURNED`) and grants explicit merge authority.
+
+Remediation loop: If QA returns `REQUEST_CHANGES`, AppSec returns `BLOCKED`, or Tech Lead rejects the submission, the Issue returns to `In Progress` (Coder). After Coder remediation, new QA, AppSec, Gatekeeper, and Tech Lead reviews are required for the new head SHA.
+
+Product Owner acceptance: `Review` remains the active state while Gatekeeper review, Tech Lead sign-off, and Product Owner acceptance are pending. The Product Owner records `PO ACCEPTED` or `PO RETURNED` in the Issue and provides explicit merge authorization. Codex Tech Lead recommendations do NOT replace Product Owner acceptance or merge permission. Only explicit Product Owner merge authority permits PR merge and Issue closure.
+
+## Change-Proportional Checklists
+
+Checklists for QA (Agent 2) and AppSec (Agent 3) must scale to the specific change category:
+
+### 1. Frontend / UI Changes
+- [ ] Clean code & Ponytail principles applied (no over-engineering, YAGNI).
+- [ ] UI visual polish, responsive behavior, and accessibility (WCAG AA contrast).
+- [ ] Loading, error, and empty states handled properly.
+- [ ] `npm run lint` and `npm run build` pass with zero type errors.
+- *(Note: OAuth/cookie checklists are NOT enforced for pure CSS or layout changes).*
+
+### 2. Backend / REST API Changes
+- [ ] Modular monolith architecture preserved; API contract intact.
+- [ ] Defensive programming, null checks, and explicit exception handling.
+- [ ] Unit and integration tests pass (`mvn test`).
+- [ ] Performance and resource utilization within boundaries.
+
+### 3. Auth / GitHub Integration / Cookie / Session Changes
+- [ ] OAuth 2.0 PKCE flow and CSRF state validation verified.
+- [ ] Session cookies set with `SameSite=Strict/Lax`, `Secure`, `HttpOnly`.
+- [ ] GitHub token scope minimal and securely handled.
+- [ ] Zero secret logging verified across all log paths and error outputs.
+
+### 4. Database / Migration Changes
+- [ ] Flyway migration script strictly versioned and deterministic.
+- [ ] Foreign keys, indexes, and constraints (`UNIQUE(repository_id, fingerprint)`) enforced.
+- [ ] Backward compatibility and rollback safety preserved.
+- [ ] JPA entities avoid `@Data` and maintain clear state mapping.
+
+### 5. CI/CD / Workflow / Infrastructure Changes
+- [ ] Least-privilege `GITHUB_TOKEN` permissions explicitly declared.
+- [ ] Third-party Actions pinned to commit SHAs or verified tags.
+- [ ] Cloud budget boundaries (USD 250 planning envelope) strictly respected.
+- [ ] Secrets injected via secure secret manager / GitHub secrets; zero plaintext credentials.
 
 ## Git and External-Action Boundary
 

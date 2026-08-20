@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Agent Instructions
 > **File:** `AGENTS.md`
-> **Version:** v2.4.0
+> **Version:** v2.5.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-19
+> **Last Updated:** 2026-08-20
 > **Status:** Active
 
 # Agent Instructions
@@ -190,10 +190,13 @@ All agent skills are installed in `.agents/skill/`. Agents must consult and appl
 
 > **Status:** Active (`FULL_TRACKED`)
 > **Installed skill:** `.agents/skill/agent-delivery-governance/` v1.0.0
-> **Delivery mode:** `FULL_TRACKED` (Integration Check passed on 2026-08-17)
-> **Product Owner / final acceptance:** User
-> **Technical Manager / reviewer:** Codex
-> **Primary Implementer:** Antigravity
+> **Delivery mode:** `FULL_TRACKED` (Integration Check passed on 2026-08-17; five-tier agent workflow active on 2026-08-20)
+> **Product Owner / final acceptance & merge authority:** User
+> **Agent 1 — Coder (Primary Implementer):** Antigravity / delegated coding agent
+> **Agent 2 — QA Reviewer (Independent Code Quality):** named per work item
+> **Agent 3 — AppSec Auditor (Independent Security):** named per work item
+> **Agent 4 — Delivery Gatekeeper / Coordinator:** agent coordinator & 3-gate compliance verifier
+> **Codex — Technical Manager / Tech Lead:** technical reviewer & architectural sign-off
 > **Executable work tracker:** GitHub Issues in `NgaiLong49423/scan-pilot`
 > **Operational status board:** GitHub Project #13
 > **Branch convention:** `codex/<issue-number>-<short-kebab-name>`
@@ -204,7 +207,16 @@ The Integration Check **PASSED** on 2026-08-17:
 - `.agent-work/` is properly Git-ignored;
 - No secrets, tokens, or private credentials were detected in the review scope.
 
-`FULL_TRACKED` is now active for all Git-tracked implementation tasks following this checkpoint. Use the installed skill for every Git-tracked implementation: Issue contract, project-defined branch, mandatory pull request, Codex PR review, and Product Owner decision in the Issue. Keep detailed briefs, reports, intermediate discussion, and long logs in `.agent-work/`; keep only durable decisions and review evidence in GitHub.
+Every Git-tracked code change must follow the mandatory five-tier delivery workflow:
+
+1. **Agent 1 (Coder):** Implements code/tests under an authorized brief, creates `.agent-work/reports/handoff-<issue>.md`, and submits a secret-safe PR with reviewed head SHA. Coder MUST NOT self-approve as QA or AppSec.
+2. **Agent 2 (QA Reviewer):** Independently audits logic, Ponytail standards, unit/integration tests, and UX. Outputs strictly `APPROVED` or `REQUEST_CHANGES` in `.agent-work/qa-reviews/qa-<issue>.md`.
+3. **Agent 3 (AppSec Auditor):** Independently audits security controls, OAuth, cookies, secrets, and OWASP compliance scaled to change type. Outputs strictly `APPROVED` or `BLOCKED` in `.agent-work/security-audits/sec-<issue>.md`.
+4. **Agent 4 (Delivery Gatekeeper / Coordinator):** Coordinates Agents 1, 2, and 3; verifies all three gates on exact same reviewed head SHA. Reports `READY_FOR_TECH_LEAD_REVIEW` in `.agent-work/acceptance/acceptance-<issue>.md` and hands off to Codex.
+5. **Codex (Technical Manager / Tech Lead):** Conducts technical & architectural review on quality, security, and scope evidence. Marks item `APPROVED_FOR_PO_ACCEPTANCE` when satisfied.
+6. **Product Owner (User):** Holds final acceptance authority (`PO ACCEPTED`) and sole permission to authorize PR merge. Tech Lead sign-offs do NOT replace Product Owner acceptance or merge permission.
+
+Remediation rule: Any QA `REQUEST_CHANGES`, AppSec `BLOCKED`, or Tech Lead rejection returns the item to `In Progress` (Coder). After remediation, fresh QA, AppSec, Gatekeeper, and Tech Lead reviews are required for the new head SHA. Keep detailed briefs, reports, logs, and intermediate analysis in `.agent-work/`; keep PR descriptions compact, secret-safe, and limited to head SHA and gate outcome references.
 
 ## Delivery Automation Policy
 
