@@ -23,80 +23,85 @@ export const FindingCard: React.FC<FindingCardProps> = ({ finding, onApplyFix })
   const getSeverityBadge = () => {
     switch (finding.severity) {
       case 'CRITICAL':
-        return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+        return 'bg-[#da3633]/15 text-[#f85149] border-[#da3633]/30';
       case 'HIGH':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+        return 'bg-[#d29922]/15 text-[#e3b341] border-[#d29922]/30';
       case 'MEDIUM':
-        return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
+        return 'bg-[#bb8009]/15 text-[#e3b341] border-[#bb8009]/30';
       default:
-        return 'bg-sky-500/10 text-sky-400 border-sky-500/20';
+        return 'bg-[#1f6feb]/15 text-[#58a6ff] border-[#1f6feb]/30';
     }
   };
 
   return (
-    <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 shadow-sm hover:border-slate-700/80 transition-all duration-150">
+    <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-5 shadow-sm hover:border-[#8b949e]/50 transition-all duration-150">
       {/* Top row: Severity, Rule ID, Location & Time */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2.5">
           <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold uppercase tracking-wide border ${getSeverityBadge()}`}>
             {finding.severity === 'CRITICAL' ? (
-              <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+              <ShieldAlert className="w-3.5 h-3.5 text-[#f85149]" />
             ) : (
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+              <AlertTriangle className="w-3.5 h-3.5 text-[#e3b341]" />
             )}
             <span>{finding.severity}</span>
           </span>
 
-          <span className="text-xs font-mono text-slate-400 bg-slate-800/60 px-2 py-0.5 rounded border border-slate-700/50">
+          <span className="text-xs font-mono text-[#8b949e] bg-[#21262d] px-2 py-0.5 rounded border border-[#30363d]">
             {finding.ruleId}
           </span>
 
-          <span className="text-xs font-semibold text-slate-200">
+          <span className="text-sm font-semibold text-[#f0f6fc]">
             {finding.ruleName}
           </span>
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-slate-400">
+        <div className="flex items-center gap-4 text-xs text-[#8b949e]">
+          <span className="flex items-center gap-1 font-mono">
+            <GitCommit className="w-3.5 h-3.5 text-[#58a6ff]" />
+            <span>{finding.detectedCommit}</span>
+          </span>
           <span className="flex items-center gap-1">
-            <Clock className="w-3.5 h-3.5 text-slate-500" />
+            <Clock className="w-3.5 h-3.5" />
             <span>{finding.detectedAt}</span>
           </span>
-
-          <button
-            type="button"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1 rounded-md hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
-            aria-label={isExpanded ? 'Collapse' : 'Expand'}
-          >
-            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
         </div>
       </div>
 
-      {/* File Path & Commit Metadata */}
-      <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-slate-400 font-mono">
-        <div className="flex items-center gap-1.5 bg-slate-950/60 px-2.5 py-1 rounded-md border border-slate-800/80 text-slate-300">
-          <FileCode className="w-3.5 h-3.5 text-indigo-400" />
-          <span>{finding.filePath}:{finding.lineNumber}</span>
+      {/* Path & Secret Masked Badge */}
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+        <div className="flex items-center gap-1.5 text-[#8b949e] font-mono bg-[#0d1117] px-2.5 py-1 rounded-lg border border-[#30363d]">
+          <FileCode className="w-3.5 h-3.5 text-[#58a6ff]" />
+          <span className="text-[#f0f6fc]">{finding.filePath}</span>
+          <span>:{finding.lineNumber}</span>
         </div>
 
-        <div className="flex items-center gap-1.5 text-slate-400">
-          <GitCommit className="w-3.5 h-3.5 text-slate-500" />
-          <span>{finding.detectedCommit}</span>
+        <div className="flex items-center gap-1.5 text-xs font-mono text-[#f0f6fc] bg-[#0d1117] px-2.5 py-1 rounded-lg border border-[#30363d]">
+          <Lock className="w-3.5 h-3.5 text-[#f85149]" />
+          <span>Masked: </span>
+          <span className="text-[#f85149] font-bold">{finding.rawSecretMasked}</span>
         </div>
 
-        <div className="flex items-center gap-1.5 text-amber-400/90 font-medium">
-          <Lock className="w-3.5 h-3.5" />
-          <span>Masked: {finding.rawSecretMasked}</span>
-        </div>
+        <button
+          type="button"
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="ml-auto inline-flex items-center gap-1 text-xs text-[#58a6ff] hover:underline"
+        >
+          <span>{isExpanded ? 'Hide AI Remediation' : 'View AI Remediation'}</span>
+          {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </button>
       </div>
 
-      {/* Expanded Diff Section */}
+      {/* Collapsible Remediation Diff Viewer */}
       {isExpanded && (
-        <RemediationDiff
-          diff={finding.remediationDiff}
-          onApplyFix={() => onApplyFix && onApplyFix(finding.id)}
-        />
+        <div className="mt-4 pt-4 border-t border-[#30363d]">
+          <RemediationDiff
+            diff={finding.remediationDiff}
+            findingId={finding.id}
+            isResolved={finding.status === 'RESOLVED'}
+            onApplyFix={onApplyFix}
+          />
+        </div>
       )}
     </div>
   );

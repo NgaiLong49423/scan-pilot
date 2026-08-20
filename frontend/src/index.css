@@ -1,11 +1,43 @@
 @import "tailwindcss";
 
 @theme {
-  --color-slate-750: #293548;
-  --color-slate-850: #162032;
-  --color-slate-925: #0a0f18;
+  --color-gh-canvas: #0d1117;
+  --color-gh-subtle: #161b22;
+  --color-gh-overlay: #1c2128;
+  --color-gh-border: #30363d;
+  --color-gh-border-subtle: #21262d;
+  --color-gh-text-primary: #f0f6fc;
+  --color-gh-text-secondary: #8b949e;
+  --color-gh-blue: #1f6feb;
+  --color-gh-blue-hover: #388bfd;
+  --color-gh-green: #238636;
+  --color-gh-green-hover: #2ea043;
 }
 
 body {
-  @apply bg-slate-950 text-slate-300 antialiased min-h-screen;
+  background-color: #0d1117;
+  color: #c9d1d9;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
+
+/* Custom GitHub-style scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #8b949e;
 }

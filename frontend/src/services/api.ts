@@ -127,11 +127,32 @@ export const MOCK_HEALTH_METRICS: HealthMetrics = {
 };
 
 /**
- * Initiates real GitHub OAuth login by navigating browser to backend authorization endpoint.
+ * Resolves the Backend API base URL dynamically:
+ * 1. Checks VITE_API_URL or VITE_BACKEND_URL or VITE_API_BASE_URL
+ * 2. On localhost, uses relative proxy path ''
+ * 3. On production, falls back to same-origin or configured endpoint
+ */
+export function getApiBaseUrl(): string {
+  const envUrl = 
+    (import.meta.env.VITE_API_URL as string | undefined) ||
+    (import.meta.env.VITE_BACKEND_URL as string | undefined) ||
+    (import.meta.env.VITE_API_BASE_URL as string | undefined);
+
+  if (envUrl && envUrl.trim().length > 0) {
+    return envUrl.trim().replace(/\/+$/, '');
+  }
+
+  return '';
+}
+
+/**
+ * Initiates real GitHub OAuth login by redirecting browser to backend authorization endpoint.
  */
 export function loginWithGitHub(returnUrl?: string): void {
-  const target = returnUrl ? `?redirect_uri=${encodeURIComponent(returnUrl)}` : '';
-  window.location.href = `/api/v1/auth/github/login${target}`;
+  const origin = returnUrl || (typeof window !== 'undefined' ? window.location.origin : '');
+  const target = origin ? `?redirect_uri=${encodeURIComponent(origin)}` : '';
+  const baseUrl = getApiBaseUrl();
+  window.location.href = `${baseUrl}/api/v1/auth/github/login${target}`;
 }
 
 /**
@@ -139,7 +160,8 @@ export function loginWithGitHub(returnUrl?: string): void {
  */
 export async function fetchCurrentUser(): Promise<UserProfile | null> {
   try {
-    const response = await fetch('/api/v1/auth/me', {
+    const baseUrl = getApiBaseUrl();
+    const response = await fetch(`${baseUrl}/api/v1/auth/me`, {
       credentials: 'include',
     });
     if (response.ok) {
@@ -152,11 +174,12 @@ export async function fetchCurrentUser(): Promise<UserProfile | null> {
 }
 
 /**
- * Logs out from backend session.
+ * Logs out from backend session and returns to landing page.
  */
 export async function logoutUser(): Promise<void> {
   try {
-    await fetch('/api/v1/auth/logout', {
+    const baseUrl = getApiBaseUrl();
+    await fetch(`${baseUrl}/api/v1/auth/logout`, {
       method: 'POST',
       credentials: 'include',
     });
@@ -171,7 +194,8 @@ export async function logoutUser(): Promise<void> {
  */
 export async function fetchRepositories(): Promise<Repository[]> {
   try {
-    const response = await fetch('/api/v1/github/repositories', {
+    const baseUrl = getApiBaseUrl();
+    const response = await fetch(`${baseUrl}/api/v1/github/repositories`, {
       credentials: 'include',
     });
     if (response.ok) {
@@ -201,13 +225,14 @@ export async function fetchRepositories(): Promise<Repository[]> {
  */
 export async function fetchFindingsForRepo(_repoId: string): Promise<Finding[]> {
   try {
-    const response = await fetch('/api/v1/scans', {
+    const baseUrl = getApiBaseUrl();
+    const response = await fetch(`${baseUrl}/api/v1/scans`, {
       credentials: 'include',
     });
     if (response.ok) {
       const data = await response.json();
       if (Array.isArray(data) && data.length > 0) {
-        // Map backend finding entity
+        // Map real finding entities when available
       }
     }
   } catch (_e) {
@@ -228,7 +253,8 @@ export async function fetchHealthMetrics(_repoId: string): Promise<HealthMetrics
  */
 export async function triggerRealScan(branchName?: string): Promise<boolean> {
   try {
-    const response = await fetch('/api/v1/scans/trigger', {
+    const baseUrl = getApiBaseUrl();
+    const response = await fetch(`${baseUrl}/api/v1/scans/trigger`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

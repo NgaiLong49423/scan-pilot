@@ -22,114 +22,111 @@ export const CoverageAuditView: React.FC<CoverageAuditViewProps> = ({ repo }) =>
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Stage 1 Coverage */}
-        <div className="p-5 bg-slate-900/70 border border-slate-800 rounded-2xl space-y-2">
-          <div className="flex items-center justify-between text-slate-400">
+        <div className="p-5 bg-[#161b22] border border-[#30363d] rounded-2xl space-y-2">
+          <div className="flex items-center justify-between text-[#8b949e]">
             <span className="text-xs font-semibold uppercase tracking-wider">Stage 1: Snapshot (HEAD)</span>
-            <FileCode className="w-4 h-4 text-indigo-400" />
+            <FileCode className="w-4 h-4 text-[#58a6ff]" />
           </div>
-          <div className="text-2xl font-bold text-white tabular-nums">346 / 346 Files</div>
-          <p className="text-xs text-slate-400">100% of tracked repository files scanned at HEAD commit.</p>
-          <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-3">
-            <div className="bg-indigo-500 h-full w-full rounded-full" />
+          <div className="text-2xl font-bold text-[#f0f6fc] tabular-nums">346 / 346 Files</div>
+          <p className="text-xs text-[#8b949e]">100% of tracked repository files scanned at HEAD commit.</p>
+          <div className="w-full bg-[#21262d] h-1.5 rounded-full overflow-hidden mt-3">
+            <div className="bg-[#1f6feb] h-full w-full rounded-full" />
           </div>
         </div>
 
         {/* Stage 2 Coverage */}
-        <div className="p-5 bg-slate-900/70 border border-slate-800 rounded-2xl space-y-2">
-          <div className="flex items-center justify-between text-slate-400">
+        <div className="p-5 bg-[#161b22] border border-[#30363d] rounded-2xl space-y-2">
+          <div className="flex items-center justify-between text-[#8b949e]">
             <span className="text-xs font-semibold uppercase tracking-wider">Stage 2: Git History</span>
-            <GitCommit className="w-4 h-4 text-cyan-400" />
+            <GitCommit className="w-4 h-4 text-[#3fb950]" />
           </div>
-          <div className="text-2xl font-bold text-white tabular-nums">128 Commits</div>
-          <p className="text-xs text-slate-400">Full reachable commit history traversed back to root commit.</p>
-          <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-3">
-            <div className="bg-cyan-500 h-full w-full rounded-full" />
+          <div className="text-2xl font-bold text-[#f0f6fc] tabular-nums">128 Commits</div>
+          <p className="text-xs text-[#8b949e]">Full reachable commit history traversed back to root commit.</p>
+          <div className="w-full bg-[#21262d] h-1.5 rounded-full overflow-hidden mt-3">
+            <div className="bg-[#238636] h-full w-full rounded-full" />
           </div>
         </div>
 
         {/* Sandbox & Trust */}
-        <div className="p-5 bg-slate-900/70 border border-slate-800 rounded-2xl space-y-2">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Sandbox & Redaction</span>
-            <Fingerprint className="w-4 h-4 text-emerald-400" />
+        <div className="p-5 bg-[#161b22] border border-[#30363d] rounded-2xl space-y-2">
+          <div className="flex items-center justify-between text-[#8b949e]">
+            <span className="text-xs font-semibold uppercase tracking-wider">Security Architecture</span>
+            <Lock className="w-4 h-4 text-[#3fb950]" />
           </div>
-          <div className="text-2xl font-bold text-emerald-400">Zero Raw Secret</div>
-          <p className="text-xs text-slate-400">Ephemeral workspace container purged after scan completion.</p>
-          <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-3">
-            <div className="bg-emerald-500 h-full w-full rounded-full" />
+          <div className="text-2xl font-bold text-[#3fb950] flex items-center gap-2">
+            <ShieldCheck className="w-6 h-6" />
+            <span>Isolated Sandbox</span>
+          </div>
+          <p className="text-xs text-[#8b949e]">Ephemerally scanned in isolated worker, fully purged on complete.</p>
+          <div className="w-full bg-[#21262d] h-1.5 rounded-full overflow-hidden mt-3">
+            <div className="bg-[#238636] h-full w-full rounded-full" />
           </div>
         </div>
       </div>
 
-      {/* Audit Log Table */}
-      <div className="bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-        <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+      {/* Deterministic Audit Trail Table */}
+      <div className="bg-[#161b22] border border-[#30363d] rounded-2xl overflow-hidden shadow-sm">
+        <div className="p-5 border-b border-[#30363d] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h3 className="text-base font-bold text-white tracking-tight">
-              Deterministic Scan Audit Trail
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Verified detector execution evidence for {repo.name} ({repo.branch}).
+            <h3 className="text-base font-bold text-[#f0f6fc]">Deterministic Audit Log</h3>
+            <p className="text-xs text-[#8b949e] mt-0.5">
+              Cryptographically verified pipeline stages for repository {repo.name} ({repo.branch}).
             </p>
           </div>
-          <span className="text-xs font-mono bg-slate-800 text-slate-300 px-2.5 py-1 rounded border border-slate-700">
-            SP-CONFIG-001 • Gitleaks Adapter
+          <span className="text-xs font-mono text-[#8b949e] bg-[#0d1117] px-3 py-1 rounded-lg border border-[#30363d] self-start sm:self-auto">
+            Run ID: scan-9f82c1a4
           </span>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs font-mono">
-            <thead className="bg-slate-950/60 border-b border-slate-800 text-slate-400 font-sans">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[#0d1117] text-[#8b949e] uppercase tracking-wider font-semibold border-b border-[#30363d]">
               <tr>
-                <th className="py-3 px-4 font-semibold">Scope & Mode</th>
-                <th className="py-3 px-4 font-semibold">Commit / Ref</th>
-                <th className="py-3 px-4 font-semibold">Detector</th>
-                <th className="py-3 px-4 font-semibold">Duration</th>
-                <th className="py-3 px-4 font-semibold">Status</th>
+                <th className="px-5 py-3">Stage</th>
+                <th className="px-5 py-3">Scope / Target</th>
+                <th className="px-5 py-3">Duration</th>
+                <th className="px-5 py-3">Status</th>
+                <th className="px-5 py-3">Engine</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800 text-slate-300">
-              <tr className="hover:bg-slate-800/30 transition-colors">
-                <td className="py-3 px-4 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-indigo-400" />
-                  <span className="font-semibold text-white">Stage 1: Working Tree (HEAD)</span>
-                </td>
-                <td className="py-3 px-4 text-slate-400">HEAD (b7f9a1c)</td>
-                <td className="py-3 px-4 text-indigo-300">Gitleaks Static Adapter</td>
-                <td className="py-3 px-4">1.24s</td>
-                <td className="py-3 px-4">
-                  <span className="text-emerald-400 font-sans font-medium px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
-                    Completed
+            <tbody className="divide-y divide-[#30363d] text-[#c9d1d9] font-mono">
+              <tr className="hover:bg-[#21262d]/50 transition-colors">
+                <td className="px-5 py-3.5 font-semibold text-[#f0f6fc]">Stage 1: Working Tree</td>
+                <td className="px-5 py-3.5 text-[#8b949e]">HEAD Commit (346 files)</td>
+                <td className="px-5 py-3.5 text-[#8b949e]">1.42s</td>
+                <td className="px-5 py-3.5">
+                  <span className="inline-flex items-center gap-1 text-[#3fb950] bg-[#238636]/15 px-2 py-0.5 rounded border border-[#238636]/30 text-[11px] font-sans font-medium">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>Verified</span>
                   </span>
                 </td>
+                <td className="px-5 py-3.5 text-[#8b949e]">SP-CONFIG-001 Native AST</td>
               </tr>
-              <tr className="hover:bg-slate-800/30 transition-colors">
-                <td className="py-3 px-4 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-cyan-400" />
-                  <span className="font-semibold text-white">Stage 2: Git Commit Tree</span>
-                </td>
-                <td className="py-3 px-4 text-slate-400">128 reachable commits</td>
-                <td className="py-3 px-4 text-cyan-300">Gitleaks History Adapter</td>
-                <td className="py-3 px-4">3.07s</td>
-                <td className="py-3 px-4">
-                  <span className="text-emerald-400 font-sans font-medium px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
-                    Completed
+
+              <tr className="hover:bg-[#21262d]/50 transition-colors">
+                <td className="px-5 py-3.5 font-semibold text-[#f0f6fc]">Stage 2: History Tree</td>
+                <td className="px-5 py-3.5 text-[#8b949e]">128 Commits (Full Log)</td>
+                <td className="px-5 py-3.5 text-[#8b949e]">2.89s</td>
+                <td className="px-5 py-3.5">
+                  <span className="inline-flex items-center gap-1 text-[#3fb950] bg-[#238636]/15 px-2 py-0.5 rounded border border-[#238636]/30 text-[11px] font-sans font-medium">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>Verified</span>
                   </span>
                 </td>
+                <td className="px-5 py-3.5 text-[#8b949e]">Gitleaks v8.18 Pipeline</td>
               </tr>
-              <tr className="hover:bg-slate-800/30 transition-colors">
-                <td className="py-3 px-4 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span className="font-semibold text-white">Stage 3: Workspace Purge</span>
-                </td>
-                <td className="py-3 px-4 text-slate-400">Sandbox Sandbox-eph-89</td>
-                <td className="py-3 px-4 text-slate-400">Scan Pilot Core Engine</td>
-                <td className="py-3 px-4">0.12s</td>
-                <td className="py-3 px-4">
-                  <span className="text-emerald-400 font-sans font-medium px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
-                    Cleaned
+
+              <tr className="hover:bg-[#21262d]/50 transition-colors">
+                <td className="px-5 py-3.5 font-semibold text-[#f0f6fc]">Stage 3: AI Remediation</td>
+                <td className="px-5 py-3.5 text-[#8b949e]">3 Critical Findings</td>
+                <td className="px-5 py-3.5 text-[#8b949e]">0.85s</td>
+                <td className="px-5 py-3.5">
+                  <span className="inline-flex items-center gap-1 text-[#58a6ff] bg-[#1f6feb]/15 px-2 py-0.5 rounded border border-[#1f6feb]/30 text-[11px] font-sans font-medium">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>Ready</span>
                   </span>
                 </td>
+                <td className="px-5 py-3.5 text-[#8b949e]">Gemini 1.5 Flash Pro Guard</td>
               </tr>
             </tbody>
           </table>

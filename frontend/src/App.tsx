@@ -154,10 +154,11 @@ export default function App() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col justify-between selection:bg-indigo-500/30">
+    <div className="min-h-screen bg-[#0d1117] text-[#c9d1d9] font-sans flex flex-col justify-between selection:bg-[#1f6feb]/30">
       {/* Sticky Top Navbar with 2 Main Navigation Tabs */}
       <Navbar
         selectedRepo={selectedRepo}
+        currentUser={currentUser}
         activeTab={activeNavTab}
         onTabChange={setActiveNavTab}
         isScanning={isScanning}
@@ -184,10 +185,10 @@ export default function App() {
               <section className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                    <h1 className="text-xl sm:text-2xl font-bold text-[#f0f6fc] tracking-tight">
                       Security Posture & Findings
                     </h1>
-                    <p className="text-xs sm:text-sm text-slate-400 mt-1">
+                    <p className="text-xs sm:text-sm text-[#8b949e] mt-1">
                       Continuous secret detection & AI-assisted remediation across commit history.
                     </p>
                   </div>
@@ -195,7 +196,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={logoutUser}
-                    className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:bg-slate-800 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                    className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#161b22] border border-[#30363d] hover:bg-[#21262d] text-xs text-[#8b949e] hover:text-[#f0f6fc] transition-colors"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
                     <span>Landing Page</span>
@@ -204,13 +205,13 @@ export default function App() {
 
                 {/* Visual Analytics Bento Banner */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
-                  <div className="md:col-span-4 lg:col-span-3">
+                  <div className="md:col-span-4 lg:col-span-3 flex flex-col">
                     <HealthGauge score={metrics.healthScore} grade={metrics.grade} />
                   </div>
-                  <div className="md:col-span-8 lg:col-span-4">
+                  <div className="md:col-span-8 lg:col-span-4 flex flex-col">
                     <TrendSparkline data={metrics.trendData} />
                   </div>
-                  <div className="md:col-span-12 lg:col-span-5">
+                  <div className="md:col-span-12 lg:col-span-5 flex flex-col">
                     <MetricsGrid metrics={metrics} />
                   </div>
                 </div>
@@ -219,7 +220,7 @@ export default function App() {
 
             {/* Finding Stream Section */}
             <section className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#30363d] pb-4">
                 {/* Filter Tabs by Severity */}
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
                   <button
@@ -227,8 +228,8 @@ export default function App() {
                     onClick={() => setSeverityFilter('ALL')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
                       severityFilter === 'ALL'
-                        ? 'bg-indigo-600 text-white shadow-sm'
-                        : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                        ? 'bg-[#1f6feb] text-white shadow-sm'
+                        : 'bg-[#161b22] text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] border border-[#30363d]'
                     }`}
                   >
                     All Findings ({findings.length})
@@ -317,10 +318,10 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="w-full border-t border-slate-800/80 bg-slate-950 py-6 text-xs text-slate-500 mt-12">
+      <footer className="w-full border-t border-[#30363d] bg-[#010409] py-6 text-xs text-[#8b949e] mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="font-semibold text-slate-400">Scan Pilot Security</span>
+            <span className="font-semibold text-[#c9d1d9]">Scan Pilot Security</span>
             <span>•</span>
             <span>Google Cloud Run & Spring Boot 3 Engine</span>
           </div>
