@@ -11,19 +11,21 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
-## 2026-08-20 — GitHub Dark Theme, Profile Popover & Uniform Bento Grid (PR #47)
+## 2026-08-20 — GitHub Dark Theme, Profile Popover, Full English UI & Unscanned State Handling (PR #47)
 
 **Status:** Committed — `a79022f` (PR #47)
 
-**Scope:** Migrated entire frontend to authentic GitHub Dark Theme (`#0d1117` canvas, `#161b22` cards, `#30363d` borders, `#238636` green accents), implemented Google-style account profile popover with live GitHub avatar, and restructured visual analytics bento banner to equal-height 3-column layout with 2x2 metric matrix.
+**Scope:** Migrated entire frontend to authentic GitHub Dark Theme (`#0d1117` canvas, `#161b22` cards, `#30363d` borders, `#238636` green accents), implemented Google-style account profile popover with live GitHub avatar, restructured visual analytics bento banner to equal-height 3-column layout with 2x2 metric matrix, standardized 100% English UI copy, and introduced rigorous unscanned state handling across all components.
 
 ### Added
 
 - Added Google-style Profile Popover in `frontend/src/components/Navbar.tsx` displaying live GitHub avatar, account handle, status badge, GitHub profile link, and integrated sign-out action.
 - Added `docs/MULTI-AGENT-GOVERNANCE-WORKFLOW.md` formalizing the 4-agent peer review and gatekeeping delivery protocol.
+- Added strict empty/unscanned state rendering across `HealthGauge` (`—/100`, `Not Scanned Yet`), `TrendSparkline` (`No Trend History`), `MetricsGrid` (`—`, `Awaiting Scan`), `ScanProgressStepper` (`ENGINE STANDBY`), and `RepoSelectModal` (`Awaiting Scan`).
 
 ### Changed
 
+- Standardized 100% of UI copy across all 11 frontend components to professional English.
 - Updated `frontend/src/index.css` and all component styles to authentic GitHub dark theme palette and custom dark scrollbars.
 - Updated `frontend/src/components/MetricsGrid.tsx` to balanced 2x2 grid layout aligning height with `HealthGauge` and `TrendSparkline`.
 - Updated `frontend/src/services/api.ts` with dynamic API base URL resolution and cross-origin OAuth redirection parameters.

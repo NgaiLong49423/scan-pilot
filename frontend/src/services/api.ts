@@ -1,136 +1,7 @@
 import { Repository, Finding, HealthMetrics, UserProfile } from '../types';
 
-export const MOCK_REPOSITORIES: Repository[] = [
-  {
-    id: 'repo-1',
-    name: 'NgaiLong49423/scan-pilot',
-    branch: 'main',
-    isPrivate: false,
-    language: 'Java',
-    lastScanned: '2m ago',
-    findingCount: 3,
-    healthScore: 92,
-    attentionStatus: 'Warning',
-  },
-  {
-    id: 'repo-2',
-    name: 'NgaiLong49423/BenchmarkJava',
-    branch: 'master',
-    isPrivate: true,
-    language: 'Java',
-    lastScanned: '1h ago',
-    findingCount: 0,
-    healthScore: 100,
-    attentionStatus: 'Secure',
-  },
-  {
-    id: 'repo-3',
-    name: 'NgaiLong49423/studypack-exam-prep',
-    branch: 'main',
-    isPrivate: false,
-    language: 'TypeScript',
-    lastScanned: '45m ago',
-    findingCount: 1,
-    healthScore: 84,
-    attentionStatus: 'Warning',
-  },
-];
-
-export const MOCK_FINDINGS: Finding[] = [
-  {
-    id: 'find-001',
-    ruleId: 'SP-CONFIG-001',
-    ruleName: 'Hardcoded AWS Access Credentials',
-    severity: 'CRITICAL',
-    status: 'OPEN',
-    remediationQuality: 'ACTION_REQUIRED',
-    filePath: 'backend/src/test/java/com/scanpilot/SecretServiceTest.java',
-    lineNumber: 102,
-    rawSecretMasked: 'AKIAJ************Z',
-    detectedCommit: 'HEAD-05 (b7f9a1c)',
-    detectedAt: '2 mins ago',
-    remediationDiff: {
-      filePath: 'backend/src/test/java/com/scanpilot/SecretServiceTest.java',
-      startLine: 101,
-      originalSnippet: `101 public void setupTest() {
-102   String awsAccessKey = "AKIAJ************Z";
-103   String awsSecretKey = "wJalrXUtnFEMI/********************";
-104   awsClient.initialize(awsAccessKey, awsSecretKey);`,
-      suggestedFixSnippet: `101 public void setupTest() {
-102   String awsAccessKey = System.getenv("TEST_AWS_ACCESS_KEY");
-103   String awsSecretKey = System.getenv("TEST_AWS_SECRET_KEY");
-104   awsClient.initialize(awsAccessKey, awsSecretKey);`,
-      explanation: 'Replace hardcoded AWS API credentials with environment variable retrieval using System.getenv().',
-    },
-  },
-  {
-    id: 'find-002',
-    ruleId: 'SP-CONFIG-001',
-    ruleName: 'Generic Stripe API Secret Key Exposed',
-    severity: 'HIGH',
-    status: 'OPEN',
-    remediationQuality: 'ACTION_REQUIRED',
-    filePath: 'backend/src/main/resources/application.properties',
-    lineNumber: 24,
-    rawSecretMasked: 'sk_live_51M************9X',
-    detectedCommit: 'HEAD-02 (f4a8b2e)',
-    detectedAt: '15 mins ago',
-    remediationDiff: {
-      filePath: 'backend/src/main/resources/application.properties',
-      startLine: 23,
-      originalSnippet: `23 # Payment Configuration
-24 stripe.api.key=sk_live_51M************9X
-25 stripe.webhook.secret=whsec_*************`,
-      suggestedFixSnippet: `23 # Payment Configuration
-24 stripe.api.key=\${STRIPE_API_KEY}
-25 stripe.webhook.secret=\${STRIPE_WEBHOOK_SECRET}`,
-      explanation: 'Externalize private payment gateway tokens into environment variables injected at deployment.',
-    },
-  },
-  {
-    id: 'find-003',
-    ruleId: 'SP-CONFIG-001',
-    ruleName: 'GitHub Personal Access Token (PAT)',
-    severity: 'HIGH',
-    status: 'OPEN',
-    remediationQuality: 'ACTION_REQUIRED',
-    filePath: 'scripts/ci-deploy.sh',
-    lineNumber: 12,
-    rawSecretMasked: 'ghp_********************************',
-    detectedCommit: 'HEAD-08 (1a3c5d7)',
-    detectedAt: '1 hour ago',
-    remediationDiff: {
-      filePath: 'scripts/ci-deploy.sh',
-      startLine: 11,
-      originalSnippet: `11 # Automated Git Release Token
-12 export GITHUB_TOKEN="ghp_********************************"
-13 git push origin main --tags`,
-      suggestedFixSnippet: `11 # Automated Git Release Token
-12 # Rely on GitHub Actions secret context directly:
-13 export GITHUB_TOKEN="\${{ secrets.RELEASE_BOT_TOKEN }}"
-14 git push origin main --tags`,
-      explanation: 'Avoid storing personal developer tokens in bash scripts; use CI/CD secret managers.',
-    },
-  },
-];
-
-export const MOCK_HEALTH_METRICS: HealthMetrics = {
-  healthScore: 92,
-  grade: 'Safe - Grade A',
-  scannedFilesCount: 346,
-  openLeaksCount: 3,
-  resolvedLeaksCount: 14,
-  aiFixReadyCount: 3,
-  mttrMinutes: 12,
-  aiSuccessRate: 98,
-  trendData: [12, 10, 14, 9, 7, 5, 4, 3],
-};
-
 /**
- * Resolves the Backend API base URL dynamically:
- * 1. Checks VITE_API_URL or VITE_BACKEND_URL or VITE_API_BASE_URL
- * 2. On localhost, uses relative proxy path ''
- * 3. On production, falls back to same-origin or configured endpoint
+ * Resolves the Backend API base URL dynamically.
  */
 export function getApiBaseUrl(): string {
   const envUrl = 
@@ -146,7 +17,7 @@ export function getApiBaseUrl(): string {
 }
 
 /**
- * Initiates real GitHub OAuth login by redirecting browser to backend authorization endpoint.
+ * Initiates real GitHub OAuth login.
  */
 export function loginWithGitHub(returnUrl?: string): void {
   const origin = returnUrl || (typeof window !== 'undefined' ? window.location.origin : '');
@@ -156,7 +27,7 @@ export function loginWithGitHub(returnUrl?: string): void {
 }
 
 /**
- * Checks if current user has an active session with backend.
+ * Checks active user session from backend.
  */
 export async function fetchCurrentUser(): Promise<UserProfile | null> {
   try {
@@ -174,7 +45,7 @@ export async function fetchCurrentUser(): Promise<UserProfile | null> {
 }
 
 /**
- * Logs out from backend session and returns to landing page.
+ * Logs out from backend session.
  */
 export async function logoutUser(): Promise<void> {
   try {
@@ -190,7 +61,7 @@ export async function logoutUser(): Promise<void> {
 }
 
 /**
- * Fetches repositories from backend GitHub App integration or returns mock data.
+ * Fetches real accessible repositories from GitHub via backend integration.
  */
 export async function fetchRepositories(): Promise<Repository[]> {
   try {
@@ -202,56 +73,132 @@ export async function fetchRepositories(): Promise<Repository[]> {
       const data = await response.json();
       if (Array.isArray(data) && data.length > 0) {
         return data.map((item: any) => ({
-          id: String(item.id || item.fullName),
+          id: String(item.id || item.githubRepoId || item.fullName),
+          githubRepoId: item.githubRepoId || item.id,
           name: item.fullName || item.name,
           branch: item.defaultBranch || 'main',
-          isPrivate: Boolean(item.private),
+          isPrivate: Boolean(item.isPrivate || item.private),
           language: item.language || 'Java',
-          lastScanned: 'Just now',
+          lastScanned: null, // Chưa quét
+          isScanned: false,
           findingCount: 0,
           healthScore: 100,
-          attentionStatus: 'Secure',
+          attentionStatus: 'NotScanned',
         }));
       }
     }
   } catch (_e) {
-    // Fallback to local mock data
+    // Fallback if backend is unreachable
   }
-  return MOCK_REPOSITORIES;
+  return [];
 }
 
 /**
- * Fetches findings for the selected repository from backend scan jobs.
+ * Selects and registers a repository on the backend PostgreSQL database.
  */
-export async function fetchFindingsForRepo(_repoId: string): Promise<Finding[]> {
+export async function selectRepositoryOnBackend(repo: Repository): Promise<string | null> {
   try {
     const baseUrl = getApiBaseUrl();
-    const response = await fetch(`${baseUrl}/api/v1/scans`, {
+    const nameParts = repo.name.split('/');
+    const owner = nameParts.length > 1 ? nameParts[0] : 'user';
+    const repoName = nameParts.length > 1 ? nameParts[1] : repo.name;
+
+    const response = await fetch(`${baseUrl}/api/v1/projects/select-repository`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        githubRepoId: Number(repo.githubRepoId || 0),
+        owner,
+        name: repoName,
+        fullName: repo.name,
+        defaultBranch: repo.branch || 'main',
+        primaryBranch: repo.branch || 'main',
+        isPrivate: repo.isPrivate,
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.repositoryId || data.id || null;
+    }
+  } catch (_e) {
+    // Ignore error
+  }
+  return null;
+}
+
+/**
+ * Fetches real findings from PostgreSQL database for the selected repository.
+ */
+export async function fetchFindingsForRepo(repositoryId: string): Promise<Finding[]> {
+  try {
+    const baseUrl = getApiBaseUrl();
+    const response = await fetch(`${baseUrl}/api/v1/scans/repositories/${repositoryId}/findings`, {
       credentials: 'include',
     });
     if (response.ok) {
       const data = await response.json();
-      if (Array.isArray(data) && data.length > 0) {
-        // Map real finding entities when available
+      if (Array.isArray(data)) {
+        return data.map((item: any) => {
+          const loc = item.locations && item.locations.length > 0 ? item.locations[0] : null;
+          const masked = item.fingerprint 
+            ? (item.fingerprint.length > 8 ? item.fingerprint.substring(0, 6) + '************' + item.fingerprint.substring(item.fingerprint.length - 2) : '************')
+            : 'MASKED_SECRET';
+
+          return {
+            id: String(item.id),
+            ruleId: item.ruleId || 'SP-CONFIG-001',
+            ruleName: item.title || item.ruleId || 'Detected Secret Leak',
+            severity: item.severity || 'HIGH',
+            status: item.lifecycle === 'RESOLVED' ? 'RESOLVED' : 'OPEN',
+            remediationQuality: item.remediationQuality || 'ACTION_REQUIRED',
+            filePath: loc?.filePath || 'unknown/file',
+            lineNumber: loc?.startLine || 1,
+            rawSecretMasked: masked,
+            detectedCommit: loc?.commitSha ? loc.commitSha.substring(0, 7) : 'HEAD',
+            detectedAt: item.firstSeenAt ? new Date(item.firstSeenAt).toLocaleTimeString() : 'Just now',
+            remediationDiff: {
+              filePath: loc?.filePath || 'src/...',
+              startLine: loc?.startLine || 1,
+              originalSnippet: `${loc?.startLine || 1} // Exposed secret in ${loc?.filePath || 'file'}\n${loc?.startLine || 1} const secret = "${masked}";`,
+              suggestedFixSnippet: `${loc?.startLine || 1} // Externalize into environment variable\n${loc?.startLine || 1} const secret = process.env.SAFE_CONFIG_KEY;`,
+              explanation: item.description || 'Replace hardcoded secret with environment variable retrieval.',
+            },
+          };
+        });
       }
     }
   } catch (_e) {
-    // Fallback to mock findings
+    // Ignore error
   }
-  return MOCK_FINDINGS;
+  return [];
 }
 
 /**
- * Fetches health score metrics for the selected repository.
+ * Fetches real coverage summary from PostgreSQL database for the repository.
  */
-export async function fetchHealthMetrics(_repoId: string): Promise<HealthMetrics> {
-  return MOCK_HEALTH_METRICS;
+export async function fetchCoverageForRepo(repositoryId: string): Promise<any | null> {
+  try {
+    const baseUrl = getApiBaseUrl();
+    const response = await fetch(`${baseUrl}/api/v1/scans/repositories/${repositoryId}/coverage`, {
+      credentials: 'include',
+    });
+    if (response.ok) {
+      return await response.json();
+    }
+  } catch (_e) {
+    // Ignore error
+  }
+  return null;
 }
 
 /**
  * Triggers a real repository scan on the Spring Boot backend.
  */
-export async function triggerRealScan(branchName?: string): Promise<boolean> {
+export async function triggerRealScan(repositoryId?: string, branchName?: string): Promise<{ success: boolean; jobId?: string; message?: string }> {
   try {
     const baseUrl = getApiBaseUrl();
     const response = await fetch(`${baseUrl}/api/v1/scans/trigger`, {
@@ -260,10 +207,20 @@ export async function triggerRealScan(branchName?: string): Promise<boolean> {
         'Content-Type': 'application/json',
       },
       credentials: 'include',
-      body: JSON.stringify({ branchName: branchName || 'main' }),
+      body: JSON.stringify({
+        repositoryId: repositoryId || null,
+        branchName: branchName || 'main',
+      }),
     });
-    return response.ok;
-  } catch (_e) {
-    return false;
+
+    if (response.ok) {
+      const data = await response.json();
+      return { success: true, jobId: data.jobId, message: data.message };
+    } else {
+      const err = await response.json().catch(() => ({}));
+      return { success: false, message: err.message || 'Scan trigger failed' };
+    }
+  } catch (e: any) {
+    return { success: false, message: e.message || 'Network error' };
   }
 }

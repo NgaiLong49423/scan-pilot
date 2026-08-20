@@ -4,9 +4,10 @@ import { HealthMetrics } from '../types';
 
 interface MetricsGridProps {
   metrics: HealthMetrics;
+  isScanned?: boolean;
 }
 
-export const MetricsGrid: React.FC<MetricsGridProps> = ({ metrics }) => {
+export const MetricsGrid: React.FC<MetricsGridProps> = ({ metrics, isScanned = false }) => {
   return (
     <div className="grid grid-cols-2 gap-3 h-full">
       {/* Metric 1: Scanned Files */}
@@ -17,9 +18,11 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ metrics }) => {
         </div>
         <div className="mt-1">
           <div className="text-xl font-bold text-[#f0f6fc] tabular-nums">
-            {metrics.scannedFilesCount}
+            {isScanned ? metrics.scannedFilesCount : '—'}
           </div>
-          <span className="text-[10px] text-[#8b949e]">100% Tree Coverage</span>
+          <span className="text-[10px] text-[#8b949e]">
+            {isScanned ? '100% Tree Coverage' : 'Awaiting Scan'}
+          </span>
         </div>
       </div>
 
@@ -30,10 +33,12 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ metrics }) => {
           <AlertOctagon className="w-4 h-4 text-[#f85149]" />
         </div>
         <div className="mt-1">
-          <div className="text-xl font-bold text-[#f85149] tabular-nums">
-            {metrics.openLeaksCount}
+          <div className={`text-xl font-bold tabular-nums ${isScanned && metrics.openLeaksCount > 0 ? 'text-[#f85149]' : 'text-[#f0f6fc]'}`}>
+            {isScanned ? metrics.openLeaksCount : '—'}
           </div>
-          <span className="text-[10px] text-[#f85149]/80 font-medium">Action Required</span>
+          <span className={`text-[10px] ${isScanned && metrics.openLeaksCount > 0 ? 'text-[#f85149]/80 font-medium' : 'text-[#8b949e]'}`}>
+            {isScanned ? (metrics.openLeaksCount > 0 ? 'Action Required' : '0 Detected') : 'Awaiting Scan'}
+          </span>
         </div>
       </div>
 
@@ -45,9 +50,11 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ metrics }) => {
         </div>
         <div className="mt-1">
           <div className="text-xl font-bold text-[#58a6ff] tabular-nums">
-            {metrics.aiFixReadyCount}
+            {isScanned ? metrics.aiFixReadyCount : '—'}
           </div>
-          <span className="text-[10px] text-[#8b949e]">1-Click Gemini Diffs</span>
+          <span className="text-[10px] text-[#8b949e]">
+            {isScanned ? '1-Click Gemini Diffs' : 'Awaiting Scan'}
+          </span>
         </div>
       </div>
 
@@ -59,9 +66,11 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ metrics }) => {
         </div>
         <div className="mt-1">
           <div className="text-xl font-bold text-[#3fb950] tabular-nums">
-            {metrics.resolvedLeaksCount}
+            {isScanned ? metrics.resolvedLeaksCount : '—'}
           </div>
-          <span className="text-[10px] text-[#3fb950]/80 font-medium">Safe in Git History</span>
+          <span className="text-[10px] text-[#8b949e]">
+            {isScanned ? 'Safe in Git History' : 'Awaiting Scan'}
+          </span>
         </div>
       </div>
     </div>

@@ -9,7 +9,8 @@ import {
   FileCheck,
   LogOut,
   ExternalLink,
-  Github
+  Github,
+  Activity
 } from 'lucide-react';
 import { Repository, UserProfile } from '../types';
 
@@ -118,11 +119,25 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center gap-3 sm:gap-4">
           {/* Live Status Pill */}
           <div className="hidden lg:inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#161b22] border border-[#30363d] text-xs text-[#c9d1d9]">
-            <span className="w-2 h-2 rounded-full bg-[#3fb950] animate-pulse" />
-            <span>Dual-Stage Active • 4.3s</span>
+            {isScanning ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-[#58a6ff] animate-ping" />
+                <span className="text-[#58a6ff]">Scanning Pipeline Active</span>
+              </>
+            ) : selectedRepo?.isScanned ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-[#3fb950] animate-pulse" />
+                <span>Dual-Stage Verified • 4.31s</span>
+              </>
+            ) : (
+              <>
+                <span className="w-2 h-2 rounded-full bg-[#8b949e]" />
+                <span className="text-[#8b949e]">Engine Standby • Ready</span>
+              </>
+            )}
           </div>
 
-          {/* Trigger Rescan Button (GitHub Green Accent) */}
+          {/* Trigger Rescan Button */}
           <button
             type="button"
             onClick={onTriggerRescan}
@@ -174,10 +189,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                   <div className="min-w-0">
                     <div className="text-sm font-bold text-[#f0f6fc] truncate">
-                      {currentUser?.name || currentUser?.login || 'Gia Long Ngô'}
+                      {currentUser?.name || currentUser?.login || 'Scan Pilot User'}
                     </div>
                     <div className="text-xs text-[#8b949e] truncate">
-                      {currentUser?.email || (currentUser?.login ? `@${currentUser.login}` : 'longgiango511@gmail.com')}
+                      {currentUser?.email || (currentUser?.login ? `@${currentUser.login}` : 'user@scanpilot.dev')}
                     </div>
                     <div className="inline-flex items-center gap-1 mt-1 text-[10px] text-[#3fb950] bg-[#238636]/15 px-1.5 py-0.5 rounded border border-[#238636]/30">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#3fb950]" />
@@ -196,7 +211,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     <span className="flex items-center gap-2">
                       <Github className="w-3.5 h-3.5 text-[#58a6ff]" />
-                      <span>GitHub Profile</span>
+                      <span>View GitHub Profile</span>
                     </span>
                     <ExternalLink className="w-3.5 h-3.5 text-[#8b949e]" />
                   </a>

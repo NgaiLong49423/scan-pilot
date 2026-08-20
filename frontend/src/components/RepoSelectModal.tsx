@@ -9,7 +9,8 @@ import {
   ExternalLink, 
   Check, 
   ShieldCheck, 
-  AlertTriangle 
+  AlertTriangle,
+  Clock 
 } from 'lucide-react';
 import { Repository } from '../types';
 
@@ -82,7 +83,7 @@ export const RepoSelectModal: React.FC<RepoSelectModalProps> = ({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search repositories... (e.g. scan-pilot, java)"
+              placeholder="Search repositories... (e.g. studypack, java)"
               className="w-full bg-[#161b22] border border-[#30363d] rounded-lg py-2 pl-9 pr-14 text-xs text-[#f0f6fc] placeholder:text-[#8b949e] focus:outline-none focus:ring-2 focus:ring-[#1f6feb]/50"
             />
             <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[#8b949e] bg-[#21262d] px-1.5 py-0.5 rounded border border-[#30363d] font-mono">
@@ -91,7 +92,7 @@ export const RepoSelectModal: React.FC<RepoSelectModalProps> = ({
           </div>
 
           <a
-            href="https://github.com/apps"
+            href="https://github.com/apps/scan-pilot"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#21262d] hover:bg-[#30363d] text-[#c9d1d9] text-xs font-medium border border-[#30363d] transition-all duration-150 shrink-0"
@@ -140,17 +141,22 @@ export const RepoSelectModal: React.FC<RepoSelectModalProps> = ({
                   </div>
                 </div>
 
-                {/* Right: Health badge + Checkmark */}
+                {/* Right: Realistic Status badge + Checkmark */}
                 <div className="flex items-center gap-3 shrink-0">
-                  {repo.findingCount === 0 ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#238636]/15 text-[#3fb950] border border-[#238636]/30">
+                  {!repo.isScanned && !repo.lastScanned ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium text-[#8b949e] bg-[#21262d] border border-[#30363d]">
+                      <Clock className="w-3 h-3 text-[#8b949e]" />
+                      <span>Awaiting Scan</span>
+                    </span>
+                  ) : repo.findingCount === 0 ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-[#238636]/15 text-[#3fb950] border border-[#238636]/30">
                       <ShieldCheck className="w-3 h-3" />
-                      <span>100% Safe</span>
+                      <span>100% Scanned (0 Leaks)</span>
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#d29922]/15 text-[#e3b341] border border-[#d29922]/30">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-[#da3633]/15 text-[#f85149] border border-[#da3633]/30">
                       <AlertTriangle className="w-3 h-3" />
-                      <span>{repo.findingCount} Leaks</span>
+                      <span>Scanned ({repo.findingCount} Leaks)</span>
                     </span>
                   )}
 
@@ -172,7 +178,7 @@ export const RepoSelectModal: React.FC<RepoSelectModalProps> = ({
         {/* Footer */}
         <div className="p-4 border-t border-[#30363d] bg-[#0d1117] flex items-center justify-between gap-3">
           <span className="text-[11px] text-[#8b949e] hidden sm:inline">
-            33 repositories synced with GitHub App
+            {repositories.length} repositories synced with GitHub App
           </span>
 
           <div className="flex items-center gap-2 ml-auto">
