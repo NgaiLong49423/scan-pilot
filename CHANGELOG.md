@@ -13,7 +13,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-20 — Review-Before-Commit and Technical Lead RCA Correction (Issue #60)
 
-**Status:** Working tree
+**Status:** Committed — 70f6769
 
 **Scope:** Corrected the Issue #60 delivery workflow after Product Owner feedback. All Agent 1/2/3/4 and Codex review occurs on one frozen uncommitted local worktree diff. Product Owner acceptance is required before a local commit; push, pull-request creation, merge, Issue closure, and deployment remain separate authorizations. Added Codex Technical Lead root-cause analysis and prevention/re-dispatch responsibilities for workflow failures.
 
