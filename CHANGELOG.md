@@ -13,7 +13,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-20 — GitHub Dark Theme, Profile Popover & Uniform Bento Grid (PR #47)
 
-**Status:** Committed — (PR #47)
+**Status:** Committed — `a79022f` (PR #47)
 
 **Scope:** Migrated entire frontend to authentic GitHub Dark Theme (`#0d1117` canvas, `#161b22` cards, `#30363d` borders, `#238636` green accents), implemented Google-style account profile popover with live GitHub avatar, and restructured visual analytics bento banner to equal-height 3-column layout with 2x2 metric matrix.
 
