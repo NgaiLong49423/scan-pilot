@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Delivery Workflow
 > **File:** `docs/DELIVERY-WORKFLOW.md`
-> **Version:** v2.0.0
+> **Version:** v2.1.0
 > **Created:** 2026-08-16
-> **Last Updated:** 2026-08-20
+> **Last Updated:** 2026-08-22
 > **Status:** Active
 
 # Scan Pilot Delivery Workflow
@@ -128,6 +128,54 @@ Remediation loop: If QA returns `REQUEST_CHANGES`, AppSec returns `BLOCKED`, or 
 
 Product Owner acceptance: `Review` remains the active state while Gatekeeper review, Tech Lead sign-off, and Product Owner acceptance are pending. The Product Owner records `PO ACCEPTED` or `PO RETURNED` in the Issue and provides explicit merge authorization. Codex Tech Lead recommendations do NOT replace Product Owner acceptance or merge permission. Only explicit Product Owner merge authority permits PR merge and Issue closure.
 
+## Target, Proof, and Remediation Controls
+
+### Pre-BUILD Target Manifest
+
+Before Agent 1 edits code, Agent 4 records this compact manifest in `.agent-work/`:
+
+```text
+Base ref and resolved commit: <origin/main SHA>
+Local worktree: <path retained locally only>
+Review mode: frozen local diff before commit
+Production artifact: <for example, frontend/src>
+Allowed paths: <paths>
+Prohibited paths: <frozen prototype/evidence and unrelated paths>
+Manual deployment handoff: <when applicable>
+```
+
+The manifest is checked before BUILD and again before QA/AppSec review. For Scan Pilot frontend work, `frontend/src/**` is the production artifact that the Product Owner manually transfers to Google AI Studio. Frozen AI Studio evidence must not be changed unless the Issue explicitly authorizes it.
+
+### High-Risk Acceptance Test Matrix
+
+For repository identity/isolation, persistence, external I/O, security, fail-closed behavior, and frontend-backend contracts, Agent 4 adds a focused proof before BUILD:
+
+| Acceptance criterion | Contract layer | Focused proof | Expected failure and success | Dependency isolation |
+|---|---|---|---|---|
+| Requested scan branch remains exact | pipeline and evidence persistence | pipeline regression test | missing branch fails with no evidence; configured branch succeeds | mocked ZIP transport; no live GitHub request |
+
+The matrix selects the smallest useful proof. A live-service check is labelled integration evidence, never deterministic automated evidence.
+
+### Risk-Based Verification
+
+Complete a coherent code slice, run its narrow relevant check, and repair the cause before expanding verification. Run the full applicable backend/frontend verification once on the frozen local diff before handoff. Do not rerun an unchanged passing suite unless source changed, a prior check failed, or the remediation explicitly requires it. Bruno is used only for affected REST/integration flows and never replaces compilation, automated tests, lint, or production build evidence.
+
+### Directed Remediation Contract
+
+Every Codex `CHANGES_NEEDED` finding must be a bounded remediation card, not an open-ended request to rediscover a defect:
+
+| Field | Required content |
+|---|---|
+| Finding ID and severity | Stable identifier and impact |
+| Violated contract | Exact acceptance criterion, brief requirement, or guardrail |
+| Evidence | Observed behavior and exact file, symbol, line, test, or request/response evidence when available |
+| Cause | Confirmed root cause, or explicitly labelled hypothesis |
+| Required change | Concrete bounded behavior/file/symbol target; never only “investigate” |
+| Required proof | Focused regression test, request, or direct assertion |
+| Non-goals | Explicitly prohibited refactor, API, schema, UI, or external-action expansion |
+
+**Return flow:** Codex → Agent 4 → Agent 1. Agent 1 implements only the stated remediation and reports a genuine conflict or missing external fact. Agent 2 and Agent 3 review the new frozen diff for the remediation and affected regression surface; Agent 4 returns one consolidated evidence package to Codex. Unchanged passing broad evidence is cited, not rerun, unless the remediation card states the reason.
+
 ## Change-Proportional Checklists
 
 Checklists for QA (Agent 2) and AppSec (Agent 3) must scale to the specific change category:
@@ -142,7 +190,7 @@ Checklists for QA (Agent 2) and AppSec (Agent 3) must scale to the specific chan
 ### 2. Backend / REST API Changes
 - [ ] Modular monolith architecture preserved; API contract intact.
 - [ ] Defensive programming, null checks, and explicit exception handling.
-- [ ] Unit and integration tests pass (`mvn test`).
+- [ ] Narrow affected tests pass during implementation; the full applicable Maven suite runs once on the frozen handoff diff.
 - [ ] Performance and resource utilization within boundaries.
 
 ### 3. Auth / GitHub Integration / Cookie / Session Changes
