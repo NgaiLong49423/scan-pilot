@@ -83,7 +83,7 @@ jobs:
             --cpu=1
             --allow-unauthenticated
             --service-account=scan-pilot-api-runner@gen-lang-client-0098508328.iam.gserviceaccount.com
-            --set-cloud-sql-instances=gen-lang-client-0098508328:asia-southeast1:scan-pilot-db
+            --set-cloudsql-instances=gen-lang-client-0098508328:asia-southeast1:scan-pilot-db
             --set-env-vars=SPRING_PROFILES_ACTIVE=prod,COOKIE_SECURE=true,GITHUB_CLIENT_ID=${{ secrets.GH_APP_CLIENT_ID }}
             --set-secrets=SPRING_DATASOURCE_URL=scan-pilot-db-url:latest,SPRING_DATASOURCE_USERNAME=scan-pilot-db-user:latest,SPRING_DATASOURCE_PASSWORD=scan-pilot-db-password:latest,GITHUB_CLIENT_SECRET=scan-pilot-github-client-secret:latest,SCANPILOT_HMAC_SECRET_KEY=scanpilot-hmac-key:latest
 
