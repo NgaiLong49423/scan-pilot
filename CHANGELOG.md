@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.33.0
+> **Version:** v2.34.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-20
+> **Last Updated:** 2026-08-22
 > **Status:** Active
 
 # Scan Pilot Changelog
@@ -10,6 +10,23 @@
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
+
+## 2026-08-22 — Efficient Local-Review Delivery Controls
+
+**Status:** Working tree
+
+### Changed
+
+- Added a pre-BUILD target manifest to prevent stale-base, wrong-worktree, frozen-prototype, and non-deployed frontend artifact changes.
+- Added a high-risk acceptance test matrix that distinguishes deterministic tests from live integration evidence.
+- Added directed remediation cards so Codex returns exact correction/proof instructions rather than asking the implementation team to rediscover known defects.
+- Formalized risk-based verification: narrow checks during implementation and one full applicable suite on the frozen handoff diff.
+
+### Affected files
+
+- `AGENTS.md`
+- `docs/DELIVERY-WORKFLOW.md`
+- `CHANGELOG.md`
 
 ## 2026-08-20 — Restore Build Integrity and Evidence-Backed Telemetry (Issue #51)
 

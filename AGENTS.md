@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Agent Instructions
 > **File:** `AGENTS.md`
-> **Version:** v3.0.0
+> **Version:** v3.1.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-20
+> **Last Updated:** 2026-08-22
 > **Status:** Active
 
 # Agent Instructions
@@ -231,7 +231,13 @@ Product Owner (User)
 
 **Local review target:** Before any QA/AppSec/Tech Lead review, Agent 4 records the worktree path, base commit for context only, and changed-file list, then stops implementation edits. Every pre-commit report must state `uncommitted local worktree`; it must not invent an implementation commit SHA. Any change to that local diff invalidates the QA, AppSec, Gatekeeper, and Tech Lead reports and requires fresh review.
 
+**Target and proof preflight:** Before Agent 1 changes code, Agent 4 records the base ref and resolved commit, local worktree path, production artifact path, allowed/prohibited paths, and manual deployment handoff when applicable. For Scan Pilot frontend work, `frontend/src/**` is the deployable artifact that the Product Owner manually transfers to Google AI Studio; frozen prototypes/evidence paths are excluded unless the Issue explicitly includes them. For each high-risk acceptance criterion (repository identity, persistence, external I/O, security, fail-closed behavior, or frontend-backend contract), the plan names one focused proof, its expected failure/success, and its dependency-isolation method. A live-service test is integration evidence, never deterministic evidence.
+
+**Risk-based verification:** Run the narrowest relevant check after a coherent code slice; rerun a passing broad suite only when source changed, a prior test failed, or the remediation requires it. Run the full applicable backend/frontend verification once on the frozen local diff before handoff. Bruno applies only to affected REST/integration flows and never replaces compilation, automated tests, lint, or build.
+
 **Technical Lead RCA and prevention:** For a workflow, contract, or evidence failure, Codex records `.agent-work/diagnostics/rca-<issue>.md` with the symptom, root cause, affected source-of-truth files/templates, bounded correction, prevention rule, and re-dispatch criteria. Codex may correct these delivery artifacts within the accepted Issue scope; the RCA is the corrective-change handoff and Agent 4 must obtain fresh independent QA/AppSec review of that local diff before returning it to Codex. Codex must not self-approve its correction. Any product, UI/UX, cost, privacy, permission, architecture, dependency, or external-state change still requires Product Owner direction.
+
+**Directed remediation:** Every Codex `CHANGES_NEEDED` finding must specify the violated contract, exact evidence, confirmed cause or labelled hypothesis, bounded required change, required proof, and non-goals. It is never an open-ended request to rediscover a known defect. Agent 4 routes that card directly to Agent 1; QA/AppSec then review only the remediation and its affected regression surface. Existing passing broad evidence is cited rather than rerun unless source changed, a prior check failed, or the card requires it.
 
 Remediation rule: Any QA `REQUEST_CHANGES`, AppSec `BLOCKED`, or Codex `CHANGES_NEEDED`/`BLOCKED` returns the item through Agent 4 to Coder. After remediation, fresh QA, AppSec, Gatekeeper, and Tech Lead reviews are required for the changed local diff. Keep detailed briefs, reports, logs, and intermediate analysis in `.agent-work/`; keep eventual PR descriptions compact and secret-safe.
 
