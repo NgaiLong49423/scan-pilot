@@ -16,6 +16,7 @@ import org.springframework.web.client.RestClient;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -38,9 +39,25 @@ class GitHubAppServiceTest {
 
         gitHubAppAuthService = mock(GitHubAppAuthService.class);
         sessionService = new SessionService(new AuthConfigProperties());
+        com.scanpilot.persistence.repository.UserRepository mockUserRepo = mock(com.scanpilot.persistence.repository.UserRepository.class);
+        com.scanpilot.persistence.repository.RepositoryRepository mockRepoRepo = mock(com.scanpilot.persistence.repository.RepositoryRepository.class);
+        com.scanpilot.persistence.repository.MonitoredBranchRepository mockBranchRepo = mock(com.scanpilot.persistence.repository.MonitoredBranchRepository.class);
+
+        java.util.UUID testUserId = java.util.UUID.randomUUID();
+        when(mockUserRepo.findByGithubUserId(any())).thenReturn(Optional.of(
+                com.scanpilot.persistence.entity.UserEntity.builder().id(testUserId).githubUserId(123L).build()
+        ));
+        when(mockRepoRepo.findByUserIdAndGithubRepoId(any(), any())).thenReturn(Optional.empty());
+        when(mockRepoRepo.save(any())).thenAnswer(inv -> {
+            com.scanpilot.persistence.entity.RepositoryEntity r = inv.getArgument(0);
+            if (r != null) r.setId(java.util.UUID.randomUUID());
+            return r;
+        });
+
         projectService = new ProjectService(
-                mock(com.scanpilot.persistence.repository.UserRepository.class),
-                mock(com.scanpilot.persistence.repository.RepositoryRepository.class)
+                mockUserRepo,
+                mockRepoRepo,
+                mockBranchRepo
         );
 
         RestClient.Builder builder = RestClient.builder();

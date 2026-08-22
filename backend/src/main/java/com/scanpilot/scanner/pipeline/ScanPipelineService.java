@@ -501,58 +501,57 @@ public class ScanPipelineService {
         return false;
     }
 
-    private void fetchRemoteRepositorySnapshot(UUID repositoryId, String branch, Path workspacePath) {
+    void fetchRemoteRepositorySnapshot(UUID repositoryId, String branch, Path workspacePath) {
         if (repositoryRepository == null || repositoryId == null) {
-            return;
+            throw new IllegalStateException("Repository repository or repository ID is not available");
         }
-        repositoryRepository.findById(repositoryId).ifPresent(repo -> {
-            String fullName = repo.getFullName();
-            if (fullName == null || fullName.isBlank()) {
-                if (repo.getOwner() != null && repo.getName() != null) {
-                    fullName = repo.getOwner() + "/" + repo.getName();
-                }
+        com.scanpilot.persistence.entity.RepositoryEntity repo = repositoryRepository.findById(repositoryId)
+                .orElseThrow(() -> new IllegalStateException("Repository not found: " + repositoryId));
+
+        String fullName = repo.getFullName();
+        if (fullName == null || fullName.isBlank()) {
+            if (repo.getOwner() != null && repo.getName() != null) {
+                fullName = repo.getOwner() + "/" + repo.getName();
             }
-            if (fullName == null || fullName.isBlank()) {
-                return;
+        }
+        if (fullName == null || fullName.isBlank()) {
+            throw new IllegalStateException("Repository full name could not be determined for repository: " + repositoryId);
+        }
+
+        log.info("Fetching remote snapshot for repository {} on branch {}", fullName, branch);
+        String token = null;
+        if (repo.getUserId() != null && userSessionRepository != null) {
+            List<com.scanpilot.persistence.entity.UserSessionEntity> sessions = userSessionRepository.findByUserId(repo.getUserId());
+            if (!sessions.isEmpty()) {
+                token = sessions.get(0).getAccessToken();
             }
+        }
 
-            log.info("Fetching remote snapshot for repository {} on branch {}", fullName, branch);
-            try {
-                String token = null;
-                if (repo.getUserId() != null && userSessionRepository != null) {
-                    List<com.scanpilot.persistence.entity.UserSessionEntity> sessions = userSessionRepository.findByUserId(repo.getUserId());
-                    if (!sessions.isEmpty()) {
-                        token = sessions.get(0).getAccessToken();
-                    }
-                }
+        java.net.http.HttpClient httpClient = createHttpClient();
 
-                java.net.http.HttpClient httpClient = java.net.http.HttpClient.newBuilder()
-                        .followRedirects(java.net.http.HttpClient.Redirect.ALWAYS)
-                        .connectTimeout(java.time.Duration.ofSeconds(30))
-                        .build();
+        // Strictly branch-specific zipball URL (Issue #53: No silent fallback to repository default branch)
+        byte[] zipBytes = downloadZipBytes(httpClient, "https://api.github.com/repos/" + fullName + "/zipball/" + branch, token);
 
-                // 1. Try branch-specific zipball URL
-                byte[] zipBytes = downloadZipBytes(httpClient, "https://api.github.com/repos/" + fullName + "/zipball/" + branch, token);
+        if (zipBytes == null || zipBytes.length == 0) {
+            throw new IllegalStateException("Remote repository snapshot for branch '" + branch + "' could not be acquired or verified");
+        }
 
-                // 2. If branch-specific URL returns null/404, fallback to default branch zipball URL
-                if (zipBytes == null || zipBytes.length == 0) {
-                    log.info("Branch '{}' not found or returned empty for {}; attempting repository default branch", branch, fullName);
-                    zipBytes = downloadZipBytes(httpClient, "https://api.github.com/repos/" + fullName + "/zipball", token);
-                }
-
-                if (zipBytes != null && zipBytes.length > 0) {
-                    extractZipArchive(zipBytes, workspacePath);
-                    log.info("Successfully extracted {} bytes of repository snapshot for {}", zipBytes.length, fullName);
-                } else {
-                    log.warn("Repository snapshot for {} returned empty payload", fullName);
-                }
-            } catch (Exception e) {
-                log.warn("Could not download remote snapshot for {} (branch: {}): {}", fullName, branch, e.getMessage(), e);
-            }
-        });
+        try {
+            extractZipArchive(zipBytes, workspacePath);
+            log.info("Successfully extracted {} bytes of repository snapshot for {}", zipBytes.length, fullName);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to extract snapshot archive for branch '" + branch + "': " + e.getMessage(), e);
+        }
     }
 
-    private byte[] downloadZipBytes(java.net.http.HttpClient httpClient, String url, String token) {
+    protected java.net.http.HttpClient createHttpClient() {
+        return java.net.http.HttpClient.newBuilder()
+                .followRedirects(java.net.http.HttpClient.Redirect.ALWAYS)
+                .connectTimeout(java.time.Duration.ofSeconds(30))
+                .build();
+    }
+
+    byte[] downloadZipBytes(java.net.http.HttpClient httpClient, String url, String token) {
         try {
             java.net.http.HttpRequest.Builder builder = java.net.http.HttpRequest.newBuilder()
                     .uri(java.net.URI.create(url))
