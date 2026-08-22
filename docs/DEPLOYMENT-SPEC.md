@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Cloud Run Deployment Specification
 > **File:** `docs/DEPLOYMENT-SPEC.md`
-> **Version:** v1.0.0
+> **Version:** v1.1.0
 > **Created:** 2026-08-19
-> **Last Updated:** 2026-08-19
+> **Last Updated:** 2026-08-22
 > **Status:** Active
 
 # Scan Pilot Cloud Run Deployment Specification
@@ -32,18 +32,22 @@ Scan Pilot adopts a **Decoupled Multi-Service Cloud Run Architecture** (`DEC-056
 │                 Backend Service: scan-pilot-api (LIVE)                 │
 │              Domain: https://scan-pilot-api-drbjfwrlxq-as.a.run.app    │
 │  - Spring Boot 3.4.3 + Java 21 JRE                                     │
+│  - Cloud SQL Postgres Socket Factory (com.google.cloud.sql.postgres)   │
+│  - Dedicated Runtime Service Account: scan-pilot-api-runner            │
 │  - Flyway Database Migrations (12 Core PostgreSQL tables)              │
 │  - Pinned SP-CONFIG-001 Policy & Gitleaks Detection Engine             │
 │  - Gemini AI Explanation Client (gemini-1.5-flash)                     │
 │  - Multi-Origin CORS: https://aistudio.google.com + Web Service Origin │
 │  - Scale-to-Zero (min-instances = 0, $0 idle cost)                     │
 └───────────────────────────────────┬────────────────────────────────────┘
-                                    │ JDBC Connection Pool (HikariCP)
+                                    │ Cloud SQL Unix Socket / Socket Factory
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        Database Layer: PostgreSQL                      │
-│  - Managed Cloud SQL / Serverless PostgreSQL (PostgreSQL 15/16)        │
+│               Database Layer: Managed Cloud SQL PostgreSQL             │
+│  - Instance: gen-lang-client-0098508328:asia-southeast1:scan-pilot-db   │
+│  - Engine: PostgreSQL 16 (Enterprise HA/Zonal storage)                │
 │  - Strict UUID primary keys and repository tenant isolation            │
+│  - Fail-closed startup validator (ProductionDatasourceStartupValidator)│
 │  - Zero raw credential persistence                                     │
 └────────────────────────────────────────────────────────────────────────┘
 ```
@@ -59,75 +63,109 @@ Scan Pilot adopts a **Decoupled Multi-Service Cloud Run Architecture** (`DEC-056
 * **Security Guardrails:**
   * Runs as non-root user (`scanpilot:scanpilot`, UID 10001).
   * Read-only root filesystem with explicit `/tmp` volume.
+  * Dedicated runtime service account: `scan-pilot-api-runner@gen-lang-client-0098508328.iam.gserviceaccount.com` (provisioned after reviewed merge and deployment).
   * Image size budget: $< 180\text{ MB}$.
 
 ### 2.2 Environment Variables & Secrets Configuration
 
-| Variable Name | Required | Default / Format | Description |
+All database credentials and sensitive API secrets are injected securely via Google Cloud Secret Manager (provisioned and verified after reviewed merge and deployment). No raw secrets or connection strings are stored in code or repository configuration.
+
+| Variable Name | Required | Source / Secret Name | Description |
 |---|:---:|---|---|
-| `PORT` | Yes | `8080` | Container listening port assigned by Cloud Run |
-| `SPRING_PROFILES_ACTIVE` | Yes | `prod` | Spring profile activating Cloud configuration |
-| `JDBC_DATABASE_URL` | Yes | `jdbc:postgresql://<host>:5432/<db>` | Database JDBC URL |
-| `JDBC_DATABASE_USERNAME` | Yes | - | Database username |
-| `JDBC_DATABASE_PASSWORD` | Yes | - | Database password (stored in Cloud Secret Manager) |
-| `SCANPILOT_HMAC_SECRET_KEY`| Yes | 64-character Hex string | Cryptographic key for `SP_SECRET_FP_V1` |
-| `GEMINI_API_KEY` | Yes | Google GenAI API Key | Gemini 1.5 Flash API Key |
-| `GITHUB_CLIENT_ID` | Optional | GitHub OAuth App ID | GitHub OAuth client ID |
-| `GITHUB_CLIENT_SECRET` | Optional | GitHub OAuth Secret | GitHub OAuth client secret |
-| `SCANPILOT_CORS_ALLOWED_ORIGINS` | Yes | `https://aistudio.google.com,https://scan-pilot-web-*.run.app` | Comma-separated CORS allowed origins |
+| `PORT` | Yes | Cloud Run Default (`8080`) | Container listening port assigned by Cloud Run |
+| `SPRING_PROFILES_ACTIVE` | Yes | Static (`prod`) | Spring profile activating Cloud configuration & fail-closed validation |
+| `COOKIE_SECURE` | Yes | Static (`true`) | Enforces HTTPS-only secure cookies in production |
+| `SPRING_DATASOURCE_URL` | Yes | Secret `scan-pilot-db-url:latest` | PostgreSQL JDBC connection URL with Cloud SQL Socket Factory |
+| `SPRING_DATASOURCE_USERNAME` | Yes | Secret `scan-pilot-db-user:latest` | Database username |
+| `SPRING_DATASOURCE_PASSWORD` | Yes | Secret `scan-pilot-db-password:latest` | Database password |
+| `GITHUB_CLIENT_ID` | Optional | GitHub Actions Secret `GH_APP_CLIENT_ID` | GitHub App OAuth client ID |
+| `GITHUB_CLIENT_SECRET` | Optional | Secret `scan-pilot-github-client-secret:latest` | GitHub App OAuth client secret |
+| `SCANPILOT_HMAC_SECRET_KEY`| Yes | Secret `scanpilot-hmac-key:latest` | Cryptographic key for `SP_SECRET_FP_V1` fingerprinting (Mandatory in prod, fail-closed) |
+| `GEMINI_API_KEY` | Optional | Secret `scanpilot-gemini-key:latest` | Gemini 1.5 Flash API Key |
+| `SCANPILOT_CORS_ALLOWED_ORIGINS` | Yes | Static / Env | Comma-separated CORS allowed origins (`https://aistudio.google.com,https://scan-pilot-web-*.run.app`) |
 
-### 2.3 Cloud Run Resource Sizing & Cost Guardrails (`docs/CLOUD-BUDGET.md`)
+### 2.3 Cloud SQL Connectivity & Socket Factory
 
-* **Region:** `asia-southeast1` (Singapore) or `asia-east1` (Taiwan).
-* **CPU:** `1 vCPU`.
-* **Memory:** `512 MiB` (Max `1 GiB`).
-* **Concurrency:** `80`.
-* **Scaling:** `min-instances = 0` (Scale-to-Zero), `max-instances = 2`.
-* **Timeout:** `60s`.
+Scan Pilot connects to Cloud SQL using the official Google Cloud SQL Postgres Socket Factory (`com.google.cloud.sql:postgres-socket-factory`):
+- **Cloud SQL Instance Connection Name:** `gen-lang-client-0098508328:asia-southeast1:scan-pilot-db`
+- **Socket Factory Driver Class:** `com.google.cloud.sql.postgres.SocketFactory`
+- **HikariCP Pool Bounds:** Maximum 5 connections, minimum 1 idle connection, connection timeout 30s, max lifetime 30m.
+- **Fail-Closed Validation:** `ProductionDatasourceStartupValidator` verifies the active database product at startup and immediately aborts if any non-PostgreSQL (e.g. H2) or inaccessible datasource is detected.
+
+### 2.4 Cloud Run Resource Sizing & Cost Guardrails (`docs/CLOUD-BUDGET.md`)
+
+* **Region:** `asia-southeast1` (Singapore).
+* **Service Account:** `scan-pilot-api-runner@gen-lang-client-0098508328.iam.gserviceaccount.com` (effective after reviewed merge and deployment).
+* **CPU:** `1` (`--cpu=1`).
+* **Memory:** `512Mi` (`--memory=512Mi`).
+* **Scaling:** `min-instances = 0` (`--min-instances=0`, Scale-to-Zero), `max-instances = 2` (`--max-instances=2`).
 
 ---
 
 ## 3. Frontend & Google AI Studio Contract
 
-### 3.1 Dual-Origin & Base URL Resolution (`src/api/client.ts`)
+### 3.1 Dual-Origin & Base URL Resolution (`frontend/src/services/api.ts`)
 
 ```typescript
-const BASE_URL = import.meta.env.VITE_API_BASE_URL 
-  ? `${import.meta.env.VITE_API_BASE_URL}/api/v1` 
-  : '/api/v1';
+export function getApiBaseUrl(): string {
+  const envUrl =
+    (import.meta.env.VITE_API_URL as string | undefined) ||
+    (import.meta.env.VITE_BACKEND_URL as string | undefined) ||
+    (import.meta.env.VITE_API_BASE_URL as string | undefined);
+
+  if (envUrl && envUrl.trim().length > 0) {
+    return envUrl.trim().replace(/\/+$/, '');
+  }
+
+  return '';
+}
 ```
 
 ### 3.2 AI Studio Prompt & File Boundary Guardrails
 
 To prevent LLM code generation inside Google AI Studio from corrupting API integration:
-1. **Immutable API Layer (`src/api/`):** Contains typed contracts (`authApi`, `githubApi`, `projectsApi`, `scansApi`, `aiApi`).
-2. **Customizable UI Layer (`src/components/`):** Presentation components (`FindingCard`, `ScanProgressBar`, `CoverageTab`, `Header`) that consume API state.
-3. **Graceful Fallback Guarantee:** All API calls catch HTTP `404/500/NetworkError` and render friendly error banners or demo reassurance states instead of unhandled crashes.
+1. **Frontend Service Layer (`frontend/src/services/api.ts`):** Contains typed API client methods (`fetchCurrentUser`, `fetchMonitoredProjects`, `fetchAvailableGitHubRepositories`, `fetchFindingsForRepo`, `fetchCoverageForRepo`, `triggerScan`).
+2. **Customizable UI Layer (`frontend/src/components/` & `frontend/src/App.tsx`):** Presentation components (`FindingCard`, `ScanProgressBar`, `CoverageTab`, `Header`, `FleetDashboard`) consuming API state.
+3. **Graceful Fail-Closed Guarantee:** When backend connection is unavailable, displays a dedicated connection retry banner instead of unhandled crashes or mock fallbacks.
+
+### 3.3 Google AI Studio Workspace Manual Transfer Procedure
+
+To synchronize frontend codebase with Google AI Studio:
+1. Copy updated source files from `frontend/src/**` to the Google AI Studio project workspace.
+2. In Google AI Studio Project Settings / Environment Variables, configure `VITE_API_BASE_URL=https://scan-pilot-api-drbjfwrlxq-as.a.run.app`.
+3. In Google AI Studio, trigger **Deploy to Cloud Run** to build and host `scan-pilot-web`.
+4. Ensure CORS settings on `scan-pilot-api` permit the generated `https://scan-pilot-web-*.run.app` domain.
 
 ---
 
 ## 4. Step-by-Step Deployment Runbook
 
-### Step 1: Deploy Backend to Cloud Run
-```bash
-# Build and submit container image to Google Artifact Registry
-gcloud builds submit --tag asia-southeast1-docker.pkg.dev/gen-lang-client-0098508328/scan-pilot/api:v1.0.0 backend/
+### Step 1: Deploy Backend to Cloud Run (Automated via GitHub Actions / Manual CLI)
 
-# Deploy to Cloud Run
+```bash
+# Build and submit container image via Cloud Build / Artifact Registry
+PROJECT_ID="gen-lang-client-0098508328"
+IMAGE_TAG="asia-southeast1-docker.pkg.dev/${PROJECT_ID}/scan-pilot/api:latest"
+gcloud builds submit --tag "${IMAGE_TAG}" backend/
+
+# Deploy to Cloud Run with dedicated service account and Cloud SQL connection
 gcloud run deploy scan-pilot-api \
-  --image asia-southeast1-docker.pkg.dev/gen-lang-client-0098508328/scan-pilot/api:v1.0.0 \
+  --image "${IMAGE_TAG}" \
   --region asia-southeast1 \
   --min-instances 0 \
   --max-instances 2 \
   --memory 512Mi \
   --cpu 1 \
   --allow-unauthenticated \
-  --set-env-vars "SPRING_PROFILES_ACTIVE=prod,SCANPILOT_CORS_ALLOWED_ORIGINS=https://aistudio.google.com" \
-  --set-secrets "JDBC_DATABASE_URL=scanpilot-db-url:latest,JDBC_DATABASE_PASSWORD=scanpilot-db-pass:latest,GEMINI_API_KEY=scanpilot-gemini-key:latest,SCANPILOT_HMAC_SECRET_KEY=scanpilot-hmac-key:latest"
+  --service-account scan-pilot-api-runner@gen-lang-client-0098508328.iam.gserviceaccount.com \
+  --set-cloud-sql-instances gen-lang-client-0098508328:asia-southeast1:scan-pilot-db \
+  --set-env-vars "SPRING_PROFILES_ACTIVE=prod,COOKIE_SECURE=true,GITHUB_CLIENT_ID=${GH_APP_CLIENT_ID}" \
+  --set-secrets "SPRING_DATASOURCE_URL=scan-pilot-db-url:latest,SPRING_DATASOURCE_USERNAME=scan-pilot-db-user:latest,SPRING_DATASOURCE_PASSWORD=scan-pilot-db-password:latest,GITHUB_CLIENT_SECRET=scan-pilot-github-client-secret:latest,SCANPILOT_HMAC_SECRET_KEY=scanpilot-hmac-key:latest"
 ```
 
 ### Step 2: Configure AI Studio Frontend & Deploy
 1. Open Google AI Studio Project workspace.
-2. In Project Settings / Environment Variables, add `VITE_API_BASE_URL=https://scan-pilot-api-drbjfwrlxq-as.a.run.app`.
-3. Click **Deploy to Cloud Run** in Google AI Studio.
-4. Update Backend `SCANPILOT_CORS_ALLOWED_ORIGINS` with the generated Frontend URL.
+2. Transfer `frontend/src/**` to AI Studio workspace.
+3. In Project Settings / Environment Variables, add `VITE_API_BASE_URL=https://scan-pilot-api-drbjfwrlxq-as.a.run.app`.
+4. Click **Deploy to Cloud Run** in Google AI Studio.
+5. Verify backend connectivity from the deployed frontend interface.

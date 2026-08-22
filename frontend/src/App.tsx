@@ -3,7 +3,8 @@ import {
   Search, 
   CheckCircle2, 
   ArrowLeft,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { Repository, Finding, HealthMetrics, UserProfile } from './types';
 import { 
@@ -38,6 +39,7 @@ export default function App() {
   // Available repos from GitHub App vs Explicitly Monitored repos in Scan Pilot
   const [availableRepos, setAvailableRepos] = useState<Repository[]>([]);
   const [monitoredRepos, setMonitoredRepos] = useState<Repository[]>([]);
+  const [isBackendUnavailable, setIsBackendUnavailable] = useState<boolean>(false);
   
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
@@ -56,54 +58,63 @@ export default function App() {
   const [liveScannedCount, setLiveScannedCount] = useState<number>(0);
   const [liveLeaksCount, setLiveLeaksCount] = useState<number>(0);
 
-  // Initial load: Check backend authentication & sync monitored/available repositories directly from PostgreSQL
-  useEffect(() => {
-    async function loadData() {
-      // 1. Check active user session
+  // Sync monitored/available repositories directly from PostgreSQL
+  const loadData = async () => {
+    // 1. Check active user session
+    try {
       const user = await fetchCurrentUser();
       if (user) {
         setCurrentUser(user);
         setCurrentView('fleet');
       }
+    } catch (_e) {
+      // Ignore error
+    }
 
-      // 2. Load available GitHub repos and explicitly monitored repos in parallel
-      const [allGithubRepos, dbMonitored] = await Promise.all([
-        fetchAvailableGitHubRepositories(),
-        fetchMonitoredProjects(),
-      ]);
+    // 2. Load available GitHub repos and explicitly monitored repos in parallel
+    const [allGithubRepos, dbMonitored] = await Promise.all([
+      fetchAvailableGitHubRepositories(),
+      fetchMonitoredProjects(),
+    ]);
 
-      setAvailableRepos(allGithubRepos);
-      
-      // If DB returned monitored projects, strictly replace state (no local storage cache)
-      if (dbMonitored !== null) {
-        if (dbMonitored.length === 0) {
-          setMonitoredRepos([]);
-        } else {
-          const hydrated = await Promise.all(
-            dbMonitored.map(async (repo) => {
-              if (repo.dbRepositoryId && isValidUuid(repo.dbRepositoryId)) {
-                const [realFindings, realCoverage] = await Promise.all([
-                  fetchFindingsForRepo(repo.dbRepositoryId),
-                  fetchCoverageForRepo(repo.dbRepositoryId),
-                ]);
-                const isScanned = Boolean(realCoverage != null || (realFindings && realFindings.length > 0));
-                const openCount = realFindings ? realFindings.filter(f => f.status === 'OPEN').length : 0;
-                return {
-                  ...repo,
-                  isScanned,
-                  lastScanned: isScanned ? 'Audited' : null,
-                  findingCount: openCount,
-                  healthScore: !isScanned ? 0 : Math.max(0, 100 - openCount * 15),
-                };
-              }
-              return repo;
-            })
-          );
+    setAvailableRepos(allGithubRepos);
 
-          setMonitoredRepos(hydrated);
-        }
+    // If DB returned monitored projects, strictly replace state (no local storage cache)
+    if (dbMonitored === null) {
+      setIsBackendUnavailable(true);
+      setMonitoredRepos([]);
+    } else {
+      setIsBackendUnavailable(false);
+      if (dbMonitored.length === 0) {
+        setMonitoredRepos([]);
+      } else {
+        const hydrated = await Promise.all(
+          dbMonitored.map(async (repo) => {
+            if (repo.dbRepositoryId && isValidUuid(repo.dbRepositoryId)) {
+              const [realFindings, realCoverage] = await Promise.all([
+                fetchFindingsForRepo(repo.dbRepositoryId),
+                fetchCoverageForRepo(repo.dbRepositoryId),
+              ]);
+              const isScanned = Boolean(realCoverage != null || (realFindings && realFindings.length > 0));
+              const openCount = realFindings ? realFindings.filter(f => f.status === 'OPEN').length : 0;
+              return {
+                ...repo,
+                isScanned,
+                lastScanned: isScanned ? 'Audited' : null,
+                findingCount: openCount,
+                healthScore: !isScanned ? 0 : Math.max(0, 100 - openCount * 15),
+              };
+            }
+            return repo;
+          })
+        );
+
+        setMonitoredRepos(hydrated);
       }
     }
+  };
+
+  useEffect(() => {
     loadData();
   }, []);
 
@@ -501,13 +512,41 @@ export default function App() {
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-6">
         {/* VIEW 1: Organization Multi-Repository Fleet Overview Hub */}
         {currentView === 'fleet' && (
-          <FleetDashboard
-            monitoredRepositories={monitoredRepos}
-            currentUser={currentUser}
-            onSelectRepo={handleSelectRepo}
-            onOpenImportModal={() => setIsImportModalOpen(true)}
-            onLogout={logoutUser}
-          />
+          <>
+            {isBackendUnavailable ? (
+              <div className="p-8 sm:p-12 text-center bg-[#161b22] border border-[#30363d] rounded-2xl space-y-4 shadow-sm animate-in fade-in duration-200">
+                <div className="w-12 h-12 rounded-full bg-[#d29922]/15 border border-[#d29922]/30 text-[#d29922] mx-auto flex items-center justify-center">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-base sm:text-lg font-bold text-[#f0f6fc]">
+                    Backend connection unavailable
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[#8b949e] max-w-md mx-auto">
+                    Backend connection unavailable. Please check backend status or retry.
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => loadData()}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1f6feb] hover:bg-[#388bfd] text-white text-xs font-semibold shadow-sm transition-all duration-150 active:scale-95"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Retry Connection</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <FleetDashboard
+                monitoredRepositories={monitoredRepos}
+                currentUser={currentUser}
+                onSelectRepo={handleSelectRepo}
+                onOpenImportModal={() => setIsImportModalOpen(true)}
+                onLogout={logoutUser}
+              />
+            )}
+          </>
         )}
 
         {/* VIEW 2: Single Repository Deep Health & Remediation Dashboard */}

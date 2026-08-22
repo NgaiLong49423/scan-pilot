@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.34.0
+> **Version:** v2.35.0
 > **Created:** 2026-08-11
 > **Last Updated:** 2026-08-22
 > **Status:** Active
@@ -10,6 +10,35 @@
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
+
+## 2026-08-22 — Production PostgreSQL Fail-Closed Persistence (Issue #53)
+
+**Status:** Working tree — traceability correction for implementation commit `833ffe3`
+
+**Scope:** Hardened the production persistence boundary so Scan Pilot requires PostgreSQL and production security configuration rather than silently falling back to ephemeral local defaults. The production deployment path now uses Cloud SQL, Secret Manager, and a dedicated least-privilege runtime identity. The Fleet also distinguishes a verified empty repository list from backend unavailability.
+
+### Fixed
+
+- Removed the production H2 fallback and required PostgreSQL datasource configuration, Cloud SQL Socket Factory support, and a production HMAC secret.
+- Added fail-closed startup validation with secret-safe diagnostics.
+- Replaced deployment plaintext secret configuration with Secret Manager references and a dedicated Cloud Run runtime service account.
+- Added a neutral retry state when the backend cannot return monitored repositories, preventing a false `Fleet 0` display.
+
+### Changed
+
+- Updated the Cloud Run deployment specification and manual `frontend/src` to Google AI Studio transfer guidance.
+- Added focused production datasource, HMAC, and Socket Factory regression tests.
+
+### Affected files
+
+- `.github/workflows/deploy-cloud-run.yml`
+- `backend/pom.xml`
+- `backend/src/main/java/com/scanpilot/config/ProductionDatasourceStartupValidator.java`
+- `backend/src/main/resources/application-prod.yml`
+- `backend/src/test/java/com/scanpilot/config/ProductionDatasourceStartupValidatorTest.java`
+- `docs/DEPLOYMENT-SPEC.md`
+- `frontend/src/App.tsx`
+- `CHANGELOG.md`
 
 ## 2026-08-22 — Efficient Local-Review Delivery Controls
 
