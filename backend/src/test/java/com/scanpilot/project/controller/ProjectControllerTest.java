@@ -33,10 +33,22 @@ class ProjectControllerTest {
     @Autowired
     private ProjectService projectService;
 
+    @Autowired
+    private com.scanpilot.persistence.repository.RepositoryRepository repositoryRepository;
+
+    @Autowired
+    private com.scanpilot.persistence.repository.UserRepository userRepository;
+
+    @Autowired
+    private com.scanpilot.persistence.repository.MonitoredBranchRepository monitoredBranchRepository;
+
     private UserSession userSession;
 
     @BeforeEach
     void setUp() {
+        monitoredBranchRepository.deleteAll();
+        repositoryRepository.deleteAll();
+        userRepository.deleteAll();
         sessionService.clearAllSessions();
         projectService.clearAllProjects();
 
@@ -155,17 +167,21 @@ class ProjectControllerTest {
                 }
                 """;
 
-        mockMvc.perform(post("/api/v1/projects/select-repository")
+        String selectResp = mockMvc.perform(post("/api/v1/projects/select-repository")
                         .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(selectBody))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
 
-        String branchBody = """
+        String repoId = com.jayway.jsonpath.JsonPath.read(selectResp, "$.id");
+
+        String branchBody = String.format("""
                 {
+                    "repositoryId": "%s",
                     "secondaryBranches": ["develop", "release/v1.0"]
                 }
-                """;
+                """, repoId);
 
         mockMvc.perform(put("/api/v1/projects/branches")
                         .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
@@ -188,17 +204,21 @@ class ProjectControllerTest {
                 }
                 """;
 
-        mockMvc.perform(post("/api/v1/projects/select-repository")
+        String selectResp = mockMvc.perform(post("/api/v1/projects/select-repository")
                         .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(selectBody))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
 
-        String branchBody = """
+        String repoId = com.jayway.jsonpath.JsonPath.read(selectResp, "$.id");
+
+        String branchBody = String.format("""
                 {
+                    "repositoryId": "%s",
                     "secondaryBranches": ["develop", "release/v1.0", "staging"]
                 }
-                """;
+                """, repoId);
 
         mockMvc.perform(put("/api/v1/projects/branches")
                         .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
@@ -210,11 +230,137 @@ class ProjectControllerTest {
     }
 
     @Test
+    @DisplayName("PUT /api/v1/projects/branches without repositoryId returns 400 Bad Request (fail-closed)")
+    void testUpdateBranchConfigurationMissingRepositoryId() throws Exception {
+        String branchBody = """
+                {
+                    "secondaryBranches": ["develop"]
+                }
+                """;
+
+        mockMvc.perform(put("/api/v1/projects/branches")
+                        .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(branchBody))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/projects/branches with non-existent repositoryId returns 404 Not Found (fail-closed)")
+    void testUpdateBranchConfigurationNonExistentRepositoryId() throws Exception {
+        String branchBody = String.format("""
+                {
+                    "repositoryId": "%s",
+                    "secondaryBranches": ["develop"]
+                }
+                """, java.util.UUID.randomUUID());
+
+        mockMvc.perform(put("/api/v1/projects/branches")
+                        .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(branchBody))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     @DisplayName("PUT /api/v1/projects/branches without auth returns 401 Unauthorized")
     void testUpdateBranchConfigurationUnauthenticated() throws Exception {
         mockMvc.perform(put("/api/v1/projects/branches")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"secondaryBranches\": [\"develop\"]}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/projects/monitored returns list of monitored repositories from PostgreSQL")
+    void testGetAllMonitoredProjects() throws Exception {
+        String selectBody1 = """
+                {
+                    "githubRepoId": 101,
+                    "fullName": "octocat/app-one",
+                    "defaultBranch": "main"
+                }
+                """;
+        String selectBody2 = """
+                {
+                    "githubRepoId": 102,
+                    "fullName": "octocat/app-two",
+                    "defaultBranch": "main"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/projects/select-repository")
+                        .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(selectBody1))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/projects/select-repository")
+                        .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(selectBody2))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/projects/monitored")
+                        .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)));
+    }
+
+    @Test
+    @DisplayName("Branch configuration updates are persisted in PostgreSQL and isolated between Repo A and Repo B")
+    void testBranchConfigurationPersistenceAndIsolation() throws Exception {
+        String selectBody1 = """
+                {
+                    "githubRepoId": 105,
+                    "fullName": "octocat/persisted-repo-a",
+                    "defaultBranch": "main"
+                }
+                """;
+        String selectBody2 = """
+                {
+                    "githubRepoId": 106,
+                    "fullName": "octocat/persisted-repo-b",
+                    "defaultBranch": "main"
+                }
+                """;
+
+        String resp1 = mockMvc.perform(post("/api/v1/projects/select-repository")
+                        .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(selectBody1))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String resp2 = mockMvc.perform(post("/api/v1/projects/select-repository")
+                        .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(selectBody2))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String repoIdA = com.jayway.jsonpath.JsonPath.read(resp1, "$.id");
+        String repoIdB = com.jayway.jsonpath.JsonPath.read(resp2, "$.id");
+
+        String branchBodyA = String.format("""
+                {
+                    "repositoryId": "%s",
+                    "secondaryBranches": ["develop", "staging"]
+                }
+                """, repoIdA);
+
+        mockMvc.perform(put("/api/v1/projects/branches")
+                        .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(branchBodyA))
+                .andExpect(status().isOk());
+
+        // Verify Repo A has branches and Repo B has no secondary branches
+        mockMvc.perform(get("/api/v1/projects/monitored")
+                        .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[?(@.fullName == 'octocat/persisted-repo-a')].secondaryBranches[0]").value("develop"))
+                .andExpect(jsonPath("$[?(@.fullName == 'octocat/persisted-repo-b')].secondaryBranches[0]").doesNotExist());
     }
 }

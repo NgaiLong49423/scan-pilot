@@ -154,6 +154,7 @@ export interface SelectRepositoryRequest {
 }
 
 export interface BranchConfigRequest {
+  repositoryId?: string;
   secondaryBranches: string[];
 }
 

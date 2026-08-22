@@ -28,8 +28,8 @@ export const projectsApi = {
   /**
    * Configures secondary monitored branches (max 2 slots, FR-020, FR-023).
    */
-  async updateBranches(secondaryBranches: string[]): Promise<MonitoredProject> {
-    const payload: BranchConfigRequest = { secondaryBranches };
+  async updateBranches(secondaryBranches: string[], repositoryId?: string): Promise<MonitoredProject> {
+    const payload: BranchConfigRequest = { secondaryBranches, repositoryId };
     return await apiClient.put<MonitoredProject>('/api/v1/projects/branches', payload);
   },
 };

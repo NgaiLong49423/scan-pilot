@@ -18,6 +18,7 @@ import com.scanpilot.persistence.repository.RepositoryRepository;
 import com.scanpilot.persistence.repository.ScanCheckpointRepository;
 import com.scanpilot.persistence.repository.ScanJobRepository;
 import com.scanpilot.persistence.repository.UserRepository;
+import com.scanpilot.scanner.detector.gitleaks.GitleaksDetectorAdapter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -38,13 +40,24 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 @SpringBootTest
 @DisplayName("Scan Pipeline Service Integration Tests")
 class ScanPipelineServiceTest {
 
-    @Autowired
+    @MockitoSpyBean
     private ScanPipelineService scanPipelineService;
+
+    @MockitoSpyBean
+    private GitleaksDetectorAdapter gitleaksDetectorAdapter;
 
     @Autowired
     private UserRepository userRepository;
@@ -78,6 +91,16 @@ class ScanPipelineServiceTest {
 
     @BeforeEach
     void setUp() {
+        findingLocationRepository.deleteAll();
+        evidenceItemRepository.deleteAll();
+        findingRepository.deleteAll();
+        coverageItemRepository.deleteAll();
+        coverageRecordRepository.deleteAll();
+        scanCheckpointRepository.deleteAll();
+        scanJobRepository.deleteAll();
+        repositoryRepository.deleteAll();
+        userRepository.deleteAll();
+
         testUser = userRepository.save(UserEntity.builder()
             .githubUserId(8001L)
             .login("pipeline_tester")
@@ -221,6 +244,50 @@ class ScanPipelineServiceTest {
             List<FindingLocationEntity> locs4 = findingLocationRepository.findByFindingId(finding4.getId());
             assertThat(locs4).isNotEmpty();
             assertThat(locs4.stream().anyMatch(FindingLocationEntity::getIsCurrentHead)).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("Fail-Closed Remote Snapshot Tests (Issue #53, FR-025)")
+    class FailClosedRemoteSnapshotTests {
+
+        @Test
+        @DisplayName("Configured secondary branch with unavailable remote snapshot fails job, creates zero findings/coverage/checkpoints, and does NOT fallback to default branch")
+        void testConfiguredSecondaryBranchSnapshotFailureFailsJobWithoutFallback() {
+            doReturn(null).when(scanPipelineService).downloadZipBytes(any(), argThat(url -> url != null && url.contains("/zipball/develop")), any());
+
+            // Target branch 'develop' is requested with sourcePath=null (remote snapshot download will fail deterministically without network)
+            ScanJobEntity job = scanPipelineService.executeScan(testRepo.getId(), "develop", null);
+
+            assertThat(job).isNotNull();
+            assertEquals("FAILED", job.getStatus());
+            assertThat(job.getStatus()).isEqualTo("FAILED");
+            assertThat(job.getErrorMessage()).contains("Remote repository snapshot for branch 'develop' could not be acquired or verified");
+            assertThat(job.getCompletedAt()).isNotNull();
+
+            // Verify transport seam called for /zipball/develop and never for fallback /zipball
+            verify(scanPipelineService).downloadZipBytes(any(), argThat(url -> url != null && url.contains("/zipball/develop")), any());
+            verify(scanPipelineService, never()).downloadZipBytes(any(), argThat(url -> url != null && url.endsWith("/zipball")), any());
+
+            // Zero CoverageRecord recorded
+            assertTrue(coverageRecordRepository.findAll().stream().filter(c -> c.getScanJobId().equals(job.getId())).findAny().isEmpty());
+            assertThat(coverageRecordRepository.findByScanJobId(job.getId())).isEmpty();
+
+            // Zero Finding recorded
+            assertTrue(findingRepository.findByRepositoryId(testRepo.getId()).isEmpty());
+            assertThat(findingRepository.findByRepositoryId(testRepo.getId())).isEmpty();
+
+            // Zero ScanCheckpoint recorded for requested branch or default branch
+            assertTrue(scanCheckpointRepository.findTopByRepositoryIdAndBranchNameOrderByCreatedAtDesc(testRepo.getId(), "develop").isEmpty());
+            assertTrue(scanCheckpointRepository.findTopByRepositoryIdAndBranchNameOrderByCreatedAtDesc(testRepo.getId(), "main").isEmpty());
+            assertTrue(scanCheckpointRepository.findByRepositoryId(testRepo.getId()).isEmpty());
+
+            // Zero FindingLocation and EvidenceItem recorded
+            assertTrue(findingLocationRepository.findAll().isEmpty());
+            assertTrue(evidenceItemRepository.findAll().isEmpty());
+
+            // Verify detector is never invoked when snapshot acquisition fails
+            verify(gitleaksDetectorAdapter, never()).scan(any());
         }
     }
 

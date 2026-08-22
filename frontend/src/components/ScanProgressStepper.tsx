@@ -9,6 +9,7 @@ interface ScanProgressStepperProps {
   scanDuration?: string | null;
   onToggleTerminal?: () => void;
   isTerminalOpen?: boolean;
+  scanError?: string | null;
 }
 
 export const ScanProgressStepper: React.FC<ScanProgressStepperProps> = ({ 
@@ -19,6 +20,7 @@ export const ScanProgressStepper: React.FC<ScanProgressStepperProps> = ({
   scanDuration = null,
   onToggleTerminal,
   isTerminalOpen = false,
+  scanError = null,
 }) => {
   const displayDuration = scanDuration || 'Not available';
 
@@ -30,12 +32,16 @@ export const ScanProgressStepper: React.FC<ScanProgressStepperProps> = ({
           <div className={`p-1.5 rounded-lg border ${
             isScanning 
               ? 'bg-[#1f6feb]/15 border-[#1f6feb]/30 text-[#58a6ff]' 
+              : scanError
+              ? 'bg-[#da3633]/15 border-[#da3633]/30 text-[#f85149]'
               : isScanned 
               ? 'bg-[#238636]/15 border-[#238636]/30 text-[#3fb950]' 
               : 'bg-[#21262d] border-[#30363d] text-[#8b949e]'
           }`}>
             {isScanning ? (
               <RefreshCw className="w-4 h-4 animate-spin text-[#58a6ff]" />
+            ) : scanError ? (
+              <AlertCircle className="w-4 h-4 text-[#f85149]" />
             ) : isScanned ? (
               <CheckCircle2 className="w-4 h-4 text-[#3fb950]" />
             ) : (
@@ -47,6 +53,8 @@ export const ScanProgressStepper: React.FC<ScanProgressStepperProps> = ({
               <span>
                 {isScanning 
                   ? `Security Scan in Progress on ${branchName}...` 
+                  : scanError
+                  ? `Scan Execution Failed on ${branchName}`
                   : isScanned 
                   ? `Scan Completed Successfully on ${branchName}` 
                   : `Repository Awaiting Initial Scan on ${branchName}`}
@@ -54,12 +62,16 @@ export const ScanProgressStepper: React.FC<ScanProgressStepperProps> = ({
               <span className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded border ${
                 isScanning 
                   ? 'bg-[#1f6feb]/15 text-[#58a6ff] border-[#1f6feb]/30' 
+                  : scanError
+                  ? 'bg-[#da3633]/15 text-[#f85149] border-[#da3633]/30'
                   : isScanned 
                   ? 'bg-[#238636]/15 text-[#3fb950] border-[#238636]/30' 
                   : 'bg-[#21262d] text-[#8b949e] border-[#30363d]'
               }`}>
                 {isScanning 
                   ? 'SCAN REQUEST SENT'
+                  : scanError
+                  ? 'SCAN FAILED'
                   : isScanned 
                   ? 'WORKING TREE SNAPSHOT'
                   : 'ENGINE STANDBY'}
@@ -68,6 +80,8 @@ export const ScanProgressStepper: React.FC<ScanProgressStepperProps> = ({
             <p className="text-[#8b949e] text-[11px] mt-0.5">
               {isScanning 
                 ? 'Scan request in progress — live progress is not available yet.'
+                : scanError
+                ? `Scan pipeline error: ${scanError}`
                 : isScanned
                 ? (scanDuration ? `Analysis finished in ${scanDuration}. All active working tree files audited against SP-CONFIG-001 rules.` : 'Analysis finished. All active working tree files audited against SP-CONFIG-001 rules.')
                 : `Click 'Trigger Rescan' to download the latest ${branchName} snapshot and execute deep secret analysis.`}
@@ -96,8 +110,8 @@ export const ScanProgressStepper: React.FC<ScanProgressStepperProps> = ({
             <Clock className="w-3.5 h-3.5 text-[#8b949e]" />
             <span className="font-mono text-[#c9d1d9]">{displayDuration}</span>
             <span className="text-[#30363d]">•</span>
-            <span className={isScanned ? (findingCount === 0 ? 'text-[#3fb950] font-medium' : 'text-[#f85149] font-medium') : 'text-[#8b949e]'}>
-              {isScanned ? `${findingCount} Leaks Detected` : 'Awaiting scan'}
+            <span className={scanError ? 'text-[#f85149] font-medium' : isScanned ? (findingCount === 0 ? 'text-[#3fb950] font-medium' : 'text-[#f85149] font-medium') : 'text-[#8b949e]'}>
+              {scanError ? 'Scan Failed' : isScanned ? `${findingCount} Leaks Detected` : 'Awaiting scan'}
             </span>
           </div>
         </div>

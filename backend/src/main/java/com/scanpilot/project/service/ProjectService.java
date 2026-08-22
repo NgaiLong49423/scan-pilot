@@ -1,12 +1,19 @@
 package com.scanpilot.project.service;
 
 import com.scanpilot.auth.model.UserSession;
+import com.scanpilot.persistence.entity.MonitoredBranchEntity;
+import com.scanpilot.persistence.entity.RepositoryEntity;
+import com.scanpilot.persistence.entity.UserEntity;
+import com.scanpilot.persistence.repository.MonitoredBranchRepository;
+import com.scanpilot.persistence.repository.RepositoryRepository;
+import com.scanpilot.persistence.repository.UserRepository;
 import com.scanpilot.project.dto.BranchConfigRequest;
 import com.scanpilot.project.dto.SelectRepositoryRequest;
 import com.scanpilot.project.model.MonitoredProject;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -23,17 +30,19 @@ public class ProjectService {
 
     public static final int MAX_SECONDARY_BRANCHES = 2;
 
-    private final com.scanpilot.persistence.repository.UserRepository userRepository;
-    private final com.scanpilot.persistence.repository.RepositoryRepository repositoryRepository;
+    private final UserRepository userRepository;
+    private final RepositoryRepository repositoryRepository;
+    private final MonitoredBranchRepository monitoredBranchRepository;
 
-    // Per-user monitored repository store (DEC-046: 1 selected personal repository per user)
+    // ponytail: in-memory map holds active UI selection context only; PostgreSQL RepositoryEntity is the strict source of truth for repository identity and scan authorization
     private final Map<Long, MonitoredProject> userProjects = new ConcurrentHashMap<>();
 
     /**
      * Onboards and monitors a selected repository for the user.
-     * Enforces 1 selected personal repository (DEC-046) and derives PRIMARY branch
-     * from GitHub default branch (FR-020, FR-022).
+     * Enforces PostgreSQL as authoritative source of truth for repositories (Issue #53)
+     * and derives PRIMARY branch from GitHub default branch (FR-020, FR-022).
      */
+    @Transactional
     public MonitoredProject selectRepository(UserSession user, SelectRepositoryRequest request) {
         if (user == null) {
             throw new IllegalArgumentException("User session is required");
@@ -57,50 +66,80 @@ public class ProjectService {
 
         boolean isPrivate = Boolean.TRUE.equals(request.isPrivate());
 
-        String projectId = UUID.randomUUID().toString();
-        Instant monitoredAt = Instant.now();
+        if (userRepository == null || repositoryRepository == null) {
+            throw new IllegalStateException("Database repositories are not available");
+        }
 
-        if (userRepository != null && repositoryRepository != null) {
-            try {
-                com.scanpilot.persistence.entity.UserEntity userEntity = userRepository.findByGithubUserId(user.getGithubUserId())
-                        .orElseGet(() -> userRepository.save(com.scanpilot.persistence.entity.UserEntity.builder()
-                                .githubUserId(user.getGithubUserId())
-                                .login(user.getLogin())
-                                .name(user.getName())
-                                .email(user.getEmail())
-                                .avatarUrl(user.getAvatarUrl())
-                                .createdAt(Instant.now())
-                                .build()));
+        UserEntity userEntity = userRepository.findByGithubUserId(user.getGithubUserId())
+                .orElseGet(() -> userRepository.save(UserEntity.builder()
+                        .githubUserId(user.getGithubUserId())
+                        .login(user.getLogin())
+                        .name(user.getName())
+                        .email(user.getEmail())
+                        .avatarUrl(user.getAvatarUrl())
+                        .createdAt(Instant.now())
+                        .build()));
 
-                if (userEntity != null && userEntity.getId() != null) {
-                    com.scanpilot.persistence.entity.RepositoryEntity repoEntity = repositoryRepository.findByUserIdAndGithubRepoId(userEntity.getId(), request.githubRepoId())
-                            .orElseGet(() -> repositoryRepository.save(com.scanpilot.persistence.entity.RepositoryEntity.builder()
-                                    .userId(userEntity.getId())
-                                    .githubRepoId(request.githubRepoId())
-                                    .owner(owner)
-                                    .name(name)
-                                    .fullName(fullName)
-                                    .defaultBranch(defaultBranch)
-                                    .primaryBranch(defaultBranch)
-                                    .isPrivate(isPrivate)
-                                    .status("ACTIVE")
-                                    .monitoredAt(Instant.now())
-                                    .build()));
+        RepositoryEntity repoEntity = repositoryRepository.findByUserIdAndGithubRepoId(userEntity.getId(), request.githubRepoId())
+                .map(existing -> {
+                    existing.setOwner(owner);
+                    existing.setName(name);
+                    existing.setFullName(fullName);
+                    existing.setDefaultBranch(defaultBranch);
+                    existing.setPrimaryBranch(defaultBranch);
+                    existing.setIsPrivate(isPrivate);
+                    existing.setUpdatedAt(Instant.now());
+                    return repositoryRepository.save(existing);
+                })
+                .orElseGet(() -> repositoryRepository.save(RepositoryEntity.builder()
+                        .userId(userEntity.getId())
+                        .githubRepoId(request.githubRepoId())
+                        .owner(owner)
+                        .name(name)
+                        .fullName(fullName)
+                        .defaultBranch(defaultBranch)
+                        .primaryBranch(defaultBranch)
+                        .isPrivate(isPrivate)
+                        .status("ACTIVE")
+                        .monitoredAt(Instant.now())
+                        .build()));
 
-                    if (repoEntity != null && repoEntity.getId() != null) {
-                        projectId = repoEntity.getId().toString();
-                        if (repoEntity.getMonitoredAt() != null) {
-                            monitoredAt = repoEntity.getMonitoredAt();
-                        }
-                    }
+        UUID repoId = repoEntity.getId();
+        Instant monitoredAt = repoEntity.getMonitoredAt() != null ? repoEntity.getMonitoredAt() : Instant.now();
+
+        if (monitoredBranchRepository != null) {
+            List<MonitoredBranchEntity> existingBranches = monitoredBranchRepository.findByRepositoryId(repoId);
+
+            // Deactivate any prior PRIMARY branch rows where branchName != defaultBranch
+            for (MonitoredBranchEntity b : existingBranches) {
+                if ("PRIMARY".equalsIgnoreCase(b.getBranchType()) && !b.getBranchName().equals(defaultBranch)) {
+                    b.setIsActive(false);
+                    monitoredBranchRepository.save(b);
                 }
-            } catch (Exception e) {
-                log.warn("Could not synchronize repository selection to PostgreSQL: {}", e.getMessage());
+            }
+
+            // Ensure the new defaultBranch has branchType="PRIMARY" and isActive=true
+            Optional<MonitoredBranchEntity> primaryBranchOpt = existingBranches.stream()
+                    .filter(b -> b.getBranchName().equals(defaultBranch))
+                    .findFirst();
+            if (primaryBranchOpt.isPresent()) {
+                MonitoredBranchEntity existingPrimary = primaryBranchOpt.get();
+                existingPrimary.setBranchType("PRIMARY");
+                existingPrimary.setIsActive(true);
+                monitoredBranchRepository.save(existingPrimary);
+            } else {
+                monitoredBranchRepository.save(MonitoredBranchEntity.builder()
+                        .repositoryId(repoId)
+                        .branchName(defaultBranch)
+                        .branchType("PRIMARY")
+                        .isActive(true)
+                        .createdAt(Instant.now())
+                        .build());
             }
         }
 
         MonitoredProject project = new MonitoredProject(
-                projectId,
+                repoId.toString(),
                 user.getGithubUserId(),
                 request.githubRepoId(),
                 owner,
@@ -142,43 +181,80 @@ public class ProjectService {
         if (user == null || userRepository == null || repositoryRepository == null) {
             return List.of();
         }
-        Optional<com.scanpilot.persistence.entity.UserEntity> userEntity = userRepository.findByGithubUserId(user.getGithubUserId());
+        Optional<UserEntity> userEntity = userRepository.findByGithubUserId(user.getGithubUserId());
         if (userEntity.isEmpty()) {
             return List.of();
         }
-        List<com.scanpilot.persistence.entity.RepositoryEntity> entities = repositoryRepository.findByUserId(userEntity.get().getId());
+        List<RepositoryEntity> entities = repositoryRepository.findByUserId(userEntity.get().getId());
         return entities.stream()
-                .map(e -> new MonitoredProject(
-                        e.getId().toString(),
-                        user.getGithubUserId(),
-                        e.getGithubRepoId(),
-                        e.getOwner(),
-                        e.getName(),
-                        e.getFullName(),
-                        e.getDefaultBranch(),
-                        e.getPrimaryBranch() != null ? e.getPrimaryBranch() : e.getDefaultBranch(),
-                        List.of(),
-                        Boolean.TRUE.equals(e.getIsPrivate()),
-                        e.getMonitoredAt() != null ? e.getMonitoredAt() : Instant.now(),
-                        e.getStatus() != null ? e.getStatus() : "ACTIVE"
-                ))
+                .map(e -> {
+                    List<MonitoredBranchEntity> activeBranches = (monitoredBranchRepository != null)
+                            ? monitoredBranchRepository.findByRepositoryIdAndIsActiveTrue(e.getId())
+                            : List.of();
+
+                    String primary = activeBranches.stream()
+                            .filter(b -> "PRIMARY".equalsIgnoreCase(b.getBranchType()))
+                            .map(MonitoredBranchEntity::getBranchName)
+                            .findFirst()
+                            .orElse(e.getPrimaryBranch() != null ? e.getPrimaryBranch() : e.getDefaultBranch());
+
+                    List<String> secBranches = activeBranches.stream()
+                            .filter(b -> "SECONDARY".equalsIgnoreCase(b.getBranchType()) || !b.getBranchName().equals(primary))
+                            .map(MonitoredBranchEntity::getBranchName)
+                            .filter(name -> !name.equals(primary))
+                            .distinct()
+                            .toList();
+
+                    return new MonitoredProject(
+                            e.getId().toString(),
+                            user.getGithubUserId(),
+                            e.getGithubRepoId(),
+                            e.getOwner(),
+                            e.getName(),
+                            e.getFullName(),
+                            e.getDefaultBranch(),
+                            primary,
+                            secBranches,
+                            Boolean.TRUE.equals(e.getIsPrivate()),
+                            e.getMonitoredAt() != null ? e.getMonitoredAt() : Instant.now(),
+                            e.getStatus() != null ? e.getStatus() : "ACTIVE"
+                    );
+                })
                 .toList();
     }
 
     /**
      * Configures up to 2 secondary branches for monitoring (FR-020, FR-023).
+     * Enforces PostgreSQL ownership verification against repositoryId (Issue #53).
      */
+    @Transactional
     public MonitoredProject updateBranchConfiguration(UserSession user, BranchConfigRequest request) {
         if (user == null) {
             throw new IllegalArgumentException("User session is required");
         }
-
-        MonitoredProject project = userProjects.get(user.getGithubUserId());
-        if (project == null) {
-            throw new NoSuchElementException("No active monitored repository found for user");
+        if (request == null || request.repositoryId() == null) {
+            throw new IllegalArgumentException("Repository ID is required");
         }
 
-        List<String> secondaryBranches = request != null && request.secondaryBranches() != null
+        if (userRepository == null || repositoryRepository == null) {
+            throw new IllegalStateException("Database repositories are not available");
+        }
+
+        UserEntity userEntity = userRepository.findByGithubUserId(user.getGithubUserId())
+                .orElseThrow(() -> new NoSuchElementException("User not found"));
+
+        RepositoryEntity repo = repositoryRepository.findById(request.repositoryId())
+                .orElseThrow(() -> new NoSuchElementException("Repository not found or unauthorized"));
+
+        if (!repo.getUserId().equals(userEntity.getId())) {
+            throw new NoSuchElementException("Repository not found or unauthorized");
+        }
+
+        String primaryBranch = repo.getPrimaryBranch() != null && !repo.getPrimaryBranch().isBlank()
+                ? repo.getPrimaryBranch()
+                : (repo.getDefaultBranch() != null ? repo.getDefaultBranch() : "main");
+
+        List<String> secondaryBranches = request.secondaryBranches() != null
                 ? request.secondaryBranches()
                 : List.of();
 
@@ -186,7 +262,7 @@ public class ProjectService {
         List<String> cleaned = secondaryBranches.stream()
                 .filter(b -> b != null && !b.isBlank())
                 .map(String::trim)
-                .filter(b -> !b.equals(project.getPrimaryBranch()))
+                .filter(b -> !b.equals(primaryBranch))
                 .distinct()
                 .toList();
 
@@ -195,7 +271,55 @@ public class ProjectService {
             throw new IllegalArgumentException("Maximum of " + MAX_SECONDARY_BRANCHES + " secondary branches allowed");
         }
 
-        project.setSecondaryBranches(cleaned);
+        if (monitoredBranchRepository != null) {
+            List<MonitoredBranchEntity> existingBranches = monitoredBranchRepository.findByRepositoryId(repo.getId());
+
+            // Deactivate existing secondary branches not in cleaned list
+            for (MonitoredBranchEntity existing : existingBranches) {
+                if ("SECONDARY".equalsIgnoreCase(existing.getBranchType()) && !cleaned.contains(existing.getBranchName())) {
+                    existing.setIsActive(false);
+                    monitoredBranchRepository.save(existing);
+                }
+            }
+
+            // Save or update active secondary branches
+            for (String branchName : cleaned) {
+                Optional<MonitoredBranchEntity> match = existingBranches.stream()
+                        .filter(b -> b.getBranchName().equals(branchName))
+                        .findFirst();
+                if (match.isPresent()) {
+                    MonitoredBranchEntity branch = match.get();
+                    branch.setBranchType("SECONDARY");
+                    branch.setIsActive(true);
+                    monitoredBranchRepository.save(branch);
+                } else {
+                    monitoredBranchRepository.save(MonitoredBranchEntity.builder()
+                            .repositoryId(repo.getId())
+                            .branchName(branchName)
+                            .branchType("SECONDARY")
+                            .isActive(true)
+                            .createdAt(Instant.now())
+                            .build());
+                }
+            }
+        }
+
+        MonitoredProject project = new MonitoredProject(
+                repo.getId().toString(),
+                user.getGithubUserId(),
+                repo.getGithubRepoId(),
+                repo.getOwner(),
+                repo.getName(),
+                repo.getFullName(),
+                repo.getDefaultBranch(),
+                primaryBranch,
+                cleaned,
+                Boolean.TRUE.equals(repo.getIsPrivate()),
+                repo.getMonitoredAt() != null ? repo.getMonitoredAt() : Instant.now(),
+                repo.getStatus() != null ? repo.getStatus() : "ACTIVE"
+        );
+
+        userProjects.put(user.getGithubUserId(), project);
         return project;
     }
 

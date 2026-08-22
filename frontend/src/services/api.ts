@@ -1,5 +1,11 @@
 import { Repository, Finding, HealthMetrics, UserProfile } from '../types';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isValidUuid(id?: string | null): boolean {
+  return typeof id === 'string' && UUID_REGEX.test(id.trim());
+}
+
 /**
  * Resolves the Backend API base URL dynamically.
  */
@@ -71,7 +77,7 @@ export async function fetchAvailableGitHubRepositories(): Promise<Repository[]> 
     });
     if (response.ok) {
       const data = await response.json();
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         return data.map((item: any) => ({
           id: String(item.id || item.githubRepoId || item.fullName),
           githubRepoId: item.githubRepoId || item.id,
@@ -95,8 +101,10 @@ export async function fetchAvailableGitHubRepositories(): Promise<Repository[]> 
 
 /**
  * Fetches only the repositories explicitly monitored by the user from PostgreSQL.
+ * Returns Repository[] on success (including empty array []).
+ * Returns null if network or server error occurred.
  */
-export async function fetchMonitoredProjects(): Promise<Repository[]> {
+export async function fetchMonitoredProjects(): Promise<Repository[] | null> {
   try {
     const baseUrl = getApiBaseUrl();
     const response = await fetch(`${baseUrl}/api/v1/projects/monitored`, {
@@ -104,27 +112,31 @@ export async function fetchMonitoredProjects(): Promise<Repository[]> {
     });
     if (response.ok) {
       const data = await response.json();
-      if (Array.isArray(data) && data.length > 0) {
-        return data.map((item: any) => ({
-          id: String(item.id || item.repositoryId || item.githubRepoId),
-          dbRepositoryId: String(item.id || item.repositoryId),
-          githubRepoId: item.githubRepoId,
-          name: item.fullName || item.name,
-          branch: item.primaryBranch || item.defaultBranch || 'main',
-          isPrivate: Boolean(item.isPrivate),
-          language: item.language || 'Java',
-          lastScanned: null,
-          isScanned: false,
-          findingCount: 0,
-          healthScore: 0,
-          attentionStatus: 'NotScanned',
-        }));
+      if (Array.isArray(data)) {
+        return data.map((item: any) => {
+          const repoId = String(item.id || item.repositoryId || '');
+          return {
+            id: repoId,
+            dbRepositoryId: repoId,
+            githubRepoId: item.githubRepoId,
+            name: item.fullName || item.name,
+            branch: item.primaryBranch || item.defaultBranch || 'main',
+            isPrivate: Boolean(item.isPrivate),
+            language: item.language || 'Java',
+            lastScanned: null,
+            isScanned: false,
+            findingCount: 0,
+            healthScore: 0,
+            attentionStatus: 'NotScanned',
+          };
+        });
       }
+      return [];
     }
+    return null;
   } catch (_e) {
-    // Ignore error
+    return null;
   }
-  return [];
 }
 
 // Backward compatibility alias
@@ -132,6 +144,7 @@ export const fetchRepositories = fetchAvailableGitHubRepositories;
 
 /**
  * Selects and imports a repository into PostgreSQL database for monitoring.
+ * Returns the persisted UUID string on success, or null on failure.
  */
 export async function selectRepositoryOnBackend(repo: Repository): Promise<string | null> {
   try {
@@ -159,7 +172,10 @@ export async function selectRepositoryOnBackend(repo: Repository): Promise<strin
 
     if (response.ok) {
       const data = await response.json();
-      return data.repositoryId || data.id || null;
+      const id = String(data.id || data.repositoryId || '');
+      if (isValidUuid(id)) {
+        return id;
+      }
     }
   } catch (_e) {
     // Ignore error
@@ -170,7 +186,10 @@ export async function selectRepositoryOnBackend(repo: Repository): Promise<strin
 /**
  * Fetches real findings from PostgreSQL database for the selected repository.
  */
-export async function fetchFindingsForRepo(repositoryId: string): Promise<Finding[]> {
+export async function fetchFindingsForRepo(repositoryId: string): Promise<Finding[] | null> {
+  if (!isValidUuid(repositoryId)) {
+    return null;
+  }
   try {
     const baseUrl = getApiBaseUrl();
     const response = await fetch(`${baseUrl}/api/v1/scans/repositories/${repositoryId}/findings`, {
@@ -207,17 +226,21 @@ export async function fetchFindingsForRepo(repositoryId: string): Promise<Findin
           };
         });
       }
+      return [];
     }
   } catch (_e) {
     // Ignore error
   }
-  return [];
+  return null;
 }
 
 /**
  * Fetches real coverage summary from PostgreSQL database for the repository.
  */
 export async function fetchCoverageForRepo(repositoryId: string): Promise<any | null> {
+  if (!isValidUuid(repositoryId)) {
+    return null;
+  }
   try {
     const baseUrl = getApiBaseUrl();
     const response = await fetch(`${baseUrl}/api/v1/scans/repositories/${repositoryId}/coverage`, {
@@ -236,6 +259,9 @@ export async function fetchCoverageForRepo(repositoryId: string): Promise<any | 
  * Triggers a real repository scan on the Spring Boot backend.
  */
 export async function triggerRealScan(repositoryId?: string, branchName?: string): Promise<{ success: boolean; jobId?: string; message?: string }> {
+  if (!isValidUuid(repositoryId)) {
+    return { success: false, message: 'Invalid or missing repository UUID (fail-closed)' };
+  }
   try {
     const baseUrl = getApiBaseUrl();
     const response = await fetch(`${baseUrl}/api/v1/scans/trigger`, {
@@ -245,13 +271,16 @@ export async function triggerRealScan(repositoryId?: string, branchName?: string
       },
       credentials: 'include',
       body: JSON.stringify({
-        repositoryId: repositoryId || null,
+        repositoryId,
         branchName: branchName || 'main',
       }),
     });
 
     if (response.ok) {
       const data = await response.json();
+      if (data.status !== 'COMPLETED') {
+        return { success: false, jobId: data.jobId, message: data.message || 'Scan execution failed' };
+      }
       return { success: true, jobId: data.jobId, message: data.message };
     } else {
       const err = await response.json().catch(() => ({}));

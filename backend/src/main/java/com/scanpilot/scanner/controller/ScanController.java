@@ -7,6 +7,7 @@ import com.scanpilot.persistence.entity.CoverageItemEntity;
 import com.scanpilot.persistence.entity.CoverageRecordEntity;
 import com.scanpilot.persistence.entity.FindingEntity;
 import com.scanpilot.persistence.entity.FindingLocationEntity;
+import com.scanpilot.persistence.entity.MonitoredBranchEntity;
 import com.scanpilot.persistence.entity.RepositoryEntity;
 import com.scanpilot.persistence.entity.ScanJobEntity;
 import com.scanpilot.persistence.entity.UserEntity;
@@ -14,11 +15,10 @@ import com.scanpilot.persistence.repository.CoverageItemRepository;
 import com.scanpilot.persistence.repository.CoverageRecordRepository;
 import com.scanpilot.persistence.repository.FindingLocationRepository;
 import com.scanpilot.persistence.repository.FindingRepository;
+import com.scanpilot.persistence.repository.MonitoredBranchRepository;
 import com.scanpilot.persistence.repository.RepositoryRepository;
 import com.scanpilot.persistence.repository.ScanJobRepository;
 import com.scanpilot.persistence.repository.UserRepository;
-import com.scanpilot.project.model.MonitoredProject;
-import com.scanpilot.project.service.ProjectService;
 import com.scanpilot.scanner.dto.CoverageItemDto;
 import com.scanpilot.scanner.dto.CoverageSummaryDto;
 import com.scanpilot.scanner.dto.FindingDto;
@@ -38,8 +38,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.nio.file.Path;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -47,12 +45,15 @@ import java.util.UUID;
 
 /**
  * REST controller for triggering and inspecting scans, finding lifecycles, and coverage reports.
+ * Enforces strict fail-closed repository identity and authorization (Issue #53, zero fallback).
  */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/scans")
 @RequiredArgsConstructor
 public class ScanController {
+
+    private static final String FAIL_CLOSED_MESSAGE = "Invalid, missing, or unauthorized repository ID";
 
     private final ScanPipelineService scanPipelineService;
     private final ScanJobRepository scanJobRepository;
@@ -62,10 +63,12 @@ public class ScanController {
     private final CoverageItemRepository coverageItemRepository;
     private final RepositoryRepository repositoryRepository;
     private final UserRepository userRepository;
-    private final ProjectService projectService;
+    private final MonitoredBranchRepository monitoredBranchRepository;
 
     /**
-     * Triggers a snapshot and git history scan on an active monitored repository (FR-025).
+     * Triggers a snapshot and git history scan on an active monitored repository (FR-025, Issue #53).
+     * Enforces strict fail-closed validation: repositoryId (UUID) is mandatory, must exist in PostgreSQL,
+     * and must belong to the authenticated user. Zero fallback to other repositories or in-memory state.
      */
     @PostMapping("/trigger")
     @RequireAuth
@@ -73,73 +76,87 @@ public class ScanController {
         @CurrentUser UserSession session,
         @RequestBody(required = false) ScanTriggerRequest request
     ) {
-        UUID repositoryId = null;
-        String branchName = null;
-        Path sourcePath = null;
-
-        if (request != null) {
-            repositoryId = request.repositoryId();
-            branchName = request.branchName();
-            if (request.sourcePath() != null && !request.sourcePath().isBlank()) {
-                sourcePath = Path.of(request.sourcePath().trim());
-            }
+        if (request == null || request.repositoryId() == null) {
+            log.warn("Scan trigger rejected: Missing repositoryId in request payload (fail-closed)");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ScanTriggerResponse(null, null, null, "FAILED", FAIL_CLOSED_MESSAGE));
         }
 
-        // If repositoryId is not in PostgreSQL, re-resolve from active monitored project
-        if (repositoryId != null && !repositoryRepository.existsById(repositoryId)) {
-            repositoryId = null;
+        // Reject custom sourcePath strictly for remote scans (fail-closed, HTTP 400 Bad Request)
+        if (request.sourcePath() != null && !request.sourcePath().isBlank()) {
+            log.warn("Scan trigger rejected: Custom sourcePath is not permitted for remote repository scans (fail-closed)");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ScanTriggerResponse(null, null, null, "FAILED", "Custom sourcePath is not permitted for remote repository scans"));
         }
 
-        if (repositoryId == null) {
-            Optional<MonitoredProject> currentProject = projectService.getCurrentProject(session);
-            if (currentProject.isPresent()) {
-                MonitoredProject project = currentProject.get();
-                if (branchName == null || branchName.isBlank()) {
-                    branchName = project.getPrimaryBranch();
-                }
+        UUID repositoryId = request.repositoryId();
 
-                // Resolve or synchronize RepositoryEntity in PostgreSQL
-                UserEntity user = userRepository.findByGithubUserId(session.getGithubUserId())
-                    .orElseGet(() -> userRepository.save(UserEntity.builder()
-                        .githubUserId(session.getGithubUserId())
-                        .login(session.getLogin())
-                        .name(session.getName())
-                        .email(session.getEmail())
-                        .avatarUrl(session.getAvatarUrl())
-                        .createdAt(Instant.now())
-                        .build()));
+        // Validate user exists in PostgreSQL
+        Optional<UserEntity> userOpt = userRepository.findByGithubUserId(session.getGithubUserId());
+        if (userOpt.isEmpty()) {
+            log.warn("Scan trigger rejected: User not found in PostgreSQL for githubUserId={} (fail-closed)", session.getGithubUserId());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ScanTriggerResponse(null, null, null, "FAILED", FAIL_CLOSED_MESSAGE));
+        }
+        UserEntity user = userOpt.get();
 
-                RepositoryEntity repo = repositoryRepository.findByUserIdAndGithubRepoId(user.getId(), project.getGithubRepoId())
-                    .orElseGet(() -> repositoryRepository.save(RepositoryEntity.builder()
-                        .userId(user.getId())
-                        .githubRepoId(project.getGithubRepoId())
-                        .owner(project.getOwner())
-                        .name(project.getName())
-                        .fullName(project.getFullName())
-                        .defaultBranch(project.getDefaultBranch())
-                        .primaryBranch(project.getPrimaryBranch())
-                        .isPrivate(project.isPrivate())
-                        .status("ACTIVE")
-                        .monitoredAt(Instant.now())
-                        .build()));
-
-                repositoryId = repo.getId();
-            } else {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ScanTriggerResponse(null, null, null, "FAILED", "No active monitored repository selected"));
-            }
+        // Validate repository exists and is owned by the authenticated user in PostgreSQL (source of truth)
+        Optional<RepositoryEntity> repoOpt = repositoryRepository.findById(repositoryId);
+        if (repoOpt.isEmpty() || !repoOpt.get().getUserId().equals(user.getId())) {
+            log.warn("Scan trigger rejected: Repository {} does not exist or does not belong to user {} (fail-closed)",
+                repositoryId, user.getId());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ScanTriggerResponse(null, null, null, "FAILED", FAIL_CLOSED_MESSAGE));
         }
 
-        if (branchName == null || branchName.isBlank()) {
-            branchName = "main";
+        RepositoryEntity repo = repoOpt.get();
+
+        // Determine branch strictly from monitored_branches table as the sole authority (B.1)
+        List<MonitoredBranchEntity> activeBranches = (monitoredBranchRepository != null)
+            ? monitoredBranchRepository.findByRepositoryIdAndIsActiveTrue(repo.getId())
+            : List.of();
+
+        final String branchName = (request.branchName() != null && !request.branchName().isBlank())
+            ? request.branchName().trim()
+            : activeBranches.stream()
+                .filter(b -> "PRIMARY".equalsIgnoreCase(b.getBranchType()))
+                .map(MonitoredBranchEntity::getBranchName)
+                .findFirst()
+                .orElse(null);
+
+        if (branchName == null) {
+            log.warn("Scan trigger rejected: No active branch configured for repository {} (fail-closed)", repo.getId());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ScanTriggerResponse(null, null, null, "FAILED", "Branch is not configured for monitoring on this repository"));
         }
 
-        log.info("Triggering scan for repositoryId={} on branch={}", repositoryId, branchName);
-        ScanJobEntity job = scanPipelineService.executeScan(repositoryId, branchName, sourcePath);
+        boolean isConfigured = activeBranches.stream()
+            .anyMatch(b -> branchName.equals(b.getBranchName()) && Boolean.TRUE.equals(b.getIsActive()));
+
+        if (!isConfigured) {
+            log.warn("Scan trigger rejected: Branch '{}' is not configured for monitoring on repository {} (fail-closed)", branchName, repo.getId());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ScanTriggerResponse(null, null, null, "FAILED", "Branch '" + branchName + "' is not configured for monitoring on this repository"));
+        }
+
+        log.info("Triggering scan for repositoryId={} on branch={}", repo.getId(), branchName);
+        ScanJobEntity job = scanPipelineService.executeScan(repo.getId(), branchName, null);
+
+        if (!"COMPLETED".equals(job.getStatus())) {
+            log.warn("Scan execution failed for repositoryId={} branch={}: {}", repo.getId(), branchName, job.getErrorMessage());
+            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(new ScanTriggerResponse(
+                    job.getId(),
+                    repo.getId(),
+                    branchName,
+                    job.getStatus(),
+                    "Scan could not complete for the requested repository branch. No new evidence was recorded."
+                ));
+        }
 
         return ResponseEntity.ok(new ScanTriggerResponse(
             job.getId(),
-            repositoryId,
+            repo.getId(),
             branchName,
             job.getStatus(),
             "Scan executed successfully"
@@ -148,6 +165,7 @@ public class ScanController {
 
     /**
      * Retrieves scan job status, telemetry, and duration.
+     * Enforces repository ownership check against authenticated session.
      */
     @GetMapping("/jobs/{jobId}")
     @RequireAuth
@@ -155,14 +173,28 @@ public class ScanController {
         @CurrentUser UserSession session,
         @PathVariable UUID jobId
     ) {
-        return scanJobRepository.findById(jobId)
-            .map(ScanJobDto::from)
-            .map(ResponseEntity::ok)
-            .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+        Optional<ScanJobEntity> jobOpt = scanJobRepository.findById(jobId);
+        if (jobOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        ScanJobEntity job = jobOpt.get();
+
+        Optional<UserEntity> userOpt = userRepository.findByGithubUserId(session.getGithubUserId());
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        Optional<RepositoryEntity> repoOpt = repositoryRepository.findById(job.getRepositoryId());
+        if (repoOpt.isEmpty() || !repoOpt.get().getUserId().equals(userOpt.get().getId())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        return ResponseEntity.ok(ScanJobDto.from(job));
     }
 
     /**
      * Retrieves all findings for a repository with severity, lifecycle state, and remediation quality.
+     * Enforces repository ownership check against authenticated session.
      */
     @GetMapping("/repositories/{repositoryId}/findings")
     @RequireAuth
@@ -170,6 +202,20 @@ public class ScanController {
         @CurrentUser UserSession session,
         @PathVariable UUID repositoryId
     ) {
+        if (repositoryId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+
+        Optional<UserEntity> userOpt = userRepository.findByGithubUserId(session.getGithubUserId());
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        Optional<RepositoryEntity> repoOpt = repositoryRepository.findById(repositoryId);
+        if (repoOpt.isEmpty() || !repoOpt.get().getUserId().equals(userOpt.get().getId())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
         List<FindingEntity> findings = findingRepository.findByRepositoryId(repositoryId);
         List<FindingDto> dtos = new ArrayList<>();
 
@@ -186,6 +232,7 @@ public class ScanController {
 
     /**
      * Retrieves the latest coverage summary and skipped files report for a repository.
+     * Enforces repository ownership check against authenticated session.
      */
     @GetMapping("/repositories/{repositoryId}/coverage")
     @RequireAuth
@@ -193,6 +240,20 @@ public class ScanController {
         @CurrentUser UserSession session,
         @PathVariable UUID repositoryId
     ) {
+        if (repositoryId == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+
+        Optional<UserEntity> userOpt = userRepository.findByGithubUserId(session.getGithubUserId());
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        Optional<RepositoryEntity> repoOpt = repositoryRepository.findById(repositoryId);
+        if (repoOpt.isEmpty() || !repoOpt.get().getUserId().equals(userOpt.get().getId())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
         List<CoverageRecordEntity> records = coverageRecordRepository.findByRepositoryIdOrderByCreatedAtDesc(repositoryId);
         if (records.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();

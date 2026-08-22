@@ -15,7 +15,8 @@ import {
   fetchCurrentUser,
   loginWithGitHub,
   logoutUser,
-  triggerRealScan
+  triggerRealScan,
+  isValidUuid
 } from './services/api';
 import { Navbar } from './components/Navbar';
 import { FleetDashboard } from './components/FleetDashboard';
@@ -29,8 +30,6 @@ import { ScanProgressStepper } from './components/ScanProgressStepper';
 import { CoverageAuditView } from './components/CoverageAuditView';
 import { LiveScanTerminal, ScanLogEntry } from './components/LiveScanTerminal';
 
-const STORAGE_KEY_MONITORED = 'scan_pilot_monitored_repos_v1';
-
 export default function App() {
   const [currentView, setCurrentView] = useState<'landing' | 'fleet' | 'dashboard'>('landing');
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -38,14 +37,7 @@ export default function App() {
   
   // Available repos from GitHub App vs Explicitly Monitored repos in Scan Pilot
   const [availableRepos, setAvailableRepos] = useState<Repository[]>([]);
-  const [monitoredRepos, setMonitoredRepos] = useState<Repository[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_MONITORED);
-      return saved ? JSON.parse(saved) : [];
-    } catch (_e) {
-      return [];
-    }
-  });
+  const [monitoredRepos, setMonitoredRepos] = useState<Repository[]>([]);
   
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
@@ -55,6 +47,7 @@ export default function App() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [severityFilter, setSeverityFilter] = useState<'ALL' | 'CRITICAL' | 'HIGH' | 'RESOLVED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [scanError, setScanError] = useState<string | null>(null);
 
   // Live Terminal Feed States
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
@@ -63,16 +56,7 @@ export default function App() {
   const [liveScannedCount, setLiveScannedCount] = useState<number>(0);
   const [liveLeaksCount, setLiveLeaksCount] = useState<number>(0);
 
-  // Persist monitored repos to localStorage whenever it changes
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_MONITORED, JSON.stringify(monitoredRepos));
-    } catch (_e) {
-      // Storage full or unavailable
-    }
-  }, [monitoredRepos]);
-
-  // Initial load: Check backend authentication & sync monitored/available repositories
+  // Initial load: Check backend authentication & sync monitored/available repositories directly from PostgreSQL
   useEffect(() => {
     async function loadData() {
       // 1. Check active user session
@@ -90,35 +74,34 @@ export default function App() {
 
       setAvailableRepos(allGithubRepos);
       
-      // If DB returned monitored projects, merge with local storage
-      if (dbMonitored.length > 0) {
-        const hydrated = await Promise.all(
-          dbMonitored.map(async (repo) => {
-            if (repo.dbRepositoryId) {
-              const [realFindings, realCoverage] = await Promise.all([
-                fetchFindingsForRepo(repo.dbRepositoryId),
-                fetchCoverageForRepo(repo.dbRepositoryId),
-              ]);
-              const isScanned = realCoverage != null || (realFindings && realFindings.length > 0);
-              const openCount = realFindings ? realFindings.filter(f => f.status === 'OPEN').length : 0;
-              return {
-                ...repo,
-                isScanned,
-                lastScanned: isScanned ? 'Audited' : null,
-                findingCount: openCount,
-                healthScore: !isScanned ? 0 : Math.max(0, 100 - openCount * 15),
-              };
-            }
-            return repo;
-          })
-        );
+      // If DB returned monitored projects, strictly replace state (no local storage cache)
+      if (dbMonitored !== null) {
+        if (dbMonitored.length === 0) {
+          setMonitoredRepos([]);
+        } else {
+          const hydrated = await Promise.all(
+            dbMonitored.map(async (repo) => {
+              if (repo.dbRepositoryId && isValidUuid(repo.dbRepositoryId)) {
+                const [realFindings, realCoverage] = await Promise.all([
+                  fetchFindingsForRepo(repo.dbRepositoryId),
+                  fetchCoverageForRepo(repo.dbRepositoryId),
+                ]);
+                const isScanned = Boolean(realCoverage != null || (realFindings && realFindings.length > 0));
+                const openCount = realFindings ? realFindings.filter(f => f.status === 'OPEN').length : 0;
+                return {
+                  ...repo,
+                  isScanned,
+                  lastScanned: isScanned ? 'Audited' : null,
+                  findingCount: openCount,
+                  healthScore: !isScanned ? 0 : Math.max(0, 100 - openCount * 15),
+                };
+              }
+              return repo;
+            })
+          );
 
-        setMonitoredRepos((prev) => {
-          const map = new Map<string, Repository>();
-          prev.forEach((r) => map.set(r.name, r));
-          hydrated.forEach((r) => map.set(r.name, r));
-          return Array.from(map.values());
-        });
+          setMonitoredRepos(hydrated);
+        }
       }
     }
     loadData();
@@ -142,10 +125,18 @@ export default function App() {
 
   // Handle importing a repository into Scan Pilot monitoring
   const handleImportRepo = async (repo: Repository) => {
+    setScanError(null);
     const dbRepoId = await selectRepositoryOnBackend(repo);
+    if (!dbRepoId || !isValidUuid(dbRepoId)) {
+      setScanError(`Failed to onboard repository ${repo.name}. Please try again.`);
+      setIsImportModalOpen(false);
+      return;
+    }
+
     const newMonitoredRepo: Repository = {
       ...repo,
-      dbRepositoryId: dbRepoId || repo.id,
+      id: dbRepoId,
+      dbRepositoryId: dbRepoId,
       isScanned: false,
       lastScanned: null,
       findingCount: 0,
@@ -153,13 +144,9 @@ export default function App() {
     };
 
     setMonitoredRepos((prev) => {
-      const exists = prev.some((r) => r.name === repo.name || r.githubRepoId === repo.githubRepoId);
+      const exists = prev.some((r) => r.dbRepositoryId === dbRepoId || r.name === repo.name);
       if (!exists) {
-        const next = [newMonitoredRepo, ...prev];
-        try {
-          localStorage.setItem(STORAGE_KEY_MONITORED, JSON.stringify(next));
-        } catch (_e) {}
-        return next;
+        return [newMonitoredRepo, ...prev];
       }
       return prev;
     });
@@ -169,28 +156,46 @@ export default function App() {
 
   // Handle selecting a repository to inspect deep posture
   const handleSelectRepo = async (repo: Repository) => {
+    // 1. Reset state completely to guarantee data isolation between repositories
+    setFindings([]);
+    setCoverageData(null);
+    setMetrics(null);
+    setScanLogs([]);
+    setLiveScannedCount(0);
+    setLiveLeaksCount(0);
+    setCurrentInspectingFile('');
+    setScanError(null);
+
     let dbRepoId = repo.dbRepositoryId;
-    if (!dbRepoId) {
-      dbRepoId = await selectRepositoryOnBackend(repo);
+    if (!dbRepoId || !isValidUuid(dbRepoId)) {
+      dbRepoId = (await selectRepositoryOnBackend(repo)) || undefined;
+    }
+
+    if (!dbRepoId || !isValidUuid(dbRepoId)) {
+      setScanError(`Repository '${repo.name}' identity is not verified in database.`);
+      setSelectedRepo(null);
+      setCurrentView('fleet');
+      return;
     }
 
     const updatedRepo: Repository = {
       ...repo,
-      dbRepositoryId: dbRepoId || repo.id,
+      id: dbRepoId,
+      dbRepositoryId: dbRepoId,
     };
     setSelectedRepo(updatedRepo);
 
     // Fetch real findings & coverage from PostgreSQL
-    if (dbRepoId) {
-      const [realFindings, realCoverage] = await Promise.all([
-        fetchFindingsForRepo(dbRepoId),
-        fetchCoverageForRepo(dbRepoId),
-      ]);
+    const [realFindings, realCoverage] = await Promise.all([
+      fetchFindingsForRepo(dbRepoId),
+      fetchCoverageForRepo(dbRepoId),
+    ]);
 
-      const isActuallyScanned = repo.isScanned || realCoverage != null || (realFindings && realFindings.length > 0);
-      setFindings(realFindings || []);
-      setCoverageData(realCoverage);
+    const isActuallyScanned = Boolean(realCoverage != null || (realFindings && realFindings.length > 0));
+    setFindings(realFindings || []);
+    setCoverageData(realCoverage);
 
+    if (isActuallyScanned) {
       const criticalCount = realFindings ? realFindings.filter(f => f.severity === 'CRITICAL' && f.status === 'OPEN').length : 0;
       const highCount = realFindings ? realFindings.filter(f => f.severity === 'HIGH' && f.status === 'OPEN').length : 0;
       const mediumCount = realFindings ? realFindings.filter(f => f.severity === 'MEDIUM' && f.status === 'OPEN').length : 0;
@@ -202,13 +207,9 @@ export default function App() {
 
       // Exact Formula: Score = max(0, 100 - (Critical * 15 + High * 8 + Medium * 4))
       const totalDeductions = criticalCount * 15 + highCount * 8 + mediumCount * 4;
-      const healthScore = !isActuallyScanned 
-        ? 0 
-        : Math.max(0, 100 - totalDeductions);
+      const healthScore = Math.max(0, 100 - totalDeductions);
 
-      const grade = !isActuallyScanned
-        ? 'Not Scanned Yet'
-        : healthScore >= 90
+      const grade = healthScore >= 90
         ? 'No open findings in this completed scan'
         : healthScore >= 70
         ? 'Grade B (Moderate Risk)'
@@ -227,14 +228,25 @@ export default function App() {
         trendData: [],
       });
 
-      // Update in monitored list & localStorage
+      setSelectedRepo((prev) =>
+        prev
+          ? {
+              ...prev,
+              isScanned: true,
+              lastScanned: 'Audited',
+              findingCount: openCount,
+              healthScore,
+            }
+          : null
+      );
+
       setMonitoredRepos((prev) =>
         prev.map((r) =>
-          r.name === repo.name
+          r.dbRepositoryId === dbRepoId
             ? {
                 ...r,
-                isScanned: isActuallyScanned,
-                lastScanned: isActuallyScanned ? 'Audited' : null,
+                isScanned: true,
+                lastScanned: 'Audited',
                 findingCount: openCount,
                 healthScore,
               }
@@ -242,8 +254,6 @@ export default function App() {
         )
       );
     } else {
-      setFindings([]);
-      setCoverageData(null);
       setMetrics({
         healthScore: 0,
         grade: 'Not Scanned Yet',
@@ -254,6 +264,18 @@ export default function App() {
         mttrMinutes: 0,
         trendData: [],
       });
+
+      setSelectedRepo((prev) =>
+        prev
+          ? {
+              ...prev,
+              isScanned: false,
+              lastScanned: null,
+              findingCount: 0,
+              healthScore: 0,
+            }
+          : null
+      );
     }
 
     setCurrentView('dashboard');
@@ -268,112 +290,168 @@ export default function App() {
     setLiveScannedCount(0);
     setLiveLeaksCount(0);
     setCurrentInspectingFile('');
+    setScanError(null);
 
     appendLog('INIT', `🚀 Initializing scan request for repository ${selectedRepo.name} (${selectedRepo.branch})...`);
     appendLog('INFO', `Scan request in progress — live progress is not available yet.`);
 
     try {
       let dbRepoId = selectedRepo.dbRepositoryId;
-      if (!dbRepoId) {
-        dbRepoId = await selectRepositoryOnBackend(selectedRepo);
-      }
-
-      const scanResult = await triggerRealScan(dbRepoId || undefined, selectedRepo.branch);
-
-      if (!scanResult.success) {
-        appendLog('ALERT', `❌ Scan pipeline failed: ${scanResult.message || 'Scan trigger failed'}`);
-        return;
-      }
-
-      if (dbRepoId) {
-        const [realFindings, realCoverage] = await Promise.all([
-          fetchFindingsForRepo(dbRepoId),
-          fetchCoverageForRepo(dbRepoId),
-        ]);
-
-        const realFindingsList = realFindings || [];
-        setFindings(realFindingsList);
-        setCoverageData(realCoverage);
-
-        const criticalCount = realFindingsList.filter(f => f.severity === 'CRITICAL' && f.status === 'OPEN').length;
-        const highCount = realFindingsList.filter(f => f.severity === 'HIGH' && f.status === 'OPEN').length;
-        const mediumCount = realFindingsList.filter(f => f.severity === 'MEDIUM' && f.status === 'OPEN').length;
-        const openCount = realFindingsList.filter(f => f.status === 'OPEN').length;
-        const resolvedCount = realFindingsList.filter(f => f.status === 'RESOLVED').length;
-        const scannedFiles = realCoverage?.scannedFiles || 0;
-        const totalFiles = realCoverage?.totalFiles || scannedFiles;
-        const skippedFiles = realCoverage?.skippedFiles || (totalFiles > scannedFiles ? totalFiles - scannedFiles : 0);
-
-        setLiveScannedCount(scannedFiles);
-        setLiveLeaksCount(openCount);
-
-        // Stream real alerts for findings
-        if (realFindingsList.length > 0) {
-          realFindingsList.slice(0, 3).forEach((f) => {
-            appendLog('ALERT', `⚠️ Secret detected in ${f.filePath}:${f.lineNumber} [${f.ruleId}: ${f.rawSecretMasked}]`, f.filePath);
-          });
-          if (realFindingsList.length > 3) {
-            appendLog('ALERT', `⚠️ +${realFindingsList.length - 3} additional secret exposures recorded in database.`);
-          }
+      if (!dbRepoId || !isValidUuid(dbRepoId)) {
+        dbRepoId = (await selectRepositoryOnBackend(selectedRepo)) || undefined;
+        if (dbRepoId && isValidUuid(dbRepoId)) {
+          setSelectedRepo((prev) => prev ? { ...prev, dbRepositoryId: dbRepoId, id: dbRepoId } : null);
         }
+      }
 
-        // Exact Formula: Score = max(0, 100 - (Critical * 15 + High * 8 + Medium * 4))
-        const totalDeductions = criticalCount * 15 + highCount * 8 + mediumCount * 4;
-        const healthScore = Math.max(0, 100 - totalDeductions);
-        const grade = healthScore >= 90
-          ? 'No open findings in this completed scan'
-          : healthScore >= 70
-          ? 'Grade B (Moderate Risk)'
-          : 'Action Required (Critical Risk)';
-
-        setMetrics({
-          healthScore,
-          grade,
-          scannedFilesCount: scannedFiles,
-          totalFilesCount: totalFiles,
-          skippedFilesCount: skippedFiles,
-          openLeaksCount: openCount,
-          resolvedLeaksCount: resolvedCount,
-          aiFixReadyCount: openCount,
-          mttrMinutes: 0,
-          trendData: [],
-        });
-
+      if (!dbRepoId || !isValidUuid(dbRepoId)) {
+        const errorMsg = 'Repository UUID is missing or invalid (fail-closed)';
+        appendLog('ALERT', `❌ Scan pipeline failed: ${errorMsg}`);
+        setScanError(errorMsg);
+        setFindings([]);
+        setCoverageData(null);
+        setMetrics(null);
         setSelectedRepo((prev) =>
           prev
             ? {
                 ...prev,
+                isScanned: false,
+                lastScanned: 'Failed',
+                findingCount: 0,
+                healthScore: 0,
+              }
+            : null
+        );
+        return;
+      }
+
+      const scanResult = await triggerRealScan(dbRepoId, selectedRepo.branch);
+
+      if (!scanResult.success) {
+        const errorMsg = scanResult.message || 'Scan trigger failed';
+        appendLog('ALERT', `❌ Scan pipeline failed: ${errorMsg}`);
+        setScanError(errorMsg);
+        // Fail-closed: clear any stale findings/coverage, do NOT display previous scan data
+        setFindings([]);
+        setCoverageData(null);
+        setMetrics(null);
+        setSelectedRepo((prev) =>
+          prev
+            ? {
+                ...prev,
+                isScanned: false,
+                lastScanned: 'Failed',
+                findingCount: 0,
+                healthScore: 0,
+              }
+            : null
+        );
+        return;
+      }
+
+      const [realFindings, realCoverage] = await Promise.all([
+        fetchFindingsForRepo(dbRepoId),
+        fetchCoverageForRepo(dbRepoId),
+      ]);
+
+      const realFindingsList = realFindings || [];
+      setFindings(realFindingsList);
+      setCoverageData(realCoverage);
+
+      const criticalCount = realFindingsList.filter(f => f.severity === 'CRITICAL' && f.status === 'OPEN').length;
+      const highCount = realFindingsList.filter(f => f.severity === 'HIGH' && f.status === 'OPEN').length;
+      const mediumCount = realFindingsList.filter(f => f.severity === 'MEDIUM' && f.status === 'OPEN').length;
+      const openCount = realFindingsList.filter(f => f.status === 'OPEN').length;
+      const resolvedCount = realFindingsList.filter(f => f.status === 'RESOLVED').length;
+      const scannedFiles = realCoverage?.scannedFiles || 0;
+      const totalFiles = realCoverage?.totalFiles || scannedFiles;
+      const skippedFiles = realCoverage?.skippedFiles || (totalFiles > scannedFiles ? totalFiles - scannedFiles : 0);
+
+      setLiveScannedCount(scannedFiles);
+      setLiveLeaksCount(openCount);
+
+      // Stream real alerts for findings
+      if (realFindingsList.length > 0) {
+        realFindingsList.slice(0, 3).forEach((f) => {
+          appendLog('ALERT', `⚠️ Secret detected in ${f.filePath}:${f.lineNumber} [${f.ruleId}: ${f.rawSecretMasked}]`, f.filePath);
+        });
+        if (realFindingsList.length > 3) {
+          appendLog('ALERT', `⚠️ +${realFindingsList.length - 3} additional secret exposures recorded in database.`);
+        }
+      }
+
+      // Exact Formula: Score = max(0, 100 - (Critical * 15 + High * 8 + Medium * 4))
+      const totalDeductions = criticalCount * 15 + highCount * 8 + mediumCount * 4;
+      const healthScore = Math.max(0, 100 - totalDeductions);
+      const grade = healthScore >= 90
+        ? 'No open findings in this completed scan'
+        : healthScore >= 70
+        ? 'Grade B (Moderate Risk)'
+        : 'Action Required (Critical Risk)';
+
+      setMetrics({
+        healthScore,
+        grade,
+        scannedFilesCount: scannedFiles,
+        totalFilesCount: totalFiles,
+        skippedFilesCount: skippedFiles,
+        openLeaksCount: openCount,
+        resolvedLeaksCount: resolvedCount,
+        aiFixReadyCount: openCount,
+        mttrMinutes: 0,
+        trendData: [],
+      });
+
+      setSelectedRepo((prev) =>
+        prev
+          ? {
+              ...prev,
+              isScanned: true,
+              lastScanned: 'Just now',
+              findingCount: openCount,
+              healthScore,
+            }
+          : null
+      );
+
+      setMonitoredRepos((prev) =>
+        prev.map((r) =>
+          r.dbRepositoryId === dbRepoId
+            ? {
+                ...r,
                 isScanned: true,
                 lastScanned: 'Just now',
                 findingCount: openCount,
                 healthScore,
               }
-            : null
-        );
+            : r
+        )
+      );
 
-        setMonitoredRepos((prev) =>
-          prev.map((r) =>
-            r.name === selectedRepo.name
-              ? {
-                  ...r,
-                  isScanned: true,
-                  lastScanned: 'Just now',
-                  findingCount: openCount,
-                  healthScore,
-                }
-              : r
-          )
-        );
-
-        const skippedCount = totalFiles - scannedFiles;
-        if (skippedCount > 0) {
-          appendLog('INFO', `ℹ️ File Eligibility (FR-031): ${scannedFiles} text files analyzed • ${skippedCount} non-text/binary files skipped (Reason: UNSUPPORTED_BINARY_FILE / UNSUPPORTED_BINARY_DOCUMENT).`);
-        }
-
-        appendLog('SUCCESS', `✅ Scan completed successfully (${scannedFiles}/${totalFiles} files verified, ${openCount} open leaks). Sandbox purged.`);
+      const skippedCount = totalFiles - scannedFiles;
+      if (skippedCount > 0) {
+        appendLog('INFO', `ℹ️ File Eligibility (FR-031): ${scannedFiles} text files analyzed • ${skippedCount} non-text/binary files skipped (Reason: UNSUPPORTED_BINARY_FILE / UNSUPPORTED_BINARY_DOCUMENT).`);
       }
+
+      appendLog('SUCCESS', `✅ Scan completed successfully (${scannedFiles}/${totalFiles} files verified, ${openCount} open leaks). Sandbox purged.`);
     } catch (e: any) {
-      appendLog('ALERT', `❌ Scan pipeline encountered error: ${e.message || 'Execution failed'}`);
+      const errorMsg = e.message || 'Execution failed';
+      appendLog('ALERT', `❌ Scan pipeline encountered error: ${errorMsg}`);
+      setScanError(errorMsg);
+      setFindings([]);
+      setCoverageData(null);
+      setMetrics(null);
+      setSelectedRepo((prev) =>
+        prev
+          ? {
+              ...prev,
+              isScanned: false,
+              lastScanned: 'Failed',
+              findingCount: 0,
+              healthScore: 0,
+            }
+          : null
+      );
     } finally {
       setIsScanning(false);
       setCurrentInspectingFile('');
@@ -445,6 +523,7 @@ export default function App() {
                 scanDuration={null}
                 onToggleTerminal={() => setIsTerminalOpen(!isTerminalOpen)}
                 isTerminalOpen={isTerminalOpen}
+                scanError={scanError}
               />
             )}
 
