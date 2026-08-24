@@ -50,6 +50,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -81,7 +83,139 @@ public class ScanPipelineService {
     private final com.scanpilot.persistence.repository.UserSessionRepository userSessionRepository;
 
     /**
-     * Executes the complete snapshot and history scan pipeline for a repository.
+     * Executes an enqueued scan job asynchronously by ID, persisting monotonic real stages.
+     *
+     * @param jobId the scan job UUID
+     * @return completed or failed ScanJobEntity
+     */
+    public ScanJobEntity executeScanJob(UUID jobId) {
+        if (jobId == null) {
+            throw new IllegalArgumentException("Scan job ID is required");
+        }
+
+        ScanJobEntity scanJob = scanJobRepository.findById(jobId)
+                .orElseThrow(() -> new IllegalArgumentException("Scan job not found: " + jobId));
+
+        UUID repositoryId = scanJob.getRepositoryId();
+        String branch = (scanJob.getBranchName() != null && !scanJob.getBranchName().isBlank())
+                ? scanJob.getBranchName().trim()
+                : "main";
+
+        Instant startTime = Instant.now();
+        scanJob.setStatus("RUNNING");
+        scanJob.setStage("FETCHING_SNAPSHOT");
+        scanJob.setStartedAt(startTime);
+        scanJob.setUpdatedAt(startTime);
+        scanJob.setHeartbeatAt(startTime);
+        scanJob = scanJobRepository.save(scanJob);
+
+        log.info("Starting async scan job {} for repositoryId={} on branch={}", jobId, repositoryId, branch);
+
+        ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
+        heartbeatExecutor.scheduleAtFixedRate(() -> {
+            try {
+                scanJobRepository.updateHeartbeatForRunningJob(jobId, Instant.now());
+            } catch (Exception e) {
+                log.warn("Task-scoped heartbeat update failed for jobId={}: errorType={}", jobId, e.getClass().getSimpleName());
+            }
+        }, 15, 15, TimeUnit.SECONDS);
+
+        GitWorkspace workspace = null;
+        try {
+            // Stage 1: Fetching Snapshot
+            workspace = gitWorkspaceManager.createWorkspace(repositoryId);
+            Path workspacePath = workspace.workspacePath();
+            fetchRemoteRepositorySnapshot(repositoryId, branch, workspacePath);
+
+            // Stage 2: Classifying Files & Coverage
+            scanJob.setStage("CLASSIFYING_FILES");
+            Instant stage2Time = Instant.now();
+            scanJob.setUpdatedAt(stage2Time);
+            scanJob.setHeartbeatAt(stage2Time);
+            scanJob = scanJobRepository.save(scanJob);
+            CoverageSummary coverageSummary = recordCoverage(scanJob, repositoryId, branch, workspacePath);
+
+            // Stage 3: Scanning Secrets
+            scanJob.setStage("SCANNING_SECRETS");
+            Instant stage3Time = Instant.now();
+            scanJob.setUpdatedAt(stage3Time);
+            scanJob.setHeartbeatAt(stage3Time);
+            scanJob = scanJobRepository.save(scanJob);
+            GitleaksScanResult snapshotResult = gitleaksDetectorAdapter.scan(GitleaksScanRequest.forSnapshot(workspacePath));
+            List<DetectedSecretFinding> snapshotFindings = normalizeFindings(repositoryId, snapshotResult.findings());
+
+            List<DetectedSecretFinding> historyFindings = Collections.emptyList();
+            if (Files.exists(workspacePath.resolve(".git"))) {
+                GitleaksScanResult historyResult = gitleaksDetectorAdapter.scan(GitleaksScanRequest.forGitHistory(workspacePath, null));
+                historyFindings = normalizeFindings(repositoryId, historyResult.findings());
+            }
+
+            // Stage 4: Recording Evidence
+            scanJob.setStage("RECORDING_EVIDENCE");
+            Instant stage4Time = Instant.now();
+            scanJob.setUpdatedAt(stage4Time);
+            scanJob.setHeartbeatAt(stage4Time);
+            scanJob = scanJobRepository.save(scanJob);
+
+            String commitSha = resolveCommitSha(workspacePath);
+            if (commitSha == null) {
+                commitSha = "HEAD-" + UUID.randomUUID().toString().substring(0, 8);
+            }
+
+            processFindings(repositoryId, snapshotFindings, historyFindings, commitSha);
+
+            // Validate coverage completeness and advance checkpoint
+            if (coverageSummary.coverageImpact() != CoverageImpact.INCOMPLETE) {
+                ScanCheckpointEntity checkpoint = ScanCheckpointEntity.builder()
+                        .repositoryId(repositoryId)
+                        .branchName(branch)
+                        .verifiedCommitSha(commitSha)
+                        .scanJobId(scanJob.getId())
+                        .createdAt(Instant.now())
+                        .build();
+                scanCheckpointRepository.save(checkpoint);
+                log.info("Advanced scan checkpoint for repo={} at commitSha={}", repositoryId, commitSha);
+            } else {
+                log.warn("Scan checkpoint not advanced due to INCOMPLETE coverage for repo={}", repositoryId);
+            }
+
+            // Stage 5: Completed
+            Instant completedTime = Instant.now();
+            scanJob.setStatus("COMPLETED");
+            scanJob.setStage("COMPLETED");
+            scanJob.setCommitSha(commitSha);
+            scanJob.setCompletedAt(completedTime);
+            scanJob.setUpdatedAt(completedTime);
+            scanJob.setHeartbeatAt(completedTime);
+            scanJob.setDurationMs(completedTime.toEpochMilli() - startTime.toEpochMilli());
+            scanJob = scanJobRepository.save(scanJob);
+
+            log.info("Scan job {} completed successfully in {}ms for repositoryId={}",
+                    scanJob.getId(), scanJob.getDurationMs(), repositoryId);
+            return scanJob;
+        } catch (Exception e) {
+            String sanitizedMsg = sanitizeErrorMessage(e.getMessage());
+            log.error("Scan pipeline execution failed for jobId={} repositoryId={}: errorType={} message={}",
+                    jobId, repositoryId, e.getClass().getSimpleName(), sanitizedMsg);
+            Instant completedTime = Instant.now();
+            scanJob.setStatus("FAILED");
+            scanJob.setStage("FAILED");
+            scanJob.setErrorMessage(sanitizedMsg);
+            scanJob.setCompletedAt(completedTime);
+            scanJob.setUpdatedAt(completedTime);
+            scanJob.setHeartbeatAt(completedTime);
+            scanJob.setDurationMs(completedTime.toEpochMilli() - startTime.toEpochMilli());
+            return scanJobRepository.save(scanJob);
+        } finally {
+            heartbeatExecutor.shutdownNow();
+            if (workspace != null) {
+                gitWorkspaceManager.disposeWorkspace(workspace);
+            }
+        }
+    }
+
+    /**
+     * Executes the complete snapshot and history scan pipeline for a repository synchronously.
      *
      * @param repositoryId the target repository UUID
      * @param branchName   the target branch name
@@ -97,13 +231,17 @@ public class ScanPipelineService {
         Instant startTime = Instant.now();
         log.info("Starting scan pipeline for repositoryId={} on branch={}", repositoryId, branch);
 
-        // 1. Create ScanJobEntity (PENDING -> RUNNING)
+        // 1. Create ScanJobEntity (PENDING -> RUNNING -> FETCHING_SNAPSHOT)
         ScanJobEntity scanJob = ScanJobEntity.builder()
             .repositoryId(repositoryId)
             .branchName(branch)
             .scanMode("SNAPSHOT_AND_HISTORY")
             .status("RUNNING")
+            .stage("FETCHING_SNAPSHOT")
+            .createdAt(startTime)
+            .updatedAt(startTime)
             .startedAt(startTime)
+            .heartbeatAt(startTime)
             .build();
         scanJob = scanJobRepository.save(scanJob);
 
@@ -127,9 +265,19 @@ public class ScanPipelineService {
             }
 
             // 4. File Eligibility & Coverage recording
+            scanJob.setStage("CLASSIFYING_FILES");
+            Instant stage2Time = Instant.now();
+            scanJob.setUpdatedAt(stage2Time);
+            scanJob.setHeartbeatAt(stage2Time);
+            scanJob = scanJobRepository.save(scanJob);
             CoverageSummary coverageSummary = recordCoverage(scanJob, repositoryId, branch, workspacePath);
 
             // 5. Stage 1: Snapshot scan of HEAD files (FR-025)
+            scanJob.setStage("SCANNING_SECRETS");
+            Instant stage3Time = Instant.now();
+            scanJob.setUpdatedAt(stage3Time);
+            scanJob.setHeartbeatAt(stage3Time);
+            scanJob = scanJobRepository.save(scanJob);
             GitleaksScanResult snapshotResult = gitleaksDetectorAdapter.scan(GitleaksScanRequest.forSnapshot(workspacePath));
             List<DetectedSecretFinding> snapshotFindings = normalizeFindings(repositoryId, snapshotResult.findings());
 
@@ -141,6 +289,11 @@ public class ScanPipelineService {
             }
 
             // 7. Apply Finding Lifecycle Engine & update database records (FR-007, FR-018, FR-019, FR-051, DEC-012)
+            scanJob.setStage("RECORDING_EVIDENCE");
+            Instant stage4Time = Instant.now();
+            scanJob.setUpdatedAt(stage4Time);
+            scanJob.setHeartbeatAt(stage4Time);
+            scanJob = scanJobRepository.save(scanJob);
             processFindings(repositoryId, snapshotFindings, historyFindings, commitSha);
 
             // 8. Validate coverage completeness and advance checkpoint (FR-028, FR-029)
@@ -161,8 +314,11 @@ public class ScanPipelineService {
             // 9. Complete Scan Job
             Instant completedTime = Instant.now();
             scanJob.setStatus("COMPLETED");
+            scanJob.setStage("COMPLETED");
             scanJob.setCommitSha(commitSha);
             scanJob.setCompletedAt(completedTime);
+            scanJob.setUpdatedAt(completedTime);
+            scanJob.setHeartbeatAt(completedTime);
             scanJob.setDurationMs(completedTime.toEpochMilli() - startTime.toEpochMilli());
             scanJob = scanJobRepository.save(scanJob);
 
@@ -170,11 +326,16 @@ public class ScanPipelineService {
                 scanJob.getId(), scanJob.getDurationMs(), repositoryId);
             return scanJob;
         } catch (Exception e) {
-            log.error("Scan pipeline failed for repositoryId={}: {}", repositoryId, e.getMessage(), e);
+            String sanitizedMsg = sanitizeErrorMessage(e.getMessage());
+            log.error("Scan pipeline execution failed for jobId={} repositoryId={}: errorType={} message={}",
+                    scanJob.getId(), repositoryId, e.getClass().getSimpleName(), sanitizedMsg);
             Instant completedTime = Instant.now();
             scanJob.setStatus("FAILED");
-            scanJob.setErrorMessage(e.getMessage());
+            scanJob.setStage("FAILED");
+            scanJob.setErrorMessage(sanitizedMsg);
             scanJob.setCompletedAt(completedTime);
+            scanJob.setUpdatedAt(completedTime);
+            scanJob.setHeartbeatAt(completedTime);
             scanJob.setDurationMs(completedTime.toEpochMilli() - startTime.toEpochMilli());
             return scanJobRepository.save(scanJob);
         } finally {
@@ -183,6 +344,16 @@ public class ScanPipelineService {
                 gitWorkspaceManager.disposeWorkspace(workspace);
             }
         }
+    }
+
+    public String sanitizeErrorMessage(String rawMessage) {
+        if (rawMessage == null || rawMessage.isBlank()) {
+            return "Scan execution failed";
+        }
+        String sanitized = rawMessage.replaceAll("(?i)(gh[pousr]_[A-Za-z0-9_]{16,})", "[REDACTED_TOKEN]");
+        sanitized = sanitized.replaceAll("(?i)(bearer\\s+)[A-Za-z0-9_.-]+", "$1[REDACTED_TOKEN]");
+        sanitized = sanitized.replaceAll("(?i)(password|secret|token)\\s*[=:]\\s*(?!\\[REDACTED)[^\\s,;]+", "$1=[REDACTED]");
+        return sanitized;
     }
 
     /**

@@ -4,6 +4,7 @@ import { CheckCircle2, Clock, RefreshCw, AlertCircle, Terminal } from 'lucide-re
 interface ScanProgressStepperProps {
   isScanning: boolean;
   branchName: string;
+  stage?: string | null;
   isScanned?: boolean;
   findingCount?: number;
   scanDuration?: string | null;
@@ -15,6 +16,7 @@ interface ScanProgressStepperProps {
 export const ScanProgressStepper: React.FC<ScanProgressStepperProps> = ({ 
   isScanning, 
   branchName,
+  stage = null,
   isScanned = false,
   findingCount = 0,
   scanDuration = null,
@@ -23,6 +25,72 @@ export const ScanProgressStepper: React.FC<ScanProgressStepperProps> = ({
   scanError = null,
 }) => {
   const displayDuration = scanDuration || 'Not available';
+
+  const getStageInfo = () => {
+    if (scanError) {
+      return {
+        title: `Scan Execution Failed on ${branchName}`,
+        badge: 'SCAN FAILED',
+        description: `Scan pipeline error: ${scanError}`,
+      };
+    }
+    if (isScanning) {
+      switch (stage) {
+        case 'QUEUED':
+          return {
+            title: `Scan Queued on ${branchName}...`,
+            badge: 'QUEUED',
+            description: 'Scan job is queued in worker executor...',
+          };
+        case 'FETCHING_SNAPSHOT':
+          return {
+            title: `Fetching Repository Snapshot on ${branchName}...`,
+            badge: 'FETCHING SNAPSHOT',
+            description: 'Downloading and verifying remote repository snapshot...',
+          };
+        case 'CLASSIFYING_FILES':
+          return {
+            title: `Classifying Files & Coverage on ${branchName}...`,
+            badge: 'CLASSIFYING FILES',
+            description: 'Evaluating file eligibility and calculating baseline coverage...',
+          };
+        case 'SCANNING_SECRETS':
+          return {
+            title: `Auditing Secret Rules on ${branchName}...`,
+            badge: 'SCANNING SECRETS',
+            description: 'Auditing repository snapshot and git history against SP-CONFIG-001 rules...',
+          };
+        case 'RECORDING_EVIDENCE':
+          return {
+            title: `Recording Findings & Evidence on ${branchName}...`,
+            badge: 'RECORDING EVIDENCE',
+            description: 'Recording findings, locations, coverage records, and checkpoints...',
+          };
+        default:
+          return {
+            title: `Security Scan in Progress on ${branchName}...`,
+            badge: stage || 'SCANNING',
+            description: 'Executing security analysis pipeline...',
+          };
+      }
+    }
+    if (isScanned) {
+      return {
+        title: `Scan Completed Successfully on ${branchName}`,
+        badge: 'WORKING TREE SNAPSHOT',
+        description: scanDuration
+          ? `Analysis finished in ${scanDuration}. All active working tree files audited against SP-CONFIG-001 rules.`
+          : 'Analysis finished. All active working tree files audited against SP-CONFIG-001 rules.',
+      };
+    }
+    return {
+      title: `Repository Awaiting Initial Scan on ${branchName}`,
+      badge: 'ENGINE STANDBY',
+      description: `Click 'Trigger Rescan' to download the latest ${branchName} snapshot and execute deep secret analysis.`,
+    };
+  };
+
+  const stageInfo = getStageInfo();
 
   return (
     <div className="w-full bg-[#161b22] border border-[#30363d] rounded-2xl p-4 sm:p-5 shadow-sm space-y-3.5 animate-in fade-in duration-150">
@@ -50,15 +118,7 @@ export const ScanProgressStepper: React.FC<ScanProgressStepperProps> = ({
           </div>
           <div>
             <div className="font-semibold text-[#f0f6fc] flex items-center gap-2">
-              <span>
-                {isScanning 
-                  ? `Security Scan in Progress on ${branchName}...` 
-                  : scanError
-                  ? `Scan Execution Failed on ${branchName}`
-                  : isScanned 
-                  ? `Scan Completed Successfully on ${branchName}` 
-                  : `Repository Awaiting Initial Scan on ${branchName}`}
-              </span>
+              <span>{stageInfo.title}</span>
               <span className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded border ${
                 isScanning 
                   ? 'bg-[#1f6feb]/15 text-[#58a6ff] border-[#1f6feb]/30' 
@@ -68,23 +128,11 @@ export const ScanProgressStepper: React.FC<ScanProgressStepperProps> = ({
                   ? 'bg-[#238636]/15 text-[#3fb950] border-[#238636]/30' 
                   : 'bg-[#21262d] text-[#8b949e] border-[#30363d]'
               }`}>
-                {isScanning 
-                  ? 'SCAN REQUEST SENT'
-                  : scanError
-                  ? 'SCAN FAILED'
-                  : isScanned 
-                  ? 'WORKING TREE SNAPSHOT'
-                  : 'ENGINE STANDBY'}
+                {stageInfo.badge}
               </span>
             </div>
             <p className="text-[#8b949e] text-[11px] mt-0.5">
-              {isScanning 
-                ? 'Scan request in progress — live progress is not available yet.'
-                : scanError
-                ? `Scan pipeline error: ${scanError}`
-                : isScanned
-                ? (scanDuration ? `Analysis finished in ${scanDuration}. All active working tree files audited against SP-CONFIG-001 rules.` : 'Analysis finished. All active working tree files audited against SP-CONFIG-001 rules.')
-                : `Click 'Trigger Rescan' to download the latest ${branchName} snapshot and execute deep secret analysis.`}
+              {stageInfo.description}
             </p>
           </div>
         </div>

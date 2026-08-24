@@ -31,8 +31,8 @@ class FlywaySchemaMigrationTest {
     void shouldVerifyFlywayMigrationApplied() {
         MigrationInfo current = flyway.info().current();
         assertThat(current).isNotNull();
-        assertThat(current.getVersion().getVersion()).isEqualTo("1");
-        assertThat(current.getDescription()).isEqualTo("init core schema");
+        assertThat(current.getVersion().getVersion()).isEqualTo("2");
+        assertThat(current.getDescription()).isEqualTo("add scan job stage and created at");
         assertThat(current.getState().isApplied()).isTrue();
     }
 

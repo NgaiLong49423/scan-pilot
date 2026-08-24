@@ -2,7 +2,7 @@
 > **File:** `CHANGELOG.md`
 > **Version:** v2.35.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-22
+> **Last Updated:** 2026-08-24
 > **Status:** Active
 
 # Scan Pilot Changelog
@@ -10,6 +10,56 @@
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
+
+## 2026-08-24 — Asynchronous Scan Job Dispatch and Real Progress (Issue #52)
+
+**Status:** Committed (`86d6637`)
+
+**Scope:** Implemented non-blocking scan execution and real stage tracking (FR-002, NFR-001). Scan trigger endpoint returns HTTP 202 Accepted immediately with queued status, a bounded in-process worker queue handles asynchronous execution, and monotonic stages (QUEUED, FETCHING_SNAPSHOT, CLASSIFYING_FILES, SCANNING_SECRETS, RECORDING_EVIDENCE, COMPLETED/FAILED) are persisted in PostgreSQL. Implemented database-level pessimistic locking for cross-instance duplicate prevention, task-scoped heartbeat liveness, and atomic fail-closed restart/stale recovery (~2.5m SLA). Added bounded frontend interval polling with terminal error handling.
+
+### Added
+
+- Added Flyway migration `V2__add_scan_job_stage_and_created_at.sql` adding stage, timestamps, worker instance ID, and heartbeat columns to `scan_jobs`.
+- Added `ScanExecutorConfig` with bounded `ThreadPoolTaskExecutor` (1 worker, queue capacity 10, AbortPolicy) and `ScanCapacityExceededException` (HTTP 429).
+- Added `ScanJobDispatcher` with pessimistic row locking (`findByIdForUpdate`) for atomic cross-instance duplicate scan prevention and post-commit worker execution.
+- Added `ScanWorkerHeartbeatScheduler` for active queued jobs and task-scoped heartbeat execution in `ScanPipelineService` for running scans.
+- Added atomic conditional stale job recovery in `ScanJobRestartReconciler` (`reconcileStaleJobsAtomic`) running at startup and periodically every 30 seconds.
+- Added `fetchScanJob` in `frontend/src/services/api.ts` distinguishing terminal (401, 403, 404) vs transient errors.
+
+### Changed
+
+- Updated `POST /api/v1/scans/trigger` to dispatch asynchronously and return HTTP 202 Accepted prompt response with repository UUID identity.
+- Updated `GET /api/v1/scans/jobs/{jobId}` to enforce user ownership check (HTTP 404 for non-owners).
+- Updated `ScanProgressStepper.tsx` to dynamically display persisted backend scan stages and sanitized failure messages.
+- Updated `App.tsx` with bounded interval polling (1.5s), 5-error retry limit, and cleanup on unmount/repo change.
+- Refactored all loggers in scan dispatcher and pipeline to structured sanitized format, scrubbing sensitive tokens and credentials.
+
+### Affected files
+
+- `backend/src/main/java/com/scanpilot/persistence/entity/ScanJobEntity.java`
+- `backend/src/main/java/com/scanpilot/persistence/repository/RepositoryRepository.java`
+- `backend/src/main/java/com/scanpilot/persistence/repository/ScanJobRepository.java`
+- `backend/src/main/java/com/scanpilot/scanner/config/ScanExecutorConfig.java`
+- `backend/src/main/java/com/scanpilot/scanner/config/ScanWorkerInstance.java`
+- `backend/src/main/java/com/scanpilot/scanner/controller/ScanController.java`
+- `backend/src/main/java/com/scanpilot/scanner/dispatcher/ScanJobDispatcher.java`
+- `backend/src/main/java/com/scanpilot/scanner/dto/ScanJobDto.java`
+- `backend/src/main/java/com/scanpilot/scanner/dto/ScanTriggerResponse.java`
+- `backend/src/main/java/com/scanpilot/scanner/exception/ScanCapacityExceededException.java`
+- `backend/src/main/java/com/scanpilot/scanner/lifecycle/ScanJobRestartReconciler.java`
+- `backend/src/main/java/com/scanpilot/scanner/lifecycle/ScanWorkerHeartbeatScheduler.java`
+- `backend/src/main/java/com/scanpilot/scanner/pipeline/ScanPipelineService.java`
+- `backend/src/main/java/com/scanpilot/system/GlobalExceptionHandler.java`
+- `backend/src/main/resources/db/migration/V2__add_scan_job_stage_and_created_at.sql`
+- `backend/src/test/java/com/scanpilot/persistence/FlywaySchemaMigrationTest.java`
+- `backend/src/test/java/com/scanpilot/scanner/controller/ScanControllerTest.java`
+- `backend/src/test/java/com/scanpilot/scanner/dispatcher/ScanJobDispatcherTest.java`
+- `backend/src/test/java/com/scanpilot/scanner/lifecycle/ScanJobRestartReconcilerTest.java`
+- `backend/src/test/java/com/scanpilot/scanner/pipeline/ScanPipelineServiceTest.java`
+- `frontend/src/App.tsx`
+- `frontend/src/components/ScanProgressStepper.tsx`
+- `frontend/src/services/api.ts`
+- `CHANGELOG.md`
 
 ## 2026-08-22 — Production PostgreSQL Fail-Closed Persistence (Issue #53)
 

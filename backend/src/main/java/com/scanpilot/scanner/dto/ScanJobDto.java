@@ -14,9 +14,14 @@ public record ScanJobDto(
     String branchName,
     String scanMode,
     String status,
+    String stage,
     String commitSha,
     Long durationMs,
     String errorMessage,
+    String workerInstanceId,
+    Instant heartbeatAt,
+    Instant createdAt,
+    Instant updatedAt,
     Instant startedAt,
     Instant completedAt
 ) {
@@ -30,9 +35,14 @@ public record ScanJobDto(
             entity.getBranchName(),
             entity.getScanMode(),
             entity.getStatus(),
+            entity.getStage(),
             entity.getCommitSha(),
             entity.getDurationMs(),
             entity.getErrorMessage(),
+            entity.getWorkerInstanceId(),
+            entity.getHeartbeatAt(),
+            entity.getCreatedAt(),
+            entity.getUpdatedAt(),
             entity.getStartedAt(),
             entity.getCompletedAt()
         );

@@ -256,9 +256,69 @@ export async function fetchCoverageForRepo(repositoryId: string): Promise<any | 
 }
 
 /**
- * Triggers a real repository scan on the Spring Boot backend.
+ * DTO representing scan job status and telemetry from backend.
  */
-export async function triggerRealScan(repositoryId?: string, branchName?: string): Promise<{ success: boolean; jobId?: string; message?: string }> {
+export interface ScanJobDto {
+  id: string;
+  repositoryId: string;
+  branchName?: string;
+  scanMode?: string;
+  status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  stage?: string;
+  commitSha?: string;
+  durationMs?: number;
+  errorMessage?: string;
+  createdAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+export interface ScanJobPollResult {
+  success: boolean;
+  job?: ScanJobDto;
+  isTerminal?: boolean;
+  status?: number;
+  message?: string;
+}
+
+/**
+ * Fetches the real-time status and stage of a scan job from backend.
+ * Distinguishes terminal HTTP errors (401/403/404) from transient server/network errors.
+ */
+export async function fetchScanJob(jobId: string): Promise<ScanJobPollResult> {
+  if (!isValidUuid(jobId)) {
+    return { success: false, isTerminal: true, message: 'Invalid scan job UUID' };
+  }
+  try {
+    const baseUrl = getApiBaseUrl();
+    const response = await fetch(`${baseUrl}/api/v1/scans/jobs/${jobId}`, {
+      credentials: 'include',
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return { success: true, job: data, status: response.status };
+    }
+
+    const err = await response.json().catch(() => ({}));
+    const message = err.message || `Request failed with HTTP ${response.status}`;
+
+    if (response.status === 401 || response.status === 403 || response.status === 404) {
+      return { success: false, isTerminal: true, status: response.status, message };
+    }
+
+    return { success: false, isTerminal: false, status: response.status, message };
+  } catch (e: any) {
+    return { success: false, isTerminal: false, message: e?.message || 'Network error while fetching scan job' };
+  }
+}
+
+/**
+ * Triggers a real repository scan on the Spring Boot backend asynchronously (Issue #52).
+ */
+export async function triggerRealScan(
+  repositoryId?: string,
+  branchName?: string
+): Promise<{ success: boolean; jobId?: string; status?: string; stage?: string; message?: string }> {
   if (!isValidUuid(repositoryId)) {
     return { success: false, message: 'Invalid or missing repository UUID (fail-closed)' };
   }
@@ -276,12 +336,15 @@ export async function triggerRealScan(repositoryId?: string, branchName?: string
       }),
     });
 
-    if (response.ok) {
+    if (response.ok || response.status === 202) {
       const data = await response.json();
-      if (data.status !== 'COMPLETED') {
-        return { success: false, jobId: data.jobId, message: data.message || 'Scan execution failed' };
-      }
-      return { success: true, jobId: data.jobId, message: data.message };
+      return {
+        success: true,
+        jobId: data.jobId,
+        status: data.status,
+        stage: data.stage,
+        message: data.message,
+      };
     } else {
       const err = await response.json().catch(() => ({}));
       return { success: false, message: err.message || 'Scan trigger failed' };

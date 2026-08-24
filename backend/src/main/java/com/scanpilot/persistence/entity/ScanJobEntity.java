@@ -43,6 +43,9 @@ public class ScanJobEntity {
     @Column(name = "status", length = 64)
     private String status;
 
+    @Column(name = "stage", length = 64)
+    private String stage;
+
     @Column(name = "commit_sha", length = 64)
     private String commitSha;
 
@@ -52,9 +55,21 @@ public class ScanJobEntity {
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
+    @Column(name = "created_at")
+    private Instant createdAt;
+
+    @Column(name = "updated_at")
+    private Instant updatedAt;
+
     @Column(name = "started_at")
     private Instant startedAt;
 
     @Column(name = "completed_at")
     private Instant completedAt;
+
+    @Column(name = "worker_instance_id")
+    private String workerInstanceId;
+
+    @Column(name = "heartbeat_at")
+    private Instant heartbeatAt;
 }

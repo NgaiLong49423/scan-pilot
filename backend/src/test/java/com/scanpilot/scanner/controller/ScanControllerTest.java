@@ -191,20 +191,40 @@ class ScanControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/scans/trigger triggers scan when authenticated with valid repository UUID and completed pipeline")
+    @DisplayName("POST /api/v1/scans/trigger triggers async scan returning HTTP 202 Accepted with QUEUED job")
     void testTriggerScanAuthenticated() throws Exception {
-        ScanJobEntity completedJob = ScanJobEntity.builder()
-            .id(UUID.randomUUID())
+        String requestJson = String.format("""
+            {
+                "repositoryId": "%s",
+                "branchName": "main"
+            }
+            """, repositoryEntity.getId());
+
+        mockMvc.perform(post("/api/v1/scans/trigger")
+                .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestJson))
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.jobId").isNotEmpty())
+            .andExpect(jsonPath("$.repositoryId").value(repositoryEntity.getId().toString()))
+            .andExpect(jsonPath("$.branchName").value("main"))
+            .andExpect(jsonPath("$.status").value("QUEUED"))
+            .andExpect(jsonPath("$.stage").value("QUEUED"))
+            .andExpect(jsonPath("$.message").value("Scan job queued successfully"));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/scans/trigger with duplicate active scan returns existing active job")
+    void testTriggerScanDuplicateReturnsExistingActiveJob() throws Exception {
+        ScanJobEntity activeJob = scanJobRepository.save(ScanJobEntity.builder()
             .repositoryId(repositoryEntity.getId())
             .branchName("main")
             .scanMode("SNAPSHOT_AND_HISTORY")
-            .status("COMPLETED")
-            .startedAt(Instant.now().minusSeconds(1))
-            .completedAt(Instant.now())
-            .durationMs(450L)
-            .build();
-        when(scanPipelineService.executeScan(eq(repositoryEntity.getId()), eq("main"), any()))
-            .thenReturn(completedJob);
+            .status("RUNNING")
+            .stage("SCANNING_SECRETS")
+            .createdAt(Instant.now().minusSeconds(10))
+            .startedAt(Instant.now().minusSeconds(5))
+            .build());
 
         String requestJson = String.format("""
             {
@@ -217,54 +237,12 @@ class ScanControllerTest {
                 .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestJson))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.jobId").value(completedJob.getId().toString()))
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.jobId").value(activeJob.getId().toString()))
             .andExpect(jsonPath("$.repositoryId").value(repositoryEntity.getId().toString()))
             .andExpect(jsonPath("$.branchName").value("main"))
-            .andExpect(jsonPath("$.status").value("COMPLETED"))
-            .andExpect(jsonPath("$.message").value("Scan executed successfully"));
-    }
-
-    @Test
-    @DisplayName("POST /api/v1/scans/trigger when pipeline execution fails returns HTTP 422 Unprocessable Entity with safe message without leaking internal error details")
-    void testTriggerScanPipelineFailureReturns422() throws Exception {
-        ScanJobEntity failedJob = ScanJobEntity.builder()
-            .id(UUID.randomUUID())
-            .repositoryId(repositoryEntity.getId())
-            .branchName("main")
-            .scanMode("SNAPSHOT_AND_HISTORY")
-            .status("FAILED")
-            .errorMessage("INTERNAL_DIAGNOSTIC_MARKER_DO_NOT_EXPOSE")
-            .startedAt(Instant.now().minusSeconds(1))
-            .completedAt(Instant.now())
-            .durationMs(120L)
-            .build();
-        when(scanPipelineService.executeScan(eq(repositoryEntity.getId()), eq("main"), any()))
-            .thenReturn(failedJob);
-
-        String requestJson = String.format("""
-            {
-                "repositoryId": "%s",
-                "branchName": "main"
-            }
-            """, repositoryEntity.getId());
-
-        org.springframework.test.web.servlet.MvcResult result = mockMvc.perform(post("/api/v1/scans/trigger")
-                .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(requestJson))
-            .andExpect(status().isUnprocessableEntity())
-            .andExpect(jsonPath("$.jobId").value(failedJob.getId().toString()))
-            .andExpect(jsonPath("$.repositoryId").value(repositoryEntity.getId().toString()))
-            .andExpect(jsonPath("$.branchName").value("main"))
-            .andExpect(jsonPath("$.status").value("FAILED"))
-            .andExpect(jsonPath("$.message").value("Scan could not complete for the requested repository branch. No new evidence was recorded."))
-            .andReturn();
-
-        String responseBody = result.getResponse().getContentAsString();
-        org.assertj.core.api.Assertions.assertThat(responseBody)
-            .doesNotContain("INTERNAL_DIAGNOSTIC_MARKER_DO_NOT_EXPOSE")
-            .contains("Scan could not complete for the requested repository branch. No new evidence was recorded.");
+            .andExpect(jsonPath("$.status").value("RUNNING"))
+            .andExpect(jsonPath("$.stage").value("SCANNING_SECRETS"));
     }
 
     @Test
@@ -386,19 +364,6 @@ class ScanControllerTest {
             .createdAt(Instant.now())
             .build());
 
-        ScanJobEntity completedJob = ScanJobEntity.builder()
-            .id(UUID.randomUUID())
-            .repositoryId(repositoryEntity.getId())
-            .branchName("develop")
-            .scanMode("SNAPSHOT_AND_HISTORY")
-            .status("COMPLETED")
-            .startedAt(Instant.now().minusSeconds(1))
-            .completedAt(Instant.now())
-            .durationMs(450L)
-            .build();
-        when(scanPipelineService.executeScan(eq(repositoryEntity.getId()), eq("develop"), any()))
-            .thenReturn(completedJob);
-
         String requestJson = String.format("""
             {
                 "repositoryId": "%s",
@@ -410,10 +375,10 @@ class ScanControllerTest {
                 .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestJson))
-            .andExpect(status().isOk())
+            .andExpect(status().isAccepted())
             .andExpect(jsonPath("$.repositoryId").value(repositoryEntity.getId().toString()))
             .andExpect(jsonPath("$.branchName").value("develop"))
-            .andExpect(jsonPath("$.status").value("COMPLETED"));
+            .andExpect(jsonPath("$.status").value("QUEUED"));
     }
 
     @Test
@@ -477,21 +442,6 @@ class ScanControllerTest {
             .createdAt(Instant.now())
             .build());
 
-        ScanJobEntity jobA = ScanJobEntity.builder()
-            .id(UUID.randomUUID())
-            .repositoryId(repositoryEntity.getId())
-            .branchName("main")
-            .status("COMPLETED")
-            .build();
-        ScanJobEntity jobB = ScanJobEntity.builder()
-            .id(UUID.randomUUID())
-            .repositoryId(repoB.getId())
-            .branchName("develop")
-            .status("COMPLETED")
-            .build();
-        when(scanPipelineService.executeScan(eq(repositoryEntity.getId()), eq("main"), any())).thenReturn(jobA);
-        when(scanPipelineService.executeScan(eq(repoB.getId()), eq("develop"), any())).thenReturn(jobB);
-
         // Scan Repo A
         String requestA = String.format("""
             {
@@ -504,9 +454,10 @@ class ScanControllerTest {
                 .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestA))
-            .andExpect(status().isOk())
+            .andExpect(status().isAccepted())
             .andExpect(jsonPath("$.repositoryId").value(repositoryEntity.getId().toString()))
-            .andExpect(jsonPath("$.branchName").value("main"));
+            .andExpect(jsonPath("$.branchName").value("main"))
+            .andExpect(jsonPath("$.status").value("QUEUED"));
 
         // Scan Repo B
         String requestB = String.format("""
@@ -520,9 +471,10 @@ class ScanControllerTest {
                 .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestB))
-            .andExpect(status().isOk())
+            .andExpect(status().isAccepted())
             .andExpect(jsonPath("$.repositoryId").value(repoB.getId().toString()))
-            .andExpect(jsonPath("$.branchName").value("develop"));
+            .andExpect(jsonPath("$.branchName").value("develop"))
+            .andExpect(jsonPath("$.status").value("QUEUED"));
 
         // Verify both repositories exist in PostgreSQL for the user
         List<RepositoryEntity> userRepos = repositoryRepository.findByUserId(userEntity.getId());
@@ -564,14 +516,6 @@ class ScanControllerTest {
             .createdAt(Instant.now())
             .build());
 
-        ScanJobEntity jobB = ScanJobEntity.builder()
-            .id(UUID.randomUUID())
-            .repositoryId(repoB.getId())
-            .branchName("main")
-            .status("COMPLETED")
-            .build();
-        when(scanPipelineService.executeScan(eq(repoB.getId()), eq("main"), any())).thenReturn(jobB);
-
         // Trigger scan explicitly for Repo B
         String requestB = String.format("""
             {
@@ -584,8 +528,9 @@ class ScanControllerTest {
                 .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestB))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.repositoryId").value(repoB.getId().toString()));
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.repositoryId").value(repoB.getId().toString()))
+            .andExpect(jsonPath("$.status").value("QUEUED"));
     }
 
     @Test
@@ -634,15 +579,6 @@ class ScanControllerTest {
             .andExpect(jsonPath("$.message").value("Branch 'main' is not configured for monitoring on this repository"));
 
         // 2. Scan on new primary branch 'develop' succeeds
-        ScanJobEntity developJob = ScanJobEntity.builder()
-            .id(UUID.randomUUID())
-            .repositoryId(repositoryEntity.getId())
-            .branchName("develop")
-            .status("COMPLETED")
-            .build();
-        when(scanPipelineService.executeScan(eq(repositoryEntity.getId()), eq("develop"), any()))
-            .thenReturn(developJob);
-
         String requestNew = String.format("""
             {
                 "repositoryId": "%s",
@@ -654,9 +590,9 @@ class ScanControllerTest {
                 .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId()))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestNew))
-            .andExpect(status().isOk())
+            .andExpect(status().isAccepted())
             .andExpect(jsonPath("$.branchName").value("develop"))
-            .andExpect(jsonPath("$.status").value("COMPLETED"));
+            .andExpect(jsonPath("$.status").value("QUEUED"));
     }
 
     @Test
