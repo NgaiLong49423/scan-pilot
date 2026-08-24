@@ -1,5 +1,6 @@
 package com.scanpilot.system;
 
+import com.scanpilot.scanner.exception.ScanCapacityExceededException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -43,5 +44,12 @@ public class GlobalExceptionHandler {
         log.warn("Rejected unreadable scan-trigger request");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Map.of("error", "Bad Request", "message", "Invalid, missing, or unauthorized repository ID"));
+    }
+
+    @ExceptionHandler(ScanCapacityExceededException.class)
+    public ResponseEntity<Map<String, String>> handleScanCapacityExceededException(ScanCapacityExceededException e) {
+        log.warn("Scan capacity exceeded: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(Map.of("error", "Too Many Requests", "message", e.getMessage() != null ? e.getMessage() : "Scan capacity exceeded, please retry later"));
     }
 }

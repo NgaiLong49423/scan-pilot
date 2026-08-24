@@ -17,6 +17,7 @@ import {
   loginWithGitHub,
   logoutUser,
   triggerRealScan,
+  fetchScanJob,
   isValidUuid
 } from './services/api';
 import { Navbar } from './components/Navbar';
@@ -46,10 +47,14 @@ export default function App() {
   const [coverageData, setCoverageData] = useState<any | null>(null);
   const [metrics, setMetrics] = useState<HealthMetrics | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [activeStage, setActiveStage] = useState<string | null>(null);
+  const [scanDurationStr, setScanDurationStr] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [severityFilter, setSeverityFilter] = useState<'ALL' | 'CRITICAL' | 'HIGH' | 'RESOLVED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [scanError, setScanError] = useState<string | null>(null);
+
+  const pollTimerRef = useRef<NodeJS.Timeout | number | null>(null);
 
   // Live Terminal Feed States
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
@@ -114,9 +119,25 @@ export default function App() {
     }
   };
 
+  const stopPolling = () => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  };
+
   useEffect(() => {
     loadData();
+    return () => {
+      stopPolling();
+    };
   }, []);
+
+  useEffect(() => {
+    return () => {
+      stopPolling();
+    };
+  }, [selectedRepo?.id]);
 
   // Helper to append a log line to live terminal
   const appendLog = (level: ScanLogEntry['level'], message: string, file?: string) => {
@@ -168,6 +189,10 @@ export default function App() {
   // Handle selecting a repository to inspect deep posture
   const handleSelectRepo = async (repo: Repository) => {
     // 1. Reset state completely to guarantee data isolation between repositories
+    stopPolling();
+    setIsScanning(false);
+    setActiveStage(null);
+    setScanDurationStr(null);
     setFindings([]);
     setCoverageData(null);
     setMetrics(null);
@@ -292,10 +317,13 @@ export default function App() {
     setCurrentView('dashboard');
   };
 
-  // Handle trigger real repository scan on Backend with execution logs
+  // Handle trigger real repository scan on Backend with async execution and live stage polling
   const handleTriggerRescan = async () => {
     if (!selectedRepo) return;
+    stopPolling();
     setIsScanning(true);
+    setActiveStage('QUEUED');
+    setScanDurationStr(null);
     setIsTerminalOpen(true);
     setScanLogs([]);
     setLiveScannedCount(0);
@@ -304,7 +332,6 @@ export default function App() {
     setScanError(null);
 
     appendLog('INIT', `🚀 Initializing scan request for repository ${selectedRepo.name} (${selectedRepo.branch})...`);
-    appendLog('INFO', `Scan request in progress — live progress is not available yet.`);
 
     try {
       let dbRepoId = selectedRepo.dbRepositoryId;
@@ -319,6 +346,8 @@ export default function App() {
         const errorMsg = 'Repository UUID is missing or invalid (fail-closed)';
         appendLog('ALERT', `❌ Scan pipeline failed: ${errorMsg}`);
         setScanError(errorMsg);
+        setIsScanning(false);
+        setActiveStage(null);
         setFindings([]);
         setCoverageData(null);
         setMetrics(null);
@@ -338,10 +367,12 @@ export default function App() {
 
       const scanResult = await triggerRealScan(dbRepoId, selectedRepo.branch);
 
-      if (!scanResult.success) {
+      if (!scanResult.success || !scanResult.jobId) {
         const errorMsg = scanResult.message || 'Scan trigger failed';
         appendLog('ALERT', `❌ Scan pipeline failed: ${errorMsg}`);
         setScanError(errorMsg);
+        setIsScanning(false);
+        setActiveStage(null);
         // Fail-closed: clear any stale findings/coverage, do NOT display previous scan data
         setFindings([]);
         setCoverageData(null);
@@ -360,92 +391,205 @@ export default function App() {
         return;
       }
 
-      const [realFindings, realCoverage] = await Promise.all([
-        fetchFindingsForRepo(dbRepoId),
-        fetchCoverageForRepo(dbRepoId),
-      ]);
+      const jobId = scanResult.jobId;
+      const initialStage = scanResult.stage || 'QUEUED';
+      setActiveStage(initialStage);
+      appendLog('INFO', `Scan job enqueued (ID: ${jobId}). Polling real-time worker stages...`);
 
-      const realFindingsList = realFindings || [];
-      setFindings(realFindingsList);
-      setCoverageData(realCoverage);
+      let prevStage = initialStage;
+      let consecutiveErrors = 0;
 
-      const criticalCount = realFindingsList.filter(f => f.severity === 'CRITICAL' && f.status === 'OPEN').length;
-      const highCount = realFindingsList.filter(f => f.severity === 'HIGH' && f.status === 'OPEN').length;
-      const mediumCount = realFindingsList.filter(f => f.severity === 'MEDIUM' && f.status === 'OPEN').length;
-      const openCount = realFindingsList.filter(f => f.status === 'OPEN').length;
-      const resolvedCount = realFindingsList.filter(f => f.status === 'RESOLVED').length;
-      const scannedFiles = realCoverage?.scannedFiles || 0;
-      const totalFiles = realCoverage?.totalFiles || scannedFiles;
-      const skippedFiles = realCoverage?.skippedFiles || (totalFiles > scannedFiles ? totalFiles - scannedFiles : 0);
-
-      setLiveScannedCount(scannedFiles);
-      setLiveLeaksCount(openCount);
-
-      // Stream real alerts for findings
-      if (realFindingsList.length > 0) {
-        realFindingsList.slice(0, 3).forEach((f) => {
-          appendLog('ALERT', `⚠️ Secret detected in ${f.filePath}:${f.lineNumber} [${f.ruleId}: ${f.rawSecretMasked}]`, f.filePath);
-        });
-        if (realFindingsList.length > 3) {
-          appendLog('ALERT', `⚠️ +${realFindingsList.length - 3} additional secret exposures recorded in database.`);
-        }
-      }
-
-      // Exact Formula: Score = max(0, 100 - (Critical * 15 + High * 8 + Medium * 4))
-      const totalDeductions = criticalCount * 15 + highCount * 8 + mediumCount * 4;
-      const healthScore = Math.max(0, 100 - totalDeductions);
-      const grade = healthScore >= 90
-        ? 'No open findings in this completed scan'
-        : healthScore >= 70
-        ? 'Grade B (Moderate Risk)'
-        : 'Action Required (Critical Risk)';
-
-      setMetrics({
-        healthScore,
-        grade,
-        scannedFilesCount: scannedFiles,
-        totalFilesCount: totalFiles,
-        skippedFilesCount: skippedFiles,
-        openLeaksCount: openCount,
-        resolvedLeaksCount: resolvedCount,
-        aiFixReadyCount: openCount,
-        mttrMinutes: 0,
-        trendData: [],
-      });
-
-      setSelectedRepo((prev) =>
-        prev
-          ? {
-              ...prev,
-              isScanned: true,
-              lastScanned: 'Just now',
-              findingCount: openCount,
-              healthScore,
+      // Start polling backend job every 1.5 seconds
+      pollTimerRef.current = setInterval(async () => {
+        try {
+          const result = await fetchScanJob(jobId);
+          if (!result.success) {
+            consecutiveErrors++;
+            if (result.isTerminal || consecutiveErrors >= 5) {
+              stopPolling();
+              setIsScanning(false);
+              setActiveStage('FAILED');
+              const errorMsg = result.message || (result.isTerminal ? 'Terminal scan job error' : 'Scan polling timed out after consecutive failures');
+              appendLog('ALERT', `❌ Scan pipeline failed: ${errorMsg}`);
+              setScanError(errorMsg);
+              setFindings([]);
+              setCoverageData(null);
+              setMetrics(null);
+              setSelectedRepo((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      isScanned: false,
+                      lastScanned: 'Failed',
+                      findingCount: 0,
+                      healthScore: 0,
+                    }
+                  : null
+              );
             }
-          : null
-      );
+            return;
+          }
 
-      setMonitoredRepos((prev) =>
-        prev.map((r) =>
-          r.dbRepositoryId === dbRepoId
-            ? {
-                ...r,
-                isScanned: true,
-                lastScanned: 'Just now',
-                findingCount: openCount,
-                healthScore,
+          consecutiveErrors = 0;
+          const job = result.job;
+          if (!job) return;
+
+          if (job.stage && job.stage !== prevStage) {
+            prevStage = job.stage;
+            setActiveStage(job.stage);
+            appendLog('INFO', `Stage transition: ${job.stage}`);
+          }
+
+          if (job.durationMs) {
+            setScanDurationStr(`${(job.durationMs / 1000).toFixed(1)}s`);
+          }
+
+          if (job.status === 'COMPLETED') {
+            stopPolling();
+            setIsScanning(false);
+            setActiveStage('COMPLETED');
+            const finalDuration = job.durationMs ? `${(job.durationMs / 1000).toFixed(1)}s` : null;
+            setScanDurationStr(finalDuration);
+
+            // Fetch real findings and coverage summary from DB ONCE upon completion
+            const [realFindings, realCoverage] = await Promise.all([
+              fetchFindingsForRepo(dbRepoId),
+              fetchCoverageForRepo(dbRepoId),
+            ]);
+
+            const realFindingsList = realFindings || [];
+            setFindings(realFindingsList);
+            setCoverageData(realCoverage);
+
+            const criticalCount = realFindingsList.filter(f => f.severity === 'CRITICAL' && f.status === 'OPEN').length;
+            const highCount = realFindingsList.filter(f => f.severity === 'HIGH' && f.status === 'OPEN').length;
+            const mediumCount = realFindingsList.filter(f => f.severity === 'MEDIUM' && f.status === 'OPEN').length;
+            const openCount = realFindingsList.filter(f => f.status === 'OPEN').length;
+            const resolvedCount = realFindingsList.filter(f => f.status === 'RESOLVED').length;
+            const scannedFiles = realCoverage?.scannedFiles || 0;
+            const totalFiles = realCoverage?.totalFiles || scannedFiles;
+            const skippedFiles = realCoverage?.skippedFiles || (totalFiles > scannedFiles ? totalFiles - scannedFiles : 0);
+
+            setLiveScannedCount(scannedFiles);
+            setLiveLeaksCount(openCount);
+
+            // Stream real alerts for findings
+            if (realFindingsList.length > 0) {
+              realFindingsList.slice(0, 3).forEach((f) => {
+                appendLog('ALERT', `⚠️ Secret detected in ${f.filePath}:${f.lineNumber} [${f.ruleId}: ${f.rawSecretMasked}]`, f.filePath);
+              });
+              if (realFindingsList.length > 3) {
+                appendLog('ALERT', `⚠️ +${realFindingsList.length - 3} additional secret exposures recorded in database.`);
               }
-            : r
-        )
-      );
+            }
 
-      const skippedCount = totalFiles - scannedFiles;
-      if (skippedCount > 0) {
-        appendLog('INFO', `ℹ️ File Eligibility (FR-031): ${scannedFiles} text files analyzed • ${skippedCount} non-text/binary files skipped (Reason: UNSUPPORTED_BINARY_FILE / UNSUPPORTED_BINARY_DOCUMENT).`);
-      }
+            // Exact Formula: Score = max(0, 100 - (Critical * 15 + High * 8 + Medium * 4))
+            const totalDeductions = criticalCount * 15 + highCount * 8 + mediumCount * 4;
+            const healthScore = Math.max(0, 100 - totalDeductions);
+            const grade = healthScore >= 90
+              ? 'No open findings in this completed scan'
+              : healthScore >= 70
+              ? 'Grade B (Moderate Risk)'
+              : 'Action Required (Critical Risk)';
 
-      appendLog('SUCCESS', `✅ Scan completed successfully (${scannedFiles}/${totalFiles} files verified, ${openCount} open leaks). Sandbox purged.`);
+            setMetrics({
+              healthScore,
+              grade,
+              scannedFilesCount: scannedFiles,
+              totalFilesCount: totalFiles,
+              skippedFilesCount: skippedFiles,
+              openLeaksCount: openCount,
+              resolvedLeaksCount: resolvedCount,
+              aiFixReadyCount: openCount,
+              mttrMinutes: 0,
+              trendData: [],
+            });
+
+            setSelectedRepo((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    isScanned: true,
+                    lastScanned: 'Just now',
+                    findingCount: openCount,
+                    healthScore,
+                  }
+                : null
+            );
+
+            setMonitoredRepos((prev) =>
+              prev.map((r) =>
+                r.dbRepositoryId === dbRepoId
+                  ? {
+                      ...r,
+                      isScanned: true,
+                      lastScanned: 'Just now',
+                      findingCount: openCount,
+                      healthScore,
+                    }
+                  : r
+              )
+            );
+
+            const skippedCount = totalFiles - scannedFiles;
+            if (skippedCount > 0) {
+              appendLog('INFO', `ℹ️ File Eligibility (FR-031): ${scannedFiles} text files analyzed • ${skippedCount} non-text/binary files skipped (Reason: UNSUPPORTED_BINARY_FILE / UNSUPPORTED_BINARY_DOCUMENT).`);
+            }
+
+            appendLog('SUCCESS', `✅ Scan completed successfully (${scannedFiles}/${totalFiles} files verified, ${openCount} open leaks). Sandbox purged.`);
+          } else if (job.status === 'FAILED') {
+            stopPolling();
+            setIsScanning(false);
+            setActiveStage('FAILED');
+            const errorMsg = job.errorMessage || 'Scan execution failed';
+            appendLog('ALERT', `❌ Scan pipeline failed: ${errorMsg}`);
+            setScanError(errorMsg);
+            setFindings([]);
+            setCoverageData(null);
+            setMetrics(null);
+            setSelectedRepo((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    isScanned: false,
+                    lastScanned: 'Failed',
+                    findingCount: 0,
+                    healthScore: 0,
+                  }
+                : null
+            );
+          }
+        } catch (_e) {
+          consecutiveErrors++;
+          if (consecutiveErrors >= 5) {
+            stopPolling();
+            setIsScanning(false);
+            setActiveStage('FAILED');
+            const errorMsg = 'Scan polling failed after consecutive errors';
+            appendLog('ALERT', `❌ Scan pipeline failed: ${errorMsg}`);
+            setScanError(errorMsg);
+            setFindings([]);
+            setCoverageData(null);
+            setMetrics(null);
+            setSelectedRepo((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    isScanned: false,
+                    lastScanned: 'Failed',
+                    findingCount: 0,
+                    healthScore: 0,
+                  }
+                : null
+            );
+          }
+        }
+      }, 1500);
+
     } catch (e: any) {
+      stopPolling();
+      setIsScanning(false);
+      setActiveStage(null);
       const errorMsg = e.message || 'Execution failed';
       appendLog('ALERT', `❌ Scan pipeline encountered error: ${errorMsg}`);
       setScanError(errorMsg);
@@ -463,9 +607,6 @@ export default function App() {
             }
           : null
       );
-    } finally {
-      setIsScanning(false);
-      setCurrentInspectingFile('');
     }
   };
 
@@ -557,9 +698,10 @@ export default function App() {
               <ScanProgressStepper
                 isScanning={isScanning}
                 branchName={selectedRepo.branch}
+                stage={activeStage}
                 isScanned={isCurrentRepoScanned}
                 findingCount={findings.filter(f => f.status === 'OPEN').length}
-                scanDuration={null}
+                scanDuration={scanDurationStr}
                 onToggleTerminal={() => setIsTerminalOpen(!isTerminalOpen)}
                 isTerminalOpen={isTerminalOpen}
                 scanError={scanError}

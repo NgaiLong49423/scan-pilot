@@ -18,4 +18,8 @@ public interface RepositoryRepository extends JpaRepository<RepositoryEntity, UU
     Optional<RepositoryEntity> findByFullName(String fullName);
 
     Optional<RepositoryEntity> findByUserIdAndFullName(UUID userId, String fullName);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("SELECT r FROM RepositoryEntity r WHERE r.id = :id")
+    Optional<RepositoryEntity> findByIdForUpdate(@org.springframework.data.repository.query.Param("id") UUID id);
 }

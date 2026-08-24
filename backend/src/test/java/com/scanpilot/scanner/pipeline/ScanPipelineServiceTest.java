@@ -289,6 +289,212 @@ class ScanPipelineServiceTest {
             // Verify detector is never invoked when snapshot acquisition fails
             verify(gitleaksDetectorAdapter, never()).scan(any());
         }
+
+        @Test
+        @DisplayName("executeScanJob(jobId) transitions through monotonic stages and fails closed on download failure")
+        void testExecuteScanJobMonotonicStagesAndFailureSanitization() {
+            ScanJobEntity queuedJob = scanJobRepository.save(ScanJobEntity.builder()
+                    .repositoryId(testRepo.getId())
+                    .branchName("main")
+                    .scanMode("SNAPSHOT_AND_HISTORY")
+                    .status("QUEUED")
+                    .stage("QUEUED")
+                    .createdAt(Instant.now())
+                    .build());
+
+            doReturn(null).when(scanPipelineService).downloadZipBytes(any(), any(), any());
+
+            ScanJobEntity result = scanPipelineService.executeScanJob(queuedJob.getId());
+
+            assertThat(result).isNotNull();
+            assertThat(result.getStatus()).isEqualTo("FAILED");
+            assertThat(result.getStage()).isEqualTo("FAILED");
+            assertThat(result.getErrorMessage()).contains("Remote repository snapshot for branch 'main' could not be acquired or verified");
+            assertThat(result.getDurationMs()).isNotNull();
+
+            ScanJobEntity persisted = scanJobRepository.findById(queuedJob.getId()).orElseThrow();
+            assertThat(persisted.getStatus()).isEqualTo("FAILED");
+            assertThat(persisted.getStage()).isEqualTo("FAILED");
+        }
+
+        @Test
+        @DisplayName("executeScanJob error sanitization strips tokens and credentials (ghp_... and password=...) from Entity, DTO, and log formatting")
+        void testExecuteScanJobSanitizesRawTokensInErrorMessage() {
+            String secretToken = "ghp_1234567890abcdefghijklmnopqrstuvwxyz";
+            String passwordMarker = "password=SuperSecretPassword123!";
+            ScanJobEntity queuedJob = scanJobRepository.save(ScanJobEntity.builder()
+                    .repositoryId(testRepo.getId())
+                    .branchName("main")
+                    .scanMode("SNAPSHOT_AND_HISTORY")
+                    .status("QUEUED")
+                    .stage("QUEUED")
+                    .createdAt(Instant.now())
+                    .updatedAt(Instant.now())
+                    .build());
+
+            org.mockito.Mockito.doThrow(new RuntimeException("GitHub error with token " + secretToken + ", Bearer secret_token_xyz, and " + passwordMarker))
+                    .when(scanPipelineService).fetchRemoteRepositorySnapshot(any(), any(), any());
+
+            ScanJobEntity result = scanPipelineService.executeScanJob(queuedJob.getId());
+
+            // 1) Persisted Entity error message does not contain secret markers
+            assertThat(result.getStatus()).isEqualTo("FAILED");
+            assertThat(result.getStage()).isEqualTo("FAILED");
+            assertThat(result.getErrorMessage()).doesNotContain(secretToken);
+            assertThat(result.getErrorMessage()).doesNotContain("secret_token_xyz");
+            assertThat(result.getErrorMessage()).doesNotContain("SuperSecretPassword123!");
+            assertThat(result.getErrorMessage()).contains("[REDACTED_TOKEN]");
+            assertThat(result.getErrorMessage()).contains("password=[REDACTED]");
+
+            ScanJobEntity persisted = scanJobRepository.findById(queuedJob.getId()).orElseThrow();
+            assertThat(persisted.getErrorMessage()).doesNotContain(secretToken);
+            assertThat(persisted.getErrorMessage()).doesNotContain("SuperSecretPassword123!");
+            assertThat(persisted.getUpdatedAt()).isNotNull();
+
+            // 2) ScanJobDto errorMessage does not contain secret marker
+            com.scanpilot.scanner.dto.ScanJobDto dto = com.scanpilot.scanner.dto.ScanJobDto.from(persisted);
+            assertThat(dto.errorMessage()).doesNotContain(secretToken);
+            assertThat(dto.errorMessage()).doesNotContain("SuperSecretPassword123!");
+            assertThat(dto.errorMessage()).contains("[REDACTED_TOKEN]");
+
+            // 3) Direct sanitization method verification
+            String sanitized = scanPipelineService.sanitizeErrorMessage("Failure with secret: " + secretToken + " and " + passwordMarker);
+            assertThat(sanitized).doesNotContain(secretToken);
+            assertThat(sanitized).doesNotContain("SuperSecretPassword123!");
+            assertThat(sanitized).contains("[REDACTED_TOKEN]");
+        }
+    }
+
+    @Nested
+    @DisplayName("Atomic Heartbeat Non-Regression on Terminal States (P1-B, FR-002)")
+    class AtomicHeartbeatTerminalStateTests {
+
+        @Test
+        @DisplayName("testRunningJobHeartbeatStopsOnCompletion: When scan completes (COMPLETED/FAILED), task heartbeat stops and update query does not alter terminal state")
+        void testRunningJobHeartbeatStopsOnCompletion() {
+            Instant initialTime = Instant.now().minusSeconds(100).truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+            ScanJobEntity completedJob = scanJobRepository.save(ScanJobEntity.builder()
+                    .repositoryId(testRepo.getId())
+                    .branchName("main")
+                    .status("COMPLETED")
+                    .stage("COMPLETED")
+                    .workerInstanceId("test-worker-1")
+                    .createdAt(initialTime)
+                    .updatedAt(initialTime)
+                    .heartbeatAt(initialTime)
+                    .completedAt(initialTime)
+                    .build());
+
+            Instant newHeartbeatTime = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+            int updatedRows = scanJobRepository.updateHeartbeatForRunningJob(completedJob.getId(), newHeartbeatTime);
+            assertThat(updatedRows).isEqualTo(0);
+
+            ScanJobEntity refreshed = scanJobRepository.findById(completedJob.getId()).orElseThrow();
+            assertThat(refreshed.getStatus()).isEqualTo("COMPLETED");
+            assertThat(refreshed.getStage()).isEqualTo("COMPLETED");
+            assertThat(refreshed.getHeartbeatAt()).isEqualTo(initialTime);
+        }
+
+        @Test
+        @DisplayName("Atomic heartbeat update does not overwrite COMPLETED job status or stage")
+        void testHeartbeatDoesNotOverwriteCompletedJob() {
+            Instant initialTime = Instant.now().minusSeconds(100).truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+            ScanJobEntity completedJob = scanJobRepository.save(ScanJobEntity.builder()
+                    .repositoryId(testRepo.getId())
+                    .branchName("main")
+                    .status("COMPLETED")
+                    .stage("COMPLETED")
+                    .workerInstanceId("test-worker-1")
+                    .createdAt(initialTime)
+                    .updatedAt(initialTime)
+                    .heartbeatAt(initialTime)
+                    .completedAt(initialTime)
+                    .build());
+
+            Instant newHeartbeatTime = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+            int queuedUpdated = scanJobRepository.updateHeartbeatForQueuedJobsByWorker("test-worker-1", newHeartbeatTime);
+            int runningUpdated = scanJobRepository.updateHeartbeatForRunningJob(completedJob.getId(), newHeartbeatTime);
+            assertThat(queuedUpdated).isEqualTo(0);
+            assertThat(runningUpdated).isEqualTo(0);
+
+            ScanJobEntity refreshed = scanJobRepository.findById(completedJob.getId()).orElseThrow();
+            assertThat(refreshed.getStatus()).isEqualTo("COMPLETED");
+            assertThat(refreshed.getStage()).isEqualTo("COMPLETED");
+            assertThat(refreshed.getHeartbeatAt()).isEqualTo(initialTime);
+        }
+
+        @Test
+        @DisplayName("Atomic heartbeat update does not overwrite FAILED job status or stage")
+        void testHeartbeatDoesNotOverwriteFailedJob() {
+            Instant initialTime = Instant.now().minusSeconds(100).truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+            ScanJobEntity failedJob = scanJobRepository.save(ScanJobEntity.builder()
+                    .repositoryId(testRepo.getId())
+                    .branchName("main")
+                    .status("FAILED")
+                    .stage("FAILED")
+                    .errorMessage("Original error")
+                    .workerInstanceId("test-worker-1")
+                    .createdAt(initialTime)
+                    .updatedAt(initialTime)
+                    .heartbeatAt(initialTime)
+                    .completedAt(initialTime)
+                    .build());
+
+            Instant newHeartbeatTime = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+            int queuedUpdated = scanJobRepository.updateHeartbeatForQueuedJobsByWorker("test-worker-1", newHeartbeatTime);
+            int runningUpdated = scanJobRepository.updateHeartbeatForRunningJob(failedJob.getId(), newHeartbeatTime);
+            assertThat(queuedUpdated).isEqualTo(0);
+            assertThat(runningUpdated).isEqualTo(0);
+
+            ScanJobEntity refreshed = scanJobRepository.findById(failedJob.getId()).orElseThrow();
+            assertThat(refreshed.getStatus()).isEqualTo("FAILED");
+            assertThat(refreshed.getStage()).isEqualTo("FAILED");
+            assertThat(refreshed.getErrorMessage()).isEqualTo("Original error");
+            assertThat(refreshed.getHeartbeatAt()).isEqualTo(initialTime);
+        }
+
+        @Test
+        @DisplayName("Atomic heartbeat updates successfully update QUEUED and RUNNING jobs according to lifecycle")
+        void testHeartbeatUpdatesQueuedAndRunningJobs() {
+            Instant initialTime = Instant.now().minusSeconds(100).truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+            ScanJobEntity queuedJob = scanJobRepository.save(ScanJobEntity.builder()
+                    .repositoryId(testRepo.getId())
+                    .branchName("main")
+                    .status("QUEUED")
+                    .stage("QUEUED")
+                    .workerInstanceId("test-worker-1")
+                    .createdAt(initialTime)
+                    .updatedAt(initialTime)
+                    .heartbeatAt(initialTime)
+                    .build());
+
+            ScanJobEntity runningJob = scanJobRepository.save(ScanJobEntity.builder()
+                    .repositoryId(testRepo.getId())
+                    .branchName("main")
+                    .status("RUNNING")
+                    .stage("CLASSIFYING_FILES")
+                    .workerInstanceId("test-worker-1")
+                    .createdAt(initialTime)
+                    .updatedAt(initialTime)
+                    .heartbeatAt(initialTime)
+                    .build());
+
+            Instant newHeartbeatTime = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+            int queuedUpdated = scanJobRepository.updateHeartbeatForQueuedJobsByWorker("test-worker-1", newHeartbeatTime);
+            int runningUpdated = scanJobRepository.updateHeartbeatForRunningJob(runningJob.getId(), newHeartbeatTime);
+            assertThat(queuedUpdated).isEqualTo(1);
+            assertThat(runningUpdated).isEqualTo(1);
+
+            ScanJobEntity refreshedQueued = scanJobRepository.findById(queuedJob.getId()).orElseThrow();
+            assertThat(refreshedQueued.getStatus()).isEqualTo("QUEUED");
+            assertThat(refreshedQueued.getStage()).isEqualTo("QUEUED");
+            assertThat(refreshedQueued.getHeartbeatAt()).isAfter(initialTime);
+
+            ScanJobEntity refreshedRunning = scanJobRepository.findById(runningJob.getId()).orElseThrow();
+            assertThat(refreshedRunning.getStatus()).isEqualTo("RUNNING");
+            assertThat(refreshedRunning.getStage()).isEqualTo("CLASSIFYING_FILES");
+            assertThat(refreshedRunning.getHeartbeatAt()).isAfter(initialTime);
+        }
     }
 
     private void initGitRepo(Path dir) throws Exception {

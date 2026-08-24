@@ -19,6 +19,7 @@ import com.scanpilot.persistence.repository.MonitoredBranchRepository;
 import com.scanpilot.persistence.repository.RepositoryRepository;
 import com.scanpilot.persistence.repository.ScanJobRepository;
 import com.scanpilot.persistence.repository.UserRepository;
+import com.scanpilot.scanner.dispatcher.ScanJobDispatcher;
 import com.scanpilot.scanner.dto.CoverageItemDto;
 import com.scanpilot.scanner.dto.CoverageSummaryDto;
 import com.scanpilot.scanner.dto.FindingDto;
@@ -55,6 +56,7 @@ public class ScanController {
 
     private static final String FAIL_CLOSED_MESSAGE = "Invalid, missing, or unauthorized repository ID";
 
+    private final ScanJobDispatcher scanJobDispatcher;
     private final ScanPipelineService scanPipelineService;
     private final ScanJobRepository scanJobRepository;
     private final FindingRepository findingRepository;
@@ -66,9 +68,9 @@ public class ScanController {
     private final MonitoredBranchRepository monitoredBranchRepository;
 
     /**
-     * Triggers a snapshot and git history scan on an active monitored repository (FR-025, Issue #53).
+     * Triggers a snapshot and git history scan on an active monitored repository (FR-025, Issue #52, Issue #53).
      * Enforces strict fail-closed validation: repositoryId (UUID) is mandatory, must exist in PostgreSQL,
-     * and must belong to the authenticated user. Zero fallback to other repositories or in-memory state.
+     * and must belong to the authenticated user. Dispatches scan job asynchronously with bounded queue protection.
      */
     @PostMapping("/trigger")
     @RequireAuth
@@ -139,28 +141,23 @@ public class ScanController {
                 .body(new ScanTriggerResponse(null, null, null, "FAILED", "Branch '" + branchName + "' is not configured for monitoring on this repository"));
         }
 
-        log.info("Triggering scan for repositoryId={} on branch={}", repo.getId(), branchName);
-        ScanJobEntity job = scanPipelineService.executeScan(repo.getId(), branchName, null);
+        log.info("Dispatching async scan for repositoryId={} on branch={}", repo.getId(), branchName);
+        ScanJobEntity job = scanJobDispatcher.dispatch(repo, branchName);
 
-        if (!"COMPLETED".equals(job.getStatus())) {
-            log.warn("Scan execution failed for repositoryId={} branch={}: {}", repo.getId(), branchName, job.getErrorMessage());
-            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
-                .body(new ScanTriggerResponse(
-                    job.getId(),
-                    repo.getId(),
-                    branchName,
-                    job.getStatus(),
-                    "Scan could not complete for the requested repository branch. No new evidence was recorded."
-                ));
+        String message = "Scan job queued successfully";
+        if ("RUNNING".equalsIgnoreCase(job.getStatus())) {
+            message = "Scan job is currently running";
         }
 
-        return ResponseEntity.ok(new ScanTriggerResponse(
-            job.getId(),
-            repo.getId(),
-            branchName,
-            job.getStatus(),
-            "Scan executed successfully"
-        ));
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+            .body(new ScanTriggerResponse(
+                job.getId(),
+                repo.getId(),
+                branchName,
+                job.getStatus(),
+                job.getStage() != null ? job.getStage() : job.getStatus(),
+                message
+            ));
     }
 
     /**

@@ -10,5 +10,10 @@ public record ScanTriggerResponse(
     UUID repositoryId,
     String branchName,
     String status,
+    String stage,
     String message
-) {}
+) {
+    public ScanTriggerResponse(UUID jobId, UUID repositoryId, String branchName, String status, String message) {
+        this(jobId, repositoryId, branchName, status, status, message);
+    }
+}
