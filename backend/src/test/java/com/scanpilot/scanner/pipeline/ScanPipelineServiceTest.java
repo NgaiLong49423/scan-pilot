@@ -89,11 +89,17 @@ class ScanPipelineServiceTest {
     @Autowired
     private CoverageItemRepository coverageItemRepository;
 
+    @Autowired
+    private com.scanpilot.persistence.repository.ScanEventRepository scanEventRepository;
+
     private UserEntity testUser;
     private RepositoryEntity testRepo;
 
     @BeforeEach
     void setUp() {
+        if (scanEventRepository != null) {
+            scanEventRepository.deleteAll();
+        }
         findingLocationRepository.deleteAll();
         evidenceItemRepository.deleteAll();
         findingRepository.deleteAll();
@@ -499,6 +505,31 @@ class ScanPipelineServiceTest {
             assertThat(refreshedRunning.getStatus()).isEqualTo("RUNNING");
             assertThat(refreshedRunning.getStage()).isEqualTo("CLASSIFYING_FILES");
             assertThat(refreshedRunning.getHeartbeatAt()).isAfter(initialTime);
+        }
+    }
+
+    @Nested
+    @DisplayName("Scan Telemetry Milestone Event Emission Tests (Issue #69, AC-02, AC-03)")
+    class TelemetryMilestoneEventTests {
+
+        @Test
+        @DisplayName("AC-02: Pipeline emits milestone events in sequence across all stages")
+        void testPipelineEmitsMilestoneEventsThroughAllStages(@TempDir Path syntheticRepo) throws Exception {
+            initGitRepo(syntheticRepo);
+            Files.writeString(syntheticRepo.resolve("config.env"), "apiKey=AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q\n");
+            gitCommit(syntheticRepo, "Initial commit with key");
+
+            ScanJobEntity job = scanPipelineService.executeScan(testRepo.getId(), "main", syntheticRepo);
+
+            assertThat(job.getStatus()).isEqualTo("COMPLETED");
+
+            verify(scanPipelineService).emitEvent(org.mockito.ArgumentMatchers.eq(job.getId()), org.mockito.ArgumentMatchers.eq("FETCHING_SNAPSHOT"), org.mockito.ArgumentMatchers.eq("STAGE_TRANSITION"), org.mockito.ArgumentMatchers.eq("STAGE_STARTED"), any(), org.mockito.ArgumentMatchers.eq(95L));
+            verify(scanPipelineService).emitEvent(org.mockito.ArgumentMatchers.eq(job.getId()), org.mockito.ArgumentMatchers.eq("FETCHING_SNAPSHOT"), org.mockito.ArgumentMatchers.eq("SNAPSHOT_ACQUIRED"), org.mockito.ArgumentMatchers.eq("SNAPSHOT_FETCHED"), any(), org.mockito.ArgumentMatchers.eq(95L));
+            verify(scanPipelineService).emitEvent(org.mockito.ArgumentMatchers.eq(job.getId()), org.mockito.ArgumentMatchers.eq("CLASSIFYING_FILES"), org.mockito.ArgumentMatchers.eq("STAGE_TRANSITION"), org.mockito.ArgumentMatchers.eq("STAGE_STARTED"), any(), org.mockito.ArgumentMatchers.eq(95L));
+            verify(scanPipelineService).emitEvent(org.mockito.ArgumentMatchers.eq(job.getId()), org.mockito.ArgumentMatchers.eq("CLASSIFYING_FILES"), org.mockito.ArgumentMatchers.eq("CLASSIFICATION_SUMMARY"), org.mockito.ArgumentMatchers.eq("FILES_CLASSIFIED"), any(), org.mockito.ArgumentMatchers.eq(95L));
+            verify(scanPipelineService).emitEvent(org.mockito.ArgumentMatchers.eq(job.getId()), org.mockito.ArgumentMatchers.eq("SCANNING_SECRETS"), org.mockito.ArgumentMatchers.eq("STAGE_TRANSITION"), org.mockito.ArgumentMatchers.eq("STAGE_STARTED"), any(), org.mockito.ArgumentMatchers.eq(95L));
+            verify(scanPipelineService).emitEvent(org.mockito.ArgumentMatchers.eq(job.getId()), org.mockito.ArgumentMatchers.eq("SCANNING_SECRETS"), org.mockito.ArgumentMatchers.eq("SCANNER_LIFECYCLE"), org.mockito.ArgumentMatchers.eq("SCANNER_ACTIVE"), any(), org.mockito.ArgumentMatchers.eq(95L));
+            verify(scanPipelineService).emitEvent(org.mockito.ArgumentMatchers.eq(job.getId()), org.mockito.ArgumentMatchers.eq("COMPLETED"), org.mockito.ArgumentMatchers.eq("SCAN_COMPLETED"), org.mockito.ArgumentMatchers.eq("JOB_COMPLETED"), any(), org.mockito.ArgumentMatchers.eq(100L));
         }
     }
 

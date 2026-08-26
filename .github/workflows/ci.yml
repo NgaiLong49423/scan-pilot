@@ -37,6 +37,9 @@ jobs:
       - name: Run linting
         run: npm run lint
 
+      - name: Run automated unit tests
+        run: npm run test
+
       - name: Build frontend production bundle
         run: npm run build
 

@@ -27,17 +27,17 @@ class FlywaySchemaMigrationTest {
     private DataSource dataSource;
 
     @Test
-    @DisplayName("Should successfully apply V3 migration and record schema history")
+    @DisplayName("Should successfully apply V4 migration and record schema history")
     void shouldVerifyFlywayMigrationApplied() {
         MigrationInfo current = flyway.info().current();
         assertThat(current).isNotNull();
-        assertThat(current.getVersion().getVersion()).isEqualTo("3");
-        assertThat(current.getDescription()).isEqualTo("add coverage guardrail telemetry");
+        assertThat(current.getVersion().getVersion()).isEqualTo("4");
+        assertThat(current.getDescription()).isEqualTo("add scan events telemetry");
         assertThat(current.getState().isApplied()).isTrue();
     }
 
     @Test
-    @DisplayName("Should verify that all 12 core tables exist in the database metadata")
+    @DisplayName("Should verify that all 13 core tables exist in the database metadata")
     void shouldVerifyAllCoreTablesExist() throws Exception {
         Set<String> expectedTables = Set.of(
                 "users",
@@ -51,7 +51,8 @@ class FlywaySchemaMigrationTest {
                 "evidence_items",
                 "coverage_records",
                 "coverage_items",
-                "review_requests"
+                "review_requests",
+                "scan_events"
         );
 
         Set<String> actualTables = new HashSet<>();

@@ -67,3 +67,5 @@ export interface HealthMetrics {
   limitHitValue?: number;
   isCoverageIncomplete?: boolean;
 }
+
+export type { ScanEvent, ScanEventsResponse } from './api';

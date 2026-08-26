@@ -11,6 +11,29 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-26 — Real Scan Event Telemetry & Truthful Terminal Progress (Issue #69)
+
+**Status:** Committed (`06c01df`)
+
+**Scope:** Implemented real-time, monotonic scan event telemetry and truthful UI progress streaming (FR-002, NFR-001). Replaced artificial progress bar and polling mocks with real backend scan events persisted durably in PostgreSQL (`scan_events` table via Flyway V4), allocated with an atomic single-statement CTE counter (`next_event_sequence`) bounded by a 100-event cap. Exposed `GET /api/v1/scans/jobs/{jobId}/events` with fail-closed repository authorization and sequence-based pagination. Added truthful client-side draining logic, safe message translation without raw secret leakage, and Vitest test runner to frontend CI workflow.
+
+### Added
+
+- Added Flyway migration `V4__add_scan_events_telemetry.sql` adding `next_event_sequence` column to `scan_jobs` and creating `scan_events` table with unique sequence indexing.
+- Added `ScanEventEntity` and `ScanEventRepository` supporting native PostgreSQL CTE atomic event sequence allocation with cap protection.
+- Added `ScanEventDto` and `ScanEventsResponse` DTOs.
+- Added `SnapshotTransferMetrics` record returning archive size, extracted workspace size, and entry count from `StreamedSnapshotFetcher`.
+- Added `GET /api/v1/scans/jobs/{jobId}/events` endpoint in `ScanController` with fail-closed authorization and pagination.
+- Added `ScanEventRepositoryPostgresTest` verifying atomic CTE sequence allocation, cap clamping, and rollback consistency with Testcontainers PostgreSQL.
+- Added `frontend/src/services/telemetryPolling.ts` and `telemetryPolling.test.ts` for truthful event sequence draining.
+- Added `Vitest` test runner and updated frontend CI in `.github/workflows/ci.yml`.
+
+### Changed
+
+- Updated `ScanJobDispatcher` and `ScanPipelineService` to emit milestone telemetry events (`STAGE_STARTED`, `SNAPSHOT_FETCHED`, `FILES_CLASSIFIED`, `SCANNER_ACTIVE`, `FINDING_ALERT`, `FINDINGS_TRUNCATED`, `RECORDING_EVIDENCE`, `JOB_COMPLETED`, `JOB_FAILED`, `GUARDRAIL_LIMIT_HIT`).
+- Updated `LiveScanTerminal.tsx` to safely map backend telemetry event codes to human-readable logs and render authentic stage states and timers.
+- Updated `App.tsx` rescan handler to stream live events using sequence cursors and drain terminal states completely before fetching finalized findings.
+
 ## 2026-08-25 — GitHub Snapshot Resource Limits and Guardrails (Issue #67)
 
 **Status:** Committed (`2b1e753`)

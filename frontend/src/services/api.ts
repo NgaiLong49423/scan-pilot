@@ -353,3 +353,41 @@ export async function triggerRealScan(
     return { success: false, message: e.message || 'Network error' };
   }
 }
+
+/**
+ * Fetches progressive telemetry events for a scan job from backend (Issue #69, AC-05).
+ */
+export async function fetchScanEvents(
+  jobId: string,
+  afterSeq: number = 0,
+  limit: number = 50
+): Promise<{ success: boolean; data?: import('../types/api').ScanEventsResponse; isTerminal?: boolean; status?: number; message?: string }> {
+  if (!isValidUuid(jobId)) {
+    return { success: false, isTerminal: true, message: 'Invalid or missing job UUID' };
+  }
+  try {
+    const baseUrl = getApiBaseUrl();
+    const response = await fetch(
+      `${baseUrl}/api/v1/scans/jobs/${jobId}/events?afterSeq=${afterSeq}&limit=${limit}`,
+      {
+        credentials: 'include',
+      }
+    );
+
+    if (response.ok) {
+      const data: import('../types/api').ScanEventsResponse = await response.json();
+      return { success: true, data };
+    }
+
+    const err = await response.json().catch(() => ({}));
+    const message = err.message || `Request failed with HTTP ${response.status}`;
+
+    if (response.status === 401 || response.status === 403 || response.status === 404) {
+      return { success: false, isTerminal: true, status: response.status, message };
+    }
+
+    return { success: false, isTerminal: false, status: response.status, message };
+  } catch (e: any) {
+    return { success: false, isTerminal: false, message: e?.message || 'Network error while fetching scan events' };
+  }
+}

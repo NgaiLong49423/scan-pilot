@@ -20,14 +20,115 @@ export interface ScanLogEntry {
   file?: string;
 }
 
+export function formatScanEventLog(event: {
+  sequenceNumber: number;
+  stage: string;
+  eventType: string;
+  messageCode: string;
+  payloadJson: string | null;
+  createdAt: string;
+}): { level: 'INIT' | 'WORKSPACE' | 'SCAN' | 'ALERT' | 'SUCCESS' | 'INFO'; message: string } {
+  let payload: any = {};
+  if (event.payloadJson) {
+    try {
+      payload = JSON.parse(event.payloadJson);
+    } catch {
+      payload = {};
+    }
+  }
+
+  switch (event.messageCode) {
+    case 'STAGE_STARTED':
+      if (event.stage === 'QUEUED') {
+        return { level: 'INIT', message: `Scan job enqueued (seq: #${event.sequenceNumber}). Awaiting runner assignment...` };
+      } else if (event.stage === 'FETCHING_SNAPSHOT') {
+        return { level: 'INIT', message: `Stage: Fetching repository snapshot from GitHub archive...` };
+      } else if (event.stage === 'CLASSIFYING_FILES') {
+        return { level: 'WORKSPACE', message: `Stage: Classifying workspace files and evaluating eligibility...` };
+      } else if (event.stage === 'SCANNING_SECRETS') {
+        return { level: 'SCAN', message: `Stage: Executing Gitleaks secret detection across workspace...` };
+      } else if (event.stage === 'RECORDING_EVIDENCE') {
+        return { level: 'WORKSPACE', message: `Stage: Recording finding evidence and updating checkpoint...` };
+      }
+      return { level: 'INFO', message: `Stage transition: ${event.stage}` };
+
+    case 'SNAPSHOT_FETCHED': {
+      const archMb = (Number(payload.archiveBytes || 0) / (1024 * 1024)).toFixed(2);
+      const wsMb = (Number(payload.workspaceBytes || 0) / (1024 * 1024)).toFixed(2);
+      const entries = payload.entryCount || 0;
+      return { level: 'WORKSPACE', message: `Snapshot downloaded: ${archMb} MB archive extracted to ${wsMb} MB workspace (${entries} entries).` };
+    }
+
+    case 'FILES_CLASSIFIED': {
+      const eligible = payload.eligibleFiles || 0;
+      const skipped = payload.skippedFiles || 0;
+      const total = payload.totalFiles || (eligible + skipped);
+      return { level: 'INFO', message: `File eligibility: ${eligible}/${total} text files eligible for analysis (${skipped} non-text/binary files skipped).` };
+    }
+
+    case 'SCANNER_ACTIVE': {
+      const engine = payload.engine || 'GITLEAKS_AST';
+      const timeout = payload.timeoutSeconds ? ` (timeout: ${payload.timeoutSeconds}s)` : '';
+      return { level: 'SCAN', message: `Scanner active: ${engine} detector running${timeout}...` };
+    }
+
+    case 'FINDING_ALERT': {
+      const idx = payload.findingIndex;
+      const ruleId = payload.ruleId;
+      const severity = payload.severity;
+      if (
+        typeof idx === 'number' &&
+        idx > 0 &&
+        typeof ruleId === 'string' &&
+        ruleId.trim().length > 0 &&
+        typeof severity === 'string' &&
+        severity.trim().length > 0
+      ) {
+        return { level: 'ALERT', message: `Finding #${idx}: ${ruleId} (${severity})` };
+      }
+      return { level: 'ALERT', message: 'Finding detected; event details unavailable.' };
+    }
+
+    case 'FINDINGS_TRUNCATED': {
+      const total = payload.totalFindings || 0;
+      const reported = payload.reportedFindings || 50;
+      const omitted = Math.max(0, total - reported);
+      return { level: 'ALERT', message: `+${omitted} additional finding alerts omitted from stream` };
+    }
+
+    case 'GUARDRAIL_LIMIT_HIT': {
+      const reason = payload.reasonCode || 'GUARDRAIL_LIMIT';
+      const limit = payload.limitHitValue || 0;
+      return { level: 'ALERT', message: `Resource guardrail triggered: reason=${reason} limit=${limit}. Coverage marked INCOMPLETE.` };
+    }
+
+    case 'JOB_COMPLETED': {
+      const dur = payload.durationMs ? `${(Number(payload.durationMs) / 1000).toFixed(1)}s` : 'N/A';
+      const findings = payload.findingsCount !== undefined ? payload.findingsCount : 0;
+      const coverage = payload.coverageImpact || 'COMPLETE';
+      return { level: 'SUCCESS', message: `Scan completed in ${dur}: ${findings} findings recorded (Coverage: ${coverage}). Sandbox purged.` };
+    }
+
+    case 'JOB_FAILED': {
+      const reason = payload.errorReason || 'Execution error';
+      return { level: 'ALERT', message: `Scan job failed: ${reason}` };
+    }
+
+    default:
+      return { level: 'INFO', message: `Event recorded: [${event.messageCode || event.eventType}]` };
+  }
+}
+
 interface LiveScanTerminalProps {
   isOpen: boolean;
   isScanning: boolean;
   logs: ScanLogEntry[];
-  currentFile: string;
-  scannedCount: number;
-  totalFiles: number;
-  leaksFoundCount: number;
+  currentFile?: string;
+  scannedCount?: number;
+  totalFiles?: number;
+  leaksFoundCount?: number;
+  activeStage?: string | null;
+  durationStr?: string | null;
   onClose?: () => void;
 }
 
@@ -35,10 +136,11 @@ export const LiveScanTerminal: React.FC<LiveScanTerminalProps> = ({
   isOpen,
   isScanning,
   logs,
-  currentFile,
-  scannedCount,
-  totalFiles,
-  leaksFoundCount,
+  scannedCount = 0,
+  totalFiles = 0,
+  leaksFoundCount = 0,
+  activeStage = null,
+  durationStr = null,
   onClose,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -54,10 +156,6 @@ export const LiveScanTerminal: React.FC<LiveScanTerminalProps> = ({
   }, [logs, autoScroll]);
 
   if (!isOpen) return null;
-
-  const percentage = totalFiles > 0 
-    ? Math.min(100, Math.round((scannedCount / totalFiles) * 100))
-    : 0;
 
   const handleCopyLogs = () => {
     const text = logs.map((l) => `[${l.timestamp}] [${l.level}] ${l.message}`).join('\n');
@@ -100,10 +198,10 @@ export const LiveScanTerminal: React.FC<LiveScanTerminalProps> = ({
 
         {/* Right: Telemetry Meters & Controls */}
         <div className="flex items-center gap-3 ml-auto text-[11px]">
-          {/* Progress % Pill */}
+          {/* Stage Pill */}
           <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#0d1117] border border-[#30363d] text-[#c9d1d9]">
             <Activity className="w-3 h-3 text-[#58a6ff]" />
-            <span>Progress: <strong className="text-[#58a6ff]">{isScanning ? 'Not available' : (totalFiles > 0 ? `${percentage}%` : 'Not available')}</strong></span>
+            <span>Stage: <strong className="text-[#58a6ff]">{activeStage || (isScanning ? 'RUNNING' : 'IDLE')}</strong></span>
           </div>
 
           {/* Files Audited Pill */}
@@ -119,12 +217,12 @@ export const LiveScanTerminal: React.FC<LiveScanTerminalProps> = ({
               : 'bg-[#0d1117] text-[#8b949e] border-[#30363d]'
           }`}>
             <ShieldAlert className="w-3 h-3" />
-            <span>{isScanning ? 'In progress' : `${leaksFoundCount} Leaks`}</span>
+            <span>{isScanning ? `${leaksFoundCount} Leaks detected` : `${leaksFoundCount} Leaks`}</span>
           </div>
 
           {/* Timer */}
           <span className="text-[#8b949e] font-mono">
-            Not available
+            {durationStr || (isScanning ? 'Running...' : '0.0s')}
           </span>
 
           {/* Buttons: Copy, Expand, Close */}
@@ -133,7 +231,7 @@ export const LiveScanTerminal: React.FC<LiveScanTerminalProps> = ({
               type="button"
               onClick={handleCopyLogs}
               title="Copy Output Logs"
-              className="p-1 rounded text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] transition-colors"
+              className="p-1 rounded text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] transition-colors cursor-pointer"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-[#3fb950]" /> : <Copy className="w-3.5 h-3.5 text-[#8b949e]" />}
             </button>
@@ -142,7 +240,7 @@ export const LiveScanTerminal: React.FC<LiveScanTerminalProps> = ({
               type="button"
               onClick={() => setIsExpanded(!isExpanded)}
               title={isExpanded ? 'Minimize' : 'Expand Fullscreen'}
-              className="p-1 rounded text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] transition-colors"
+              className="p-1 rounded text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d] transition-colors cursor-pointer"
             >
               {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
             </button>
@@ -152,7 +250,7 @@ export const LiveScanTerminal: React.FC<LiveScanTerminalProps> = ({
                 type="button"
                 onClick={onClose}
                 title="Close Terminal"
-                className="p-1 rounded text-[#8b949e] hover:text-[#f85149] hover:bg-[#da3633]/15 transition-colors"
+                className="p-1 rounded text-[#8b949e] hover:text-[#f85149] hover:bg-[#da3633]/15 transition-colors cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -161,22 +259,12 @@ export const LiveScanTerminal: React.FC<LiveScanTerminalProps> = ({
         </div>
       </div>
 
-      {/* Progress Bar Line */}
-      <div className="w-full bg-[#21262d] h-1">
-        <div 
-          className="h-full bg-gradient-to-r from-[#1f6feb] via-[#58a6ff] to-[#238636] transition-all duration-150"
-          style={{ width: isScanning ? '0%' : `${percentage}%` }}
-        />
+      {/* Stage Pulse Line */}
+      <div className="w-full bg-[#21262d] h-0.5 overflow-hidden">
+        {isScanning && (
+          <div className="h-full bg-gradient-to-r from-[#1f6feb] via-[#58a6ff] to-[#238636] animate-pulse w-full" />
+        )}
       </div>
-
-      {/* Active File Target Banner */}
-      {isScanning && (
-        <div className="px-4 py-1.5 bg-[#161b22]/70 border-b border-[#30363d]/60 text-[11px] text-[#8b949e] flex items-center justify-between gap-2 overflow-hidden">
-          <div className="flex items-center gap-2 truncate">
-            <span className="text-[#58a6ff] shrink-0 font-medium">Scan request in progress — live progress is not available yet</span>
-          </div>
-        </div>
-      )}
 
       {/* Terminal Log Stream Area */}
       <div 
@@ -250,7 +338,7 @@ export const LiveScanTerminal: React.FC<LiveScanTerminalProps> = ({
         {isScanning && (
           <div className="flex items-center gap-2 text-[#58a6ff] pt-1">
             <span className="inline-block w-2 h-4 bg-[#58a6ff] animate-pulse" />
-            <span className="text-[#8b949e] text-[11px]">Runner executing isolated scan job...</span>
+            <span className="text-[#8b949e] text-[11px]">Runner executing isolated scan job (Stage: {activeStage || 'ACTIVE'})...</span>
           </div>
         )}
       </div>
