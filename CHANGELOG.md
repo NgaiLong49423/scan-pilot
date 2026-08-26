@@ -13,7 +13,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-25 — GitHub Snapshot Resource Limits and Guardrails (Issue #67)
 
-**Status:** Committed (`83ed889`)
+**Status:** Committed (`2b1e753`)
 
 **Scope:** Enforced robust resource guardrails on GitHub snapshot downloads and workspace extractions to prevent container OOM, disk exhaustion, zip-bombs, and hangs on Cloud Run (NFR-001, FR-028, FR-031, DEC-036). Implemented streaming download with a 20 MiB archive ceiling, streaming extraction with a 150 MiB uncompressed workspace ceiling and 10,000 archive entries ceiling, canonical multi-platform Zip-Slip path traversal defense, and an overarching 180-second whole scan-job cumulative deadline across all pipeline stages coupled with a Gitleaks process-tree watchdog. Enforced fail-closed coverage reporting where guardrail limits record `ScanJobEntity.status=COMPLETED` and `CoverageImpact=INCOMPLETE`, persist `reason_code` and `limit_hit_value` in PostgreSQL via Flyway V3, strictly block scan checkpoint advancement, and render truthful neutral metrics (`—`) and warning banners without claiming Clean or 100% Safe.
 
