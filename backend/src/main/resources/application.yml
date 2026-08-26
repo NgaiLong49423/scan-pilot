@@ -45,7 +45,7 @@ scanpilot:
     hmac-secret-key: ${SCANPILOT_HMAC_SECRET_KEY:default-insecure-dev-hmac-key-for-local-testing-only-32bytes}
   gitleaks:
     binary-path: ${GITLEAKS_BINARY_PATH:gitleaks}
-    timeout-seconds: ${GITLEAKS_TIMEOUT_SECONDS:60}
+    timeout-seconds: ${GITLEAKS_TIMEOUT_SECONDS:180}
     policy-resource-path: ${GITLEAKS_POLICY_PATH:policies/sp-config-001-gitleaks.toml}
   ai:
     gemini:

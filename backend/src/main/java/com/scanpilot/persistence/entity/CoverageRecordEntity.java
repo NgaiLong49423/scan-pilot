@@ -64,6 +64,12 @@ public class CoverageRecordEntity {
     @Column(name = "coverage_impact", length = 64)
     private String coverageImpact;
 
+    @Column(name = "reason_code", length = 64)
+    private String reasonCode;
+
+    @Column(name = "limit_hit_value")
+    private Long limitHitValue;
+
     @Column(name = "created_at")
     private Instant createdAt;
 }

@@ -19,11 +19,13 @@ import com.scanpilot.scanner.classifier.CoverageItem;
 import com.scanpilot.scanner.classifier.CoverageSummary;
 import com.scanpilot.scanner.classifier.FileEligibilityEngine;
 import com.scanpilot.scanner.classifier.ScanMode;
+import com.scanpilot.scanner.config.SnapshotGuardrailProperties;
 import com.scanpilot.scanner.detector.gitleaks.DetectedSecretFinding;
 import com.scanpilot.scanner.detector.gitleaks.GitleaksDetectorAdapter;
 import com.scanpilot.scanner.detector.gitleaks.GitleaksRawFinding;
 import com.scanpilot.scanner.detector.gitleaks.GitleaksScanRequest;
 import com.scanpilot.scanner.detector.gitleaks.GitleaksScanResult;
+import com.scanpilot.scanner.exception.ResourceGuardrailExceededException;
 import com.scanpilot.scanner.lifecycle.FindingLifecycle;
 import com.scanpilot.scanner.lifecycle.FindingLifecycleEngine;
 import com.scanpilot.scanner.lifecycle.FindingLifecycleResult;
@@ -41,6 +43,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -71,6 +74,8 @@ public class ScanPipelineService {
     private final GitleaksDetectorAdapter gitleaksDetectorAdapter;
     private final SecretRedactionService secretRedactionService;
     private final FindingLifecycleEngine findingLifecycleEngine;
+    private final StreamedSnapshotFetcher streamedSnapshotFetcher;
+    private final SnapshotGuardrailProperties snapshotGuardrailProperties;
 
     private final ScanJobRepository scanJobRepository;
     private final ScanCheckpointRepository scanCheckpointRepository;
@@ -102,6 +107,9 @@ public class ScanPipelineService {
                 : "main";
 
         Instant startTime = Instant.now();
+        int maxTimeoutSeconds = snapshotGuardrailProperties.getMaxScanTimeoutSeconds();
+        Instant jobDeadline = startTime.plusSeconds(maxTimeoutSeconds);
+
         scanJob.setStatus("RUNNING");
         scanJob.setStage("FETCHING_SNAPSHOT");
         scanJob.setStartedAt(startTime);
@@ -123,11 +131,13 @@ public class ScanPipelineService {
         GitWorkspace workspace = null;
         try {
             // Stage 1: Fetching Snapshot
+            checkJobDeadline(jobDeadline, maxTimeoutSeconds);
             workspace = gitWorkspaceManager.createWorkspace(repositoryId);
             Path workspacePath = workspace.workspacePath();
-            fetchRemoteRepositorySnapshot(repositoryId, branch, workspacePath);
+            fetchRemoteRepositorySnapshot(repositoryId, branch, workspacePath, jobDeadline);
 
             // Stage 2: Classifying Files & Coverage
+            checkJobDeadline(jobDeadline, maxTimeoutSeconds);
             scanJob.setStage("CLASSIFYING_FILES");
             Instant stage2Time = Instant.now();
             scanJob.setUpdatedAt(stage2Time);
@@ -136,21 +146,26 @@ public class ScanPipelineService {
             CoverageSummary coverageSummary = recordCoverage(scanJob, repositoryId, branch, workspacePath);
 
             // Stage 3: Scanning Secrets
+            checkJobDeadline(jobDeadline, maxTimeoutSeconds);
             scanJob.setStage("SCANNING_SECRETS");
             Instant stage3Time = Instant.now();
             scanJob.setUpdatedAt(stage3Time);
             scanJob.setHeartbeatAt(stage3Time);
             scanJob = scanJobRepository.save(scanJob);
-            GitleaksScanResult snapshotResult = gitleaksDetectorAdapter.scan(GitleaksScanRequest.forSnapshot(workspacePath));
+            int snapshotTimeout = computeRemainingTimeoutSeconds(jobDeadline, maxTimeoutSeconds);
+            GitleaksScanResult snapshotResult = gitleaksDetectorAdapter.scan(GitleaksScanRequest.forSnapshot(workspacePath, snapshotTimeout));
             List<DetectedSecretFinding> snapshotFindings = normalizeFindings(repositoryId, snapshotResult.findings());
 
             List<DetectedSecretFinding> historyFindings = Collections.emptyList();
             if (Files.exists(workspacePath.resolve(".git"))) {
-                GitleaksScanResult historyResult = gitleaksDetectorAdapter.scan(GitleaksScanRequest.forGitHistory(workspacePath, null));
+                checkJobDeadline(jobDeadline, maxTimeoutSeconds);
+                int historyTimeout = computeRemainingTimeoutSeconds(jobDeadline, maxTimeoutSeconds);
+                GitleaksScanResult historyResult = gitleaksDetectorAdapter.scan(GitleaksScanRequest.forGitHistory(workspacePath, null, historyTimeout));
                 historyFindings = normalizeFindings(repositoryId, historyResult.findings());
             }
 
             // Stage 4: Recording Evidence
+            checkJobDeadline(jobDeadline, maxTimeoutSeconds);
             scanJob.setStage("RECORDING_EVIDENCE");
             Instant stage4Time = Instant.now();
             scanJob.setUpdatedAt(stage4Time);
@@ -193,6 +208,39 @@ public class ScanPipelineService {
             log.info("Scan job {} completed successfully in {}ms for repositoryId={}",
                     scanJob.getId(), scanJob.getDurationMs(), repositoryId);
             return scanJob;
+        } catch (ResourceGuardrailExceededException rge) {
+            log.warn("Scan guardrail triggered for repositoryId={}: reasonCode={} observedBytes={} limitHit={}",
+                    repositoryId, rge.getReasonCode(), rge.getObservedBytes(), rge.getLimitHitValue());
+
+            CoverageRecordEntity record = coverageRecordRepository.findByScanJobId(scanJob.getId())
+                    .orElse(null);
+            if (record == null) {
+                record = CoverageRecordEntity.builder()
+                        .scanJobId(scanJob.getId())
+                        .repositoryId(repositoryId)
+                        .branchName(branch)
+                        .createdAt(Instant.now())
+                        .build();
+            }
+            if (rge.getObservedFiles() > 0 || record.getTotalFiles() == null) {
+                record.setTotalFiles(rge.getObservedFiles());
+            }
+            if (rge.getObservedBytes() > 0 || record.getTotalBytes() == null) {
+                record.setTotalBytes(rge.getObservedBytes());
+            }
+            record.setReasonCode(rge.getReasonCode());
+            record.setLimitHitValue(rge.getLimitHitValue());
+            record.setCoverageImpact("INCOMPLETE");
+            coverageRecordRepository.save(record);
+
+            Instant completedTime = Instant.now();
+            scanJob.setStatus("COMPLETED");
+            scanJob.setStage("COMPLETED");
+            scanJob.setCompletedAt(completedTime);
+            scanJob.setUpdatedAt(completedTime);
+            scanJob.setHeartbeatAt(completedTime);
+            scanJob.setDurationMs(completedTime.toEpochMilli() - startTime.toEpochMilli());
+            return scanJobRepository.save(scanJob);
         } catch (Exception e) {
             String sanitizedMsg = sanitizeErrorMessage(e.getMessage());
             log.error("Scan pipeline execution failed for jobId={} repositoryId={}: errorType={} message={}",
@@ -229,6 +277,8 @@ public class ScanPipelineService {
         String branch = (branchName != null && !branchName.isBlank()) ? branchName.trim() : "main";
 
         Instant startTime = Instant.now();
+        int maxTimeoutSeconds = snapshotGuardrailProperties.getMaxScanTimeoutSeconds();
+        Instant jobDeadline = startTime.plusSeconds(maxTimeoutSeconds);
         log.info("Starting scan pipeline for repositoryId={} on branch={}", repositoryId, branch);
 
         // 1. Create ScanJobEntity (PENDING -> RUNNING -> FETCHING_SNAPSHOT)
@@ -248,6 +298,7 @@ public class ScanPipelineService {
         GitWorkspace workspace = null;
         try {
             // 2. Create isolated workspace
+            checkJobDeadline(jobDeadline, maxTimeoutSeconds);
             workspace = gitWorkspaceManager.createWorkspace(repositoryId);
             Path workspacePath = workspace.workspacePath();
 
@@ -255,16 +306,18 @@ public class ScanPipelineService {
             if (sourcePath != null && Files.exists(sourcePath)) {
                 gitWorkspaceManager.copyDirectory(sourcePath, workspacePath);
             } else {
-                fetchRemoteRepositorySnapshot(repositoryId, branch, workspacePath);
+                fetchRemoteRepositorySnapshot(repositoryId, branch, workspacePath, jobDeadline);
             }
 
             // 3. Resolve commit SHA if git repository exists
+            checkJobDeadline(jobDeadline, maxTimeoutSeconds);
             String commitSha = resolveCommitSha(workspacePath);
             if (commitSha == null) {
                 commitSha = "HEAD-" + UUID.randomUUID().toString().substring(0, 8);
             }
 
             // 4. File Eligibility & Coverage recording
+            checkJobDeadline(jobDeadline, maxTimeoutSeconds);
             scanJob.setStage("CLASSIFYING_FILES");
             Instant stage2Time = Instant.now();
             scanJob.setUpdatedAt(stage2Time);
@@ -273,22 +326,27 @@ public class ScanPipelineService {
             CoverageSummary coverageSummary = recordCoverage(scanJob, repositoryId, branch, workspacePath);
 
             // 5. Stage 1: Snapshot scan of HEAD files (FR-025)
+            checkJobDeadline(jobDeadline, maxTimeoutSeconds);
             scanJob.setStage("SCANNING_SECRETS");
             Instant stage3Time = Instant.now();
             scanJob.setUpdatedAt(stage3Time);
             scanJob.setHeartbeatAt(stage3Time);
             scanJob = scanJobRepository.save(scanJob);
-            GitleaksScanResult snapshotResult = gitleaksDetectorAdapter.scan(GitleaksScanRequest.forSnapshot(workspacePath));
+            int snapshotTimeout = computeRemainingTimeoutSeconds(jobDeadline, maxTimeoutSeconds);
+            GitleaksScanResult snapshotResult = gitleaksDetectorAdapter.scan(GitleaksScanRequest.forSnapshot(workspacePath, snapshotTimeout));
             List<DetectedSecretFinding> snapshotFindings = normalizeFindings(repositoryId, snapshotResult.findings());
 
             // 6. Stage 2: Git History scan of reachable commits (FR-025)
             List<DetectedSecretFinding> historyFindings = Collections.emptyList();
             if (Files.exists(workspacePath.resolve(".git"))) {
-                GitleaksScanResult historyResult = gitleaksDetectorAdapter.scan(GitleaksScanRequest.forGitHistory(workspacePath, null));
+                checkJobDeadline(jobDeadline, maxTimeoutSeconds);
+                int historyTimeout = computeRemainingTimeoutSeconds(jobDeadline, maxTimeoutSeconds);
+                GitleaksScanResult historyResult = gitleaksDetectorAdapter.scan(GitleaksScanRequest.forGitHistory(workspacePath, null, historyTimeout));
                 historyFindings = normalizeFindings(repositoryId, historyResult.findings());
             }
 
             // 7. Apply Finding Lifecycle Engine & update database records (FR-007, FR-018, FR-019, FR-051, DEC-012)
+            checkJobDeadline(jobDeadline, maxTimeoutSeconds);
             scanJob.setStage("RECORDING_EVIDENCE");
             Instant stage4Time = Instant.now();
             scanJob.setUpdatedAt(stage4Time);
@@ -325,6 +383,39 @@ public class ScanPipelineService {
             log.info("Scan job {} completed successfully in {}ms for repositoryId={}",
                 scanJob.getId(), scanJob.getDurationMs(), repositoryId);
             return scanJob;
+        } catch (ResourceGuardrailExceededException rge) {
+            log.warn("Scan guardrail triggered for repositoryId={}: reasonCode={} observedBytes={} limitHit={}",
+                    repositoryId, rge.getReasonCode(), rge.getObservedBytes(), rge.getLimitHitValue());
+
+            CoverageRecordEntity record = coverageRecordRepository.findByScanJobId(scanJob.getId())
+                    .orElse(null);
+            if (record == null) {
+                record = CoverageRecordEntity.builder()
+                        .scanJobId(scanJob.getId())
+                        .repositoryId(repositoryId)
+                        .branchName(branch)
+                        .createdAt(Instant.now())
+                        .build();
+            }
+            if (rge.getObservedFiles() > 0 || record.getTotalFiles() == null) {
+                record.setTotalFiles(rge.getObservedFiles());
+            }
+            if (rge.getObservedBytes() > 0 || record.getTotalBytes() == null) {
+                record.setTotalBytes(rge.getObservedBytes());
+            }
+            record.setReasonCode(rge.getReasonCode());
+            record.setLimitHitValue(rge.getLimitHitValue());
+            record.setCoverageImpact("INCOMPLETE");
+            coverageRecordRepository.save(record);
+
+            Instant completedTime = Instant.now();
+            scanJob.setStatus("COMPLETED");
+            scanJob.setStage("COMPLETED");
+            scanJob.setCompletedAt(completedTime);
+            scanJob.setUpdatedAt(completedTime);
+            scanJob.setHeartbeatAt(completedTime);
+            scanJob.setDurationMs(completedTime.toEpochMilli() - startTime.toEpochMilli());
+            return scanJobRepository.save(scanJob);
         } catch (Exception e) {
             String sanitizedMsg = sanitizeErrorMessage(e.getMessage());
             log.error("Scan pipeline execution failed for jobId={} repositoryId={}: errorType={} message={}",
@@ -673,6 +764,10 @@ public class ScanPipelineService {
     }
 
     void fetchRemoteRepositorySnapshot(UUID repositoryId, String branch, Path workspacePath) {
+        fetchRemoteRepositorySnapshot(repositoryId, branch, workspacePath, null);
+    }
+
+    void fetchRemoteRepositorySnapshot(UUID repositoryId, String branch, Path workspacePath, Instant jobDeadline) {
         if (repositoryRepository == null || repositoryId == null) {
             throw new IllegalStateException("Repository repository or repository ID is not available");
         }
@@ -699,20 +794,11 @@ public class ScanPipelineService {
         }
 
         java.net.http.HttpClient httpClient = createHttpClient();
+        String url = "https://api.github.com/repos/" + fullName + "/zipball/" + branch;
 
-        // Strictly branch-specific zipball URL (Issue #53: No silent fallback to repository default branch)
-        byte[] zipBytes = downloadZipBytes(httpClient, "https://api.github.com/repos/" + fullName + "/zipball/" + branch, token);
-
-        if (zipBytes == null || zipBytes.length == 0) {
-            throw new IllegalStateException("Remote repository snapshot for branch '" + branch + "' could not be acquired or verified");
-        }
-
-        try {
-            extractZipArchive(zipBytes, workspacePath);
-            log.info("Successfully extracted {} bytes of repository snapshot for {}", zipBytes.length, fullName);
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to extract snapshot archive for branch '" + branch + "': " + e.getMessage(), e);
-        }
+        // Bounded streaming snapshot acquisition and extraction (FR-028, FR-031, NFR-001)
+        streamedSnapshotFetcher.downloadAndExtract(httpClient, url, token, workspacePath, jobDeadline);
+        log.info("Successfully fetched and extracted repository snapshot for {}", fullName);
     }
 
     protected java.net.http.HttpClient createHttpClient() {
@@ -722,59 +808,17 @@ public class ScanPipelineService {
                 .build();
     }
 
-    byte[] downloadZipBytes(java.net.http.HttpClient httpClient, String url, String token) {
-        try {
-            java.net.http.HttpRequest.Builder builder = java.net.http.HttpRequest.newBuilder()
-                    .uri(java.net.URI.create(url))
-                    .header("Accept", "application/vnd.github+json")
-                    .header("User-Agent", "Scan-Pilot")
-                    .timeout(java.time.Duration.ofMinutes(2))
-                    .GET();
-
-            if (token != null && !token.isBlank() && !token.startsWith("mock-")) {
-                builder.header("Authorization", "Bearer " + token);
-            }
-
-            java.net.http.HttpResponse<byte[]> response = httpClient.send(builder.build(), java.net.http.HttpResponse.BodyHandlers.ofByteArray());
-            if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                return response.body();
-            } else {
-                log.warn("GitHub snapshot request to '{}' returned HTTP {}", url, response.statusCode());
-                return null;
-            }
-        } catch (Exception e) {
-            log.warn("Failed to download from '{}': {}", url, e.getMessage());
-            return null;
+    private void checkJobDeadline(Instant deadline, int maxTimeoutSeconds) {
+        if (Instant.now().isAfter(deadline)) {
+            throw new ResourceGuardrailExceededException("SCAN_TIMEOUT", 0, 0, maxTimeoutSeconds);
         }
     }
 
-    private void extractZipArchive(byte[] zipBytes, Path targetDir) throws IOException {
-        try (java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(zipBytes))) {
-            java.util.zip.ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                String entryName = entry.getName();
-                int slashIdx = entryName.indexOf('/');
-                if (slashIdx >= 0) {
-                    entryName = entryName.substring(slashIdx + 1);
-                }
-                if (entryName.isBlank()) {
-                    continue;
-                }
-                Path resolved = targetDir.resolve(entryName).normalize();
-                // Zip-slip security protection
-                if (!resolved.startsWith(targetDir)) {
-                    continue;
-                }
-                if (entry.isDirectory()) {
-                    Files.createDirectories(resolved);
-                } else {
-                    if (resolved.getParent() != null) {
-                        Files.createDirectories(resolved.getParent());
-                    }
-                    Files.copy(zis, resolved, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                }
-                zis.closeEntry();
-            }
+    private int computeRemainingTimeoutSeconds(Instant deadline, int maxTimeoutSeconds) {
+        long remaining = Duration.between(Instant.now(), deadline).toSeconds();
+        if (remaining <= 0) {
+            throw new ResourceGuardrailExceededException("SCAN_TIMEOUT", 0, 0, maxTimeoutSeconds);
         }
+        return (int) remaining;
     }
 }

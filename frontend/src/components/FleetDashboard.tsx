@@ -42,8 +42,9 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({
 
   const totalOpenLeaks = leakingRepos.reduce((acc, r) => acc + r.findingCount, 0);
 
-  const averageHealthScore = scannedRepos.length > 0
-    ? Math.round(scannedRepos.reduce((acc, r) => acc + r.healthScore, 0) / scannedRepos.length)
+  const scoredRepos = scannedRepos.filter((r) => r.healthScore !== null && r.healthScore !== undefined && r.healthScore >= 0);
+  const averageHealthScore = scoredRepos.length > 0
+    ? Math.round(scoredRepos.reduce((acc, r) => acc + (r.healthScore ?? 0), 0) / scoredRepos.length)
     : 0;
 
   const fleetGrade = scannedRepos.length === 0 
@@ -332,13 +333,15 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({
                     <div>
                       <span className="text-[10px] uppercase text-[#8b949e] block font-sans">Health Score</span>
                       <span className={`font-bold text-sm ${
-                        !repo.isScanned 
-                          ? 'text-[#8b949e]' 
-                          : repo.healthScore >= 90 
-                          ? 'text-[#3fb950]' 
+                        !repo.isScanned || repo.healthScore === null || repo.healthScore === undefined || repo.healthScore < 0
+                          ? 'text-[#8b949e]'
+                          : repo.healthScore >= 90
+                          ? 'text-[#3fb950]'
                           : 'text-[#f85149]'
                       }`}>
-                        {repo.isScanned ? `${repo.healthScore}/100` : '—'}
+                        {repo.isScanned && repo.healthScore !== null && repo.healthScore !== undefined && repo.healthScore >= 0
+                          ? `${repo.healthScore}/100`
+                          : '—'}
                       </span>
                     </div>
 

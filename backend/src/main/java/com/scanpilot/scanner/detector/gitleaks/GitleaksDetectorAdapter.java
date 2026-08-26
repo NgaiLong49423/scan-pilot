@@ -2,6 +2,7 @@ package com.scanpilot.scanner.detector.gitleaks;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scanpilot.scanner.exception.ResourceGuardrailExceededException;
 import com.scanpilot.security.secret.RedactedEvidence;
 import com.scanpilot.security.secret.SecretMatch;
 import com.scanpilot.security.secret.SecretRedactionService;
@@ -149,6 +150,9 @@ public class GitleaksDetectorAdapter {
         if (isBinaryAvailable()) {
             try {
                 return scanWithBinary(request);
+            } catch (ResourceGuardrailExceededException rge) {
+                // Must NOT fallback to embedded scan on resource guardrail exceeded
+                throw rge;
             } catch (Exception e) {
                 log.warn("Gitleaks binary execution failed, falling back to embedded engine: {}", e.getMessage());
                 return scanEmbedded(request);
@@ -207,14 +211,30 @@ public class GitleaksDetectorAdapter {
             log.info("Executing Gitleaks detector CLI [isGitScan={}, path={}]",
                 request.isGitScan(), targetPath);
 
+            int effectiveTimeout = (request.overrideTimeoutSeconds() != null && request.overrideTimeoutSeconds() > 0)
+                ? Math.min(properties.getTimeoutSeconds(), request.overrideTimeoutSeconds())
+                : properties.getTimeoutSeconds();
+
             Process process = pb.start();
-            boolean completed = process.waitFor(properties.getTimeoutSeconds(), TimeUnit.SECONDS);
+            boolean completed = process.waitFor(effectiveTimeout, TimeUnit.SECONDS);
 
             if (!completed) {
-                process.destroyForcibly();
-                long duration = System.currentTimeMillis() - startTime;
-                return GitleaksScanResult.error("Gitleaks process timed out after " + properties.getTimeoutSeconds() + "s",
-                    -1, targetPath.toString(), duration);
+                try {
+                    List<ProcessHandle> descendants = process.descendants().toList();
+                    descendants.forEach(ProcessHandle::destroyForcibly);
+                    process.destroyForcibly();
+                    process.waitFor(5, TimeUnit.SECONDS);
+                    for (ProcessHandle ph : descendants) {
+                        if (ph.isAlive()) {
+                            try {
+                                ph.onExit().get(2, TimeUnit.SECONDS);
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("Error during watchdog process-tree termination: {}", e.getMessage());
+                }
+                throw new ResourceGuardrailExceededException("SCAN_TIMEOUT", 0, 0, effectiveTimeout);
             }
 
             int exitCode = process.exitValue();
@@ -229,6 +249,8 @@ public class GitleaksDetectorAdapter {
                 exitCode, findings.size(), duration);
 
             return GitleaksScanResult.success(findings, exitCode, targetPath.toString(), duration);
+        } catch (ResourceGuardrailExceededException rge) {
+            throw rge;
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             log.error("Failed to execute Gitleaks binary: {}", e.getMessage());

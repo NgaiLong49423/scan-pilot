@@ -23,7 +23,7 @@ public class GitleaksConfigProperties {
     /**
      * Timeout in seconds for Gitleaks process execution.
      */
-    private int timeoutSeconds = 60;
+    private int timeoutSeconds = 180;
 
     /**
      * Classpath resource path to the trusted Gitleaks policy TOML file.

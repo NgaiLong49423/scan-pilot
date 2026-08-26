@@ -91,10 +91,15 @@ class IndependentSecretBenchmarkTest {
             .contains("Detailed Test Case Evaluation Manifest")
             .contains(policyDigest);
 
-        // Write/update the formal benchmark markdown file in the project docs
-        Path reportPath = resolveReportPath();
+        // Write/update benchmark markdown file in tempDir by default, or to docs if persist property is true
+        Path reportPath = Boolean.getBoolean("scanpilot.benchmark.persist")
+                ? resolveReportPath()
+                : tempDir.resolve("BENCHMARK-RESULTS-SP-CONFIG-001.md");
+
         if (reportPath != null) {
-            Files.createDirectories(reportPath.getParent());
+            if (reportPath.getParent() != null) {
+                Files.createDirectories(reportPath.getParent());
+            }
             Files.writeString(reportPath, reportMarkdown, StandardCharsets.UTF_8);
             assertThat(Files.exists(reportPath)).isTrue();
             assertThat(Files.size(reportPath)).isGreaterThan(500);

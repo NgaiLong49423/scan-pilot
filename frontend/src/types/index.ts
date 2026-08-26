@@ -25,7 +25,7 @@ export interface Repository {
   lastScanned?: string | null;
   isScanned?: boolean;
   findingCount: number;
-  healthScore: number;
+  healthScore?: number | null;
   attentionStatus: AttentionStatus;
 }
 
@@ -53,7 +53,7 @@ export interface Finding {
 }
 
 export interface HealthMetrics {
-  healthScore: number;
+  healthScore: number | null;
   grade: string;
   scannedFilesCount: number;
   totalFilesCount?: number;
@@ -63,4 +63,7 @@ export interface HealthMetrics {
   aiFixReadyCount: number;
   mttrMinutes: number;
   trendData: number[];
+  reasonCode?: string;
+  limitHitValue?: number;
+  isCoverageIncomplete?: boolean;
 }
