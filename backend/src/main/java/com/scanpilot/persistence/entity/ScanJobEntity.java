@@ -72,4 +72,8 @@ public class ScanJobEntity {
 
     @Column(name = "heartbeat_at")
     private Instant heartbeatAt;
+
+    @Column(name = "next_event_sequence", nullable = false, updatable = false)
+    @Builder.Default
+    private long nextEventSequence = 0L;
 }

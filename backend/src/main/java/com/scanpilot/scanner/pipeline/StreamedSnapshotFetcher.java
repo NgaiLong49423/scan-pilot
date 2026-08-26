@@ -44,8 +44,8 @@ public class StreamedSnapshotFetcher {
      * @param token         Optional authorization token
      * @param workspacePath Target directory for extracted repository files
      */
-    public void downloadAndExtract(HttpClient httpClient, String url, String token, Path workspacePath) {
-        downloadAndExtract(httpClient, url, token, workspacePath, null);
+    public SnapshotTransferMetrics downloadAndExtract(HttpClient httpClient, String url, String token, Path workspacePath) {
+        return downloadAndExtract(httpClient, url, token, workspacePath, null);
     }
 
     /**
@@ -57,8 +57,9 @@ public class StreamedSnapshotFetcher {
      * @param token         Optional authorization token
      * @param workspacePath Target directory for extracted repository files
      * @param jobDeadline   Overarching whole-job deadline
+     * @return SnapshotTransferMetrics containing transferred archive and extracted workspace metrics
      */
-    public void downloadAndExtract(HttpClient httpClient, String url, String token, Path workspacePath, Instant jobDeadline) {
+    public SnapshotTransferMetrics downloadAndExtract(HttpClient httpClient, String url, String token, Path workspacePath, Instant jobDeadline) {
         if (httpClient == null) {
             throw new IllegalArgumentException("HttpClient must not be null");
         }
@@ -109,7 +110,7 @@ public class StreamedSnapshotFetcher {
             if (statusCode < 200 || statusCode >= 300) {
                 throw new RuntimeException("GitHub snapshot archive download failed with HTTP " + statusCode);
             }
-            extractZipStream(is, workspacePath, jobDeadline);
+            return extractZipStream(is, workspacePath, jobDeadline);
         } catch (IOException e) {
             throw new IllegalStateException("Failed to process snapshot stream: " + sanitizeError(e.getMessage()), e);
         }
@@ -124,10 +125,11 @@ public class StreamedSnapshotFetcher {
      *
      * @param inputStream   Raw archive input stream
      * @param workspacePath Target directory for extracted repository files
+     * @return SnapshotTransferMetrics containing transferred archive and extracted workspace metrics
      * @throws ResourceGuardrailExceededException if any safety threshold is breached
      */
-    public void extractZipStream(InputStream inputStream, Path workspacePath) {
-        extractZipStream(inputStream, workspacePath, null);
+    public SnapshotTransferMetrics extractZipStream(InputStream inputStream, Path workspacePath) {
+        return extractZipStream(inputStream, workspacePath, null);
     }
 
     /**
@@ -143,7 +145,7 @@ public class StreamedSnapshotFetcher {
      * @param jobDeadline   Overarching whole-job deadline
      * @throws ResourceGuardrailExceededException if any safety threshold is breached
      */
-    public void extractZipStream(InputStream inputStream, Path workspacePath, Instant jobDeadline) {
+    public SnapshotTransferMetrics extractZipStream(InputStream inputStream, Path workspacePath, Instant jobDeadline) {
         if (inputStream == null) {
             throw new IllegalArgumentException("InputStream must not be null");
         }
@@ -258,6 +260,7 @@ public class StreamedSnapshotFetcher {
                 }
                 zis.closeEntry();
             }
+            return new SnapshotTransferMetrics(countingIs.getBytesRead(), extractedBytes, entryCount);
         } catch (ResourceGuardrailExceededException rge) {
             throw rge;
         } catch (IOException e) {
@@ -282,6 +285,10 @@ public class StreamedSnapshotFetcher {
         public CountingInputStream(InputStream in, long maxBytes) {
             super(in);
             this.maxBytes = maxBytes;
+        }
+
+        public long getBytesRead() {
+            return bytesRead;
         }
 
         @Override

@@ -305,4 +305,34 @@ class StreamedSnapshotFetcherTest {
                     assertThat(rge.getLimitHitValue()).isEqualTo(180L);
                 });
     }
+
+    @Test
+    @DisplayName("R69-01: Valid extraction returns accurate SnapshotTransferMetrics record")
+    void testSnapshotTransferMetricsReturnedOnValidExtraction(@TempDir Path workspacePath) throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        byte[] content1 = "public class Hello { public static void main(String[] args) {} }".getBytes(StandardCharsets.UTF_8);
+        byte[] content2 = "console.log('hello world');".getBytes(StandardCharsets.UTF_8);
+
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            ZipEntry entry1 = new ZipEntry("repo-main/src/Hello.java");
+            zos.putNextEntry(entry1);
+            zos.write(content1);
+            zos.closeEntry();
+
+            ZipEntry entry2 = new ZipEntry("repo-main/index.js");
+            zos.putNextEntry(entry2);
+            zos.write(content2);
+            zos.closeEntry();
+        }
+
+        byte[] zipBytes = baos.toByteArray();
+        SnapshotTransferMetrics metrics = fetcher.extractZipStream(new ByteArrayInputStream(zipBytes), workspacePath);
+
+        assertThat(metrics).isNotNull();
+        assertThat(metrics.archiveBytes()).isEqualTo(zipBytes.length);
+        assertThat(metrics.workspaceBytes()).isEqualTo(content1.length + content2.length);
+        assertThat(metrics.entryCount()).isEqualTo(2);
+        assertThat(Files.exists(workspacePath.resolve("src/Hello.java"))).isTrue();
+        assertThat(Files.exists(workspacePath.resolve("index.js"))).isTrue();
+    }
 }

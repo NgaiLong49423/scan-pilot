@@ -9,6 +9,7 @@ import com.scanpilot.persistence.entity.FindingEntity;
 import com.scanpilot.persistence.entity.FindingLocationEntity;
 import com.scanpilot.persistence.entity.MonitoredBranchEntity;
 import com.scanpilot.persistence.entity.RepositoryEntity;
+import com.scanpilot.persistence.entity.ScanEventEntity;
 import com.scanpilot.persistence.entity.ScanJobEntity;
 import com.scanpilot.persistence.entity.UserEntity;
 import com.scanpilot.persistence.repository.CoverageItemRepository;
@@ -17,6 +18,7 @@ import com.scanpilot.persistence.repository.FindingLocationRepository;
 import com.scanpilot.persistence.repository.FindingRepository;
 import com.scanpilot.persistence.repository.MonitoredBranchRepository;
 import com.scanpilot.persistence.repository.RepositoryRepository;
+import com.scanpilot.persistence.repository.ScanEventRepository;
 import com.scanpilot.persistence.repository.ScanJobRepository;
 import com.scanpilot.persistence.repository.UserRepository;
 import com.scanpilot.scanner.dispatcher.ScanJobDispatcher;
@@ -24,12 +26,15 @@ import com.scanpilot.scanner.dto.CoverageItemDto;
 import com.scanpilot.scanner.dto.CoverageSummaryDto;
 import com.scanpilot.scanner.dto.FindingDto;
 import com.scanpilot.scanner.dto.FindingLocationDto;
+import com.scanpilot.scanner.dto.ScanEventDto;
+import com.scanpilot.scanner.dto.ScanEventsResponse;
 import com.scanpilot.scanner.dto.ScanJobDto;
 import com.scanpilot.scanner.dto.ScanTriggerRequest;
 import com.scanpilot.scanner.dto.ScanTriggerResponse;
 import com.scanpilot.scanner.pipeline.ScanPipelineService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,6 +42,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
@@ -59,6 +65,7 @@ public class ScanController {
     private final ScanJobDispatcher scanJobDispatcher;
     private final ScanPipelineService scanPipelineService;
     private final ScanJobRepository scanJobRepository;
+    private final ScanEventRepository scanEventRepository;
     private final FindingRepository findingRepository;
     private final FindingLocationRepository findingLocationRepository;
     private final CoverageRecordRepository coverageRecordRepository;
@@ -187,6 +194,63 @@ public class ScanController {
         }
 
         return ResponseEntity.ok(ScanJobDto.from(job));
+    }
+
+    /**
+     * Retrieves progressive telemetry scan events for a scan job.
+     * Enforces fail-closed repository ownership check against authenticated session (AC-05).
+     */
+    @GetMapping("/jobs/{jobId}/events")
+    @RequireAuth
+    public ResponseEntity<ScanEventsResponse> getScanJobEvents(
+        @CurrentUser UserSession session,
+        @PathVariable UUID jobId,
+        @RequestParam(name = "afterSeq", defaultValue = "0") long afterSeq,
+        @RequestParam(name = "limit", defaultValue = "50") int limit
+    ) {
+        if (session == null || session.getGithubUserId() == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (jobId == null || afterSeq < 0 || limit < 1 || limit > 50) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+
+        Optional<ScanJobEntity> jobOpt = scanJobRepository.findById(jobId);
+        if (jobOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        ScanJobEntity job = jobOpt.get();
+
+        Optional<UserEntity> userOpt = userRepository.findByGithubUserId(session.getGithubUserId());
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        Optional<RepositoryEntity> repoOpt = repositoryRepository.findById(job.getRepositoryId());
+        if (repoOpt.isEmpty() || !repoOpt.get().getUserId().equals(userOpt.get().getId())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        PageRequest pageRequest = PageRequest.of(0, limit);
+        List<ScanEventEntity> eventEntities = scanEventRepository
+                .findByScanJobIdAndSequenceNumberGreaterThanOrderBySequenceNumberAsc(jobId, afterSeq, pageRequest);
+
+        List<ScanEventDto> eventDtos = eventEntities.stream()
+                .map(ScanEventDto::from)
+                .toList();
+
+        long maxSeqInBatch = eventEntities.isEmpty() ? afterSeq : eventEntities.get(eventEntities.size() - 1).getSequenceNumber();
+        long totalCurrentSeq = job.getNextEventSequence();
+        boolean hasMore = maxSeqInBatch < totalCurrentSeq;
+
+        return ResponseEntity.ok(new ScanEventsResponse(
+                job.getId(),
+                job.getStatus(),
+                job.getStage(),
+                totalCurrentSeq,
+                hasMore,
+                eventDtos
+        ));
     }
 
     /**

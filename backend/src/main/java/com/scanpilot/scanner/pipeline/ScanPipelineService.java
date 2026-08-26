@@ -1,5 +1,6 @@
 package com.scanpilot.scanner.pipeline;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scanpilot.persistence.entity.CoverageItemEntity;
 import com.scanpilot.persistence.entity.CoverageRecordEntity;
 import com.scanpilot.persistence.entity.EvidenceItemEntity;
@@ -13,6 +14,7 @@ import com.scanpilot.persistence.repository.EvidenceItemRepository;
 import com.scanpilot.persistence.repository.FindingLocationRepository;
 import com.scanpilot.persistence.repository.FindingRepository;
 import com.scanpilot.persistence.repository.ScanCheckpointRepository;
+import com.scanpilot.persistence.repository.ScanEventRepository;
 import com.scanpilot.persistence.repository.ScanJobRepository;
 import com.scanpilot.scanner.classifier.CoverageImpact;
 import com.scanpilot.scanner.classifier.CoverageItem;
@@ -34,6 +36,8 @@ import com.scanpilot.scanner.workspace.GitWorkspaceManager;
 import com.scanpilot.security.secret.RedactedEvidence;
 import com.scanpilot.security.secret.SecretMatch;
 import com.scanpilot.security.secret.SecretRedactionService;
+import com.scanpilot.scanner.telemetry.ScanEventPayload;
+import com.scanpilot.scanner.telemetry.TelemetryPayloadSerializer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -51,6 +55,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -78,6 +83,7 @@ public class ScanPipelineService {
     private final SnapshotGuardrailProperties snapshotGuardrailProperties;
 
     private final ScanJobRepository scanJobRepository;
+    private final ScanEventRepository scanEventRepository;
     private final ScanCheckpointRepository scanCheckpointRepository;
     private final FindingRepository findingRepository;
     private final FindingLocationRepository findingLocationRepository;
@@ -86,6 +92,7 @@ public class ScanPipelineService {
     private final CoverageItemRepository coverageItemRepository;
     private final com.scanpilot.persistence.repository.RepositoryRepository repositoryRepository;
     private final com.scanpilot.persistence.repository.UserSessionRepository userSessionRepository;
+    private final TelemetryPayloadSerializer telemetryPayloadSerializer;
 
     /**
      * Executes an enqueued scan job asynchronously by ID, persisting monotonic real stages.
@@ -132,9 +139,15 @@ public class ScanPipelineService {
         try {
             // Stage 1: Fetching Snapshot
             checkJobDeadline(jobDeadline, maxTimeoutSeconds);
+            emitEvent(scanJob.getId(), "FETCHING_SNAPSHOT", "STAGE_TRANSITION", "STAGE_STARTED", new ScanEventPayload.StageStartedPayload("FETCHING_SNAPSHOT"), 95L);
             workspace = gitWorkspaceManager.createWorkspace(repositoryId);
             Path workspacePath = workspace.workspacePath();
-            fetchRemoteRepositorySnapshot(repositoryId, branch, workspacePath, jobDeadline);
+            SnapshotTransferMetrics snapshotMetrics = fetchRemoteRepositorySnapshot(repositoryId, branch, workspacePath, jobDeadline);
+            emitEvent(scanJob.getId(), "FETCHING_SNAPSHOT", "SNAPSHOT_ACQUIRED", "SNAPSHOT_FETCHED", new ScanEventPayload.SnapshotFetchedPayload(
+                    snapshotMetrics != null ? snapshotMetrics.archiveBytes() : 0L,
+                    snapshotMetrics != null ? snapshotMetrics.workspaceBytes() : 0L,
+                    snapshotMetrics != null ? snapshotMetrics.entryCount() : 0
+            ), 95L);
 
             // Stage 2: Classifying Files & Coverage
             checkJobDeadline(jobDeadline, maxTimeoutSeconds);
@@ -143,7 +156,13 @@ public class ScanPipelineService {
             scanJob.setUpdatedAt(stage2Time);
             scanJob.setHeartbeatAt(stage2Time);
             scanJob = scanJobRepository.save(scanJob);
+            emitEvent(scanJob.getId(), "CLASSIFYING_FILES", "STAGE_TRANSITION", "STAGE_STARTED", new ScanEventPayload.StageStartedPayload("CLASSIFYING_FILES"), 95L);
             CoverageSummary coverageSummary = recordCoverage(scanJob, repositoryId, branch, workspacePath);
+            emitEvent(scanJob.getId(), "CLASSIFYING_FILES", "CLASSIFICATION_SUMMARY", "FILES_CLASSIFIED", new ScanEventPayload.FilesClassifiedPayload(
+                    coverageSummary.scannedFiles(),
+                    coverageSummary.skippedFiles(),
+                    coverageSummary.totalFiles()
+            ), 95L);
 
             // Stage 3: Scanning Secrets
             checkJobDeadline(jobDeadline, maxTimeoutSeconds);
@@ -152,7 +171,14 @@ public class ScanPipelineService {
             scanJob.setUpdatedAt(stage3Time);
             scanJob.setHeartbeatAt(stage3Time);
             scanJob = scanJobRepository.save(scanJob);
+            emitEvent(scanJob.getId(), "SCANNING_SECRETS", "STAGE_TRANSITION", "STAGE_STARTED", new ScanEventPayload.StageStartedPayload("SCANNING_SECRETS"), 95L);
             int snapshotTimeout = computeRemainingTimeoutSeconds(jobDeadline, maxTimeoutSeconds);
+            emitEvent(scanJob.getId(), "SCANNING_SECRETS", "SCANNER_LIFECYCLE", "SCANNER_ACTIVE", new ScanEventPayload.ScannerActivePayload(
+                    "GITLEAKS_AST",
+                    "ACTIVE",
+                    snapshotTimeout
+            ), 95L);
+
             GitleaksScanResult snapshotResult = gitleaksDetectorAdapter.scan(GitleaksScanRequest.forSnapshot(workspacePath, snapshotTimeout));
             List<DetectedSecretFinding> snapshotFindings = normalizeFindings(repositoryId, snapshotResult.findings());
 
@@ -164,6 +190,25 @@ public class ScanPipelineService {
                 historyFindings = normalizeFindings(repositoryId, historyResult.findings());
             }
 
+            List<DetectedSecretFinding> allFindings = new ArrayList<>(snapshotFindings);
+            allFindings.addAll(historyFindings);
+            int totalFindings = allFindings.size();
+            for (int i = 0; i < Math.min(50, totalFindings); i++) {
+                DetectedSecretFinding f = allFindings.get(i);
+                String ruleId = f.ruleId() != null ? f.ruleId() : "UNKNOWN";
+                emitEvent(scanJob.getId(), "SCANNING_SECRETS", "FINDING_DISCOVERED", "FINDING_ALERT", new ScanEventPayload.FindingAlertPayload(
+                        ruleId,
+                        determineSeverity(ruleId),
+                        i + 1
+                ), 95L);
+            }
+            if (totalFindings > 50) {
+                emitEvent(scanJob.getId(), "SCANNING_SECRETS", "FINDING_DISCOVERED", "FINDINGS_TRUNCATED", new ScanEventPayload.FindingsTruncatedPayload(
+                        totalFindings,
+                        50
+                ), 95L);
+            }
+
             // Stage 4: Recording Evidence
             checkJobDeadline(jobDeadline, maxTimeoutSeconds);
             scanJob.setStage("RECORDING_EVIDENCE");
@@ -171,6 +216,7 @@ public class ScanPipelineService {
             scanJob.setUpdatedAt(stage4Time);
             scanJob.setHeartbeatAt(stage4Time);
             scanJob = scanJobRepository.save(scanJob);
+            emitEvent(scanJob.getId(), "RECORDING_EVIDENCE", "STAGE_TRANSITION", "STAGE_STARTED", new ScanEventPayload.StageStartedPayload("RECORDING_EVIDENCE"), 95L);
 
             String commitSha = resolveCommitSha(workspacePath);
             if (commitSha == null) {
@@ -205,6 +251,12 @@ public class ScanPipelineService {
             scanJob.setDurationMs(completedTime.toEpochMilli() - startTime.toEpochMilli());
             scanJob = scanJobRepository.save(scanJob);
 
+            emitEvent(scanJob.getId(), "COMPLETED", "SCAN_COMPLETED", "JOB_COMPLETED", new ScanEventPayload.JobCompletedPayload(
+                    scanJob.getDurationMs(),
+                    totalFindings,
+                    coverageSummary.coverageImpact().name()
+            ), 100L);
+
             log.info("Scan job {} completed successfully in {}ms for repositoryId={}",
                     scanJob.getId(), scanJob.getDurationMs(), repositoryId);
             return scanJob;
@@ -233,6 +285,13 @@ public class ScanPipelineService {
             record.setCoverageImpact("INCOMPLETE");
             coverageRecordRepository.save(record);
 
+            long observedVal = rge.getObservedBytes() > 0 ? rge.getObservedBytes() : (long) rge.getObservedFiles();
+            emitEvent(scanJob.getId(), "GUARDRAIL_TRIGGERED", "GUARDRAIL_TRIGGERED", "GUARDRAIL_LIMIT_HIT", new ScanEventPayload.GuardrailLimitHitPayload(
+                    rge.getReasonCode(),
+                    observedVal,
+                    rge.getLimitHitValue()
+            ), 100L);
+
             Instant completedTime = Instant.now();
             scanJob.setStatus("COMPLETED");
             scanJob.setStage("COMPLETED");
@@ -245,6 +304,13 @@ public class ScanPipelineService {
             String sanitizedMsg = sanitizeErrorMessage(e.getMessage());
             log.error("Scan pipeline execution failed for jobId={} repositoryId={}: errorType={} message={}",
                     jobId, repositoryId, e.getClass().getSimpleName(), sanitizedMsg);
+            String errorReasonCode = "UNEXPECTED_SCAN_FAILURE";
+            if (e instanceof ResourceGuardrailExceededException) {
+                errorReasonCode = "GUARDRAIL_EXCEEDED";
+            } else if (e instanceof IOException) {
+                errorReasonCode = "IO_ERROR";
+            }
+            emitEvent(scanJob.getId(), "FAILED", "SCAN_FAILED", "JOB_FAILED", new ScanEventPayload.JobFailedPayload(errorReasonCode), 100L);
             Instant completedTime = Instant.now();
             scanJob.setStatus("FAILED");
             scanJob.setStage("FAILED");
@@ -299,14 +365,36 @@ public class ScanPipelineService {
         try {
             // 2. Create isolated workspace
             checkJobDeadline(jobDeadline, maxTimeoutSeconds);
+            emitEvent(scanJob.getId(), "FETCHING_SNAPSHOT", "STAGE_TRANSITION", "STAGE_STARTED", new ScanEventPayload.StageStartedPayload("FETCHING_SNAPSHOT"), 95L);
             workspace = gitWorkspaceManager.createWorkspace(repositoryId);
             Path workspacePath = workspace.workspacePath();
 
             // Copy source files if provided, or download snapshot from remote GitHub repository
             if (sourcePath != null && Files.exists(sourcePath)) {
                 gitWorkspaceManager.copyDirectory(sourcePath, workspacePath);
+                long workspaceSize = 0L;
+                int fileCount = 0;
+                try (Stream<Path> stream = Files.walk(workspacePath)) {
+                    List<Path> regularFiles = stream.filter(Files::isRegularFile).toList();
+                    fileCount = regularFiles.size();
+                    for (Path p : regularFiles) {
+                        try {
+                            workspaceSize += Files.size(p);
+                        } catch (IOException ignored) {}
+                    }
+                }
+                emitEvent(scanJob.getId(), "FETCHING_SNAPSHOT", "SNAPSHOT_ACQUIRED", "SNAPSHOT_FETCHED", new ScanEventPayload.SnapshotFetchedPayload(
+                        workspaceSize,
+                        workspaceSize,
+                        fileCount
+                ), 95L);
             } else {
-                fetchRemoteRepositorySnapshot(repositoryId, branch, workspacePath, jobDeadline);
+                SnapshotTransferMetrics snapshotMetrics = fetchRemoteRepositorySnapshot(repositoryId, branch, workspacePath, jobDeadline);
+                emitEvent(scanJob.getId(), "FETCHING_SNAPSHOT", "SNAPSHOT_ACQUIRED", "SNAPSHOT_FETCHED", new ScanEventPayload.SnapshotFetchedPayload(
+                        snapshotMetrics != null ? snapshotMetrics.archiveBytes() : 0L,
+                        snapshotMetrics != null ? snapshotMetrics.workspaceBytes() : 0L,
+                        snapshotMetrics != null ? snapshotMetrics.entryCount() : 0
+                ), 95L);
             }
 
             // 3. Resolve commit SHA if git repository exists
@@ -323,7 +411,13 @@ public class ScanPipelineService {
             scanJob.setUpdatedAt(stage2Time);
             scanJob.setHeartbeatAt(stage2Time);
             scanJob = scanJobRepository.save(scanJob);
+            emitEvent(scanJob.getId(), "CLASSIFYING_FILES", "STAGE_TRANSITION", "STAGE_STARTED", new ScanEventPayload.StageStartedPayload("CLASSIFYING_FILES"), 95L);
             CoverageSummary coverageSummary = recordCoverage(scanJob, repositoryId, branch, workspacePath);
+            emitEvent(scanJob.getId(), "CLASSIFYING_FILES", "CLASSIFICATION_SUMMARY", "FILES_CLASSIFIED", new ScanEventPayload.FilesClassifiedPayload(
+                    coverageSummary.scannedFiles(),
+                    coverageSummary.skippedFiles(),
+                    coverageSummary.totalFiles()
+            ), 95L);
 
             // 5. Stage 1: Snapshot scan of HEAD files (FR-025)
             checkJobDeadline(jobDeadline, maxTimeoutSeconds);
@@ -332,7 +426,14 @@ public class ScanPipelineService {
             scanJob.setUpdatedAt(stage3Time);
             scanJob.setHeartbeatAt(stage3Time);
             scanJob = scanJobRepository.save(scanJob);
+            emitEvent(scanJob.getId(), "SCANNING_SECRETS", "STAGE_TRANSITION", "STAGE_STARTED", new ScanEventPayload.StageStartedPayload("SCANNING_SECRETS"), 95L);
             int snapshotTimeout = computeRemainingTimeoutSeconds(jobDeadline, maxTimeoutSeconds);
+            emitEvent(scanJob.getId(), "SCANNING_SECRETS", "SCANNER_LIFECYCLE", "SCANNER_ACTIVE", new ScanEventPayload.ScannerActivePayload(
+                    "GITLEAKS_AST",
+                    "ACTIVE",
+                    snapshotTimeout
+            ), 95L);
+
             GitleaksScanResult snapshotResult = gitleaksDetectorAdapter.scan(GitleaksScanRequest.forSnapshot(workspacePath, snapshotTimeout));
             List<DetectedSecretFinding> snapshotFindings = normalizeFindings(repositoryId, snapshotResult.findings());
 
@@ -345,6 +446,25 @@ public class ScanPipelineService {
                 historyFindings = normalizeFindings(repositoryId, historyResult.findings());
             }
 
+            List<DetectedSecretFinding> allFindings = new ArrayList<>(snapshotFindings);
+            allFindings.addAll(historyFindings);
+            int totalFindings = allFindings.size();
+            for (int i = 0; i < Math.min(50, totalFindings); i++) {
+                DetectedSecretFinding f = allFindings.get(i);
+                String ruleId = f.ruleId() != null ? f.ruleId() : "UNKNOWN";
+                emitEvent(scanJob.getId(), "SCANNING_SECRETS", "FINDING_DISCOVERED", "FINDING_ALERT", new ScanEventPayload.FindingAlertPayload(
+                        ruleId,
+                        determineSeverity(ruleId),
+                        i + 1
+                ), 95L);
+            }
+            if (totalFindings > 50) {
+                emitEvent(scanJob.getId(), "SCANNING_SECRETS", "FINDING_DISCOVERED", "FINDINGS_TRUNCATED", new ScanEventPayload.FindingsTruncatedPayload(
+                        totalFindings,
+                        50
+                ), 95L);
+            }
+
             // 7. Apply Finding Lifecycle Engine & update database records (FR-007, FR-018, FR-019, FR-051, DEC-012)
             checkJobDeadline(jobDeadline, maxTimeoutSeconds);
             scanJob.setStage("RECORDING_EVIDENCE");
@@ -352,6 +472,7 @@ public class ScanPipelineService {
             scanJob.setUpdatedAt(stage4Time);
             scanJob.setHeartbeatAt(stage4Time);
             scanJob = scanJobRepository.save(scanJob);
+            emitEvent(scanJob.getId(), "RECORDING_EVIDENCE", "STAGE_TRANSITION", "STAGE_STARTED", new ScanEventPayload.StageStartedPayload("RECORDING_EVIDENCE"), 95L);
             processFindings(repositoryId, snapshotFindings, historyFindings, commitSha);
 
             // 8. Validate coverage completeness and advance checkpoint (FR-028, FR-029)
@@ -379,6 +500,12 @@ public class ScanPipelineService {
             scanJob.setHeartbeatAt(completedTime);
             scanJob.setDurationMs(completedTime.toEpochMilli() - startTime.toEpochMilli());
             scanJob = scanJobRepository.save(scanJob);
+
+            emitEvent(scanJob.getId(), "COMPLETED", "SCAN_COMPLETED", "JOB_COMPLETED", new ScanEventPayload.JobCompletedPayload(
+                    scanJob.getDurationMs(),
+                    totalFindings,
+                    coverageSummary.coverageImpact().name()
+            ), 100L);
 
             log.info("Scan job {} completed successfully in {}ms for repositoryId={}",
                 scanJob.getId(), scanJob.getDurationMs(), repositoryId);
@@ -408,6 +535,13 @@ public class ScanPipelineService {
             record.setCoverageImpact("INCOMPLETE");
             coverageRecordRepository.save(record);
 
+            long observedVal = rge.getObservedBytes() > 0 ? rge.getObservedBytes() : (long) rge.getObservedFiles();
+            emitEvent(scanJob.getId(), "GUARDRAIL_TRIGGERED", "GUARDRAIL_TRIGGERED", "GUARDRAIL_LIMIT_HIT", new ScanEventPayload.GuardrailLimitHitPayload(
+                    rge.getReasonCode(),
+                    observedVal,
+                    rge.getLimitHitValue()
+            ), 100L);
+
             Instant completedTime = Instant.now();
             scanJob.setStatus("COMPLETED");
             scanJob.setStage("COMPLETED");
@@ -420,6 +554,13 @@ public class ScanPipelineService {
             String sanitizedMsg = sanitizeErrorMessage(e.getMessage());
             log.error("Scan pipeline execution failed for jobId={} repositoryId={}: errorType={} message={}",
                     scanJob.getId(), repositoryId, e.getClass().getSimpleName(), sanitizedMsg);
+            String errorReasonCode = "UNEXPECTED_SCAN_FAILURE";
+            if (e instanceof ResourceGuardrailExceededException) {
+                errorReasonCode = "GUARDRAIL_EXCEEDED";
+            } else if (e instanceof IOException) {
+                errorReasonCode = "IO_ERROR";
+            }
+            emitEvent(scanJob.getId(), "FAILED", "SCAN_FAILED", "JOB_FAILED", new ScanEventPayload.JobFailedPayload(errorReasonCode), 100L);
             Instant completedTime = Instant.now();
             scanJob.setStatus("FAILED");
             scanJob.setStage("FAILED");
@@ -763,11 +904,11 @@ public class ScanPipelineService {
         return false;
     }
 
-    void fetchRemoteRepositorySnapshot(UUID repositoryId, String branch, Path workspacePath) {
-        fetchRemoteRepositorySnapshot(repositoryId, branch, workspacePath, null);
+    SnapshotTransferMetrics fetchRemoteRepositorySnapshot(UUID repositoryId, String branch, Path workspacePath) {
+        return fetchRemoteRepositorySnapshot(repositoryId, branch, workspacePath, null);
     }
 
-    void fetchRemoteRepositorySnapshot(UUID repositoryId, String branch, Path workspacePath, Instant jobDeadline) {
+    SnapshotTransferMetrics fetchRemoteRepositorySnapshot(UUID repositoryId, String branch, Path workspacePath, Instant jobDeadline) {
         if (repositoryRepository == null || repositoryId == null) {
             throw new IllegalStateException("Repository repository or repository ID is not available");
         }
@@ -797,8 +938,43 @@ public class ScanPipelineService {
         String url = "https://api.github.com/repos/" + fullName + "/zipball/" + branch;
 
         // Bounded streaming snapshot acquisition and extraction (FR-028, FR-031, NFR-001)
-        streamedSnapshotFetcher.downloadAndExtract(httpClient, url, token, workspacePath, jobDeadline);
+        SnapshotTransferMetrics metrics = streamedSnapshotFetcher.downloadAndExtract(httpClient, url, token, workspacePath, jobDeadline);
         log.info("Successfully fetched and extracted repository snapshot for {}", fullName);
+        return metrics;
+    }
+
+    public void emitEvent(UUID jobId, String stage, String eventType, String messageCode, ScanEventPayload payload, long maxLimit) {
+        if (scanEventRepository == null || jobId == null) {
+            return;
+        }
+        try {
+            String payloadJson = telemetryPayloadSerializer != null ? telemetryPayloadSerializer.serialize(payload) : null;
+            if (payload != null && payloadJson == null) {
+                log.debug("Event {} ({}) suppressed due to invalid/oversized payload", eventType, messageCode);
+                return;
+            }
+            Optional<Long> allocatedSeq = scanEventRepository.insertEventAtomicCTE(
+                    jobId,
+                    maxLimit,
+                    UUID.randomUUID(),
+                    stage,
+                    eventType,
+                    messageCode,
+                    payloadJson,
+                    Instant.now()
+            );
+            if (allocatedSeq.isEmpty()) {
+                log.debug("Event {} ({}) dropped/suppressed", eventType, messageCode);
+            }
+        } catch (Exception e) {
+            log.warn("Event persistence error for eventType={}", eventType);
+        }
+    }
+
+    public void emitEvent(ScanJobEntity job, String stage, String eventType, String messageCode, ScanEventPayload payload) {
+        if (job != null && job.getId() != null) {
+            emitEvent(job.getId(), stage, eventType, messageCode, payload, 95L);
+        }
     }
 
     protected java.net.http.HttpClient createHttpClient() {

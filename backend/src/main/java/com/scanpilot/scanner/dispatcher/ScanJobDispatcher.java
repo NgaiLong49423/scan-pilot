@@ -3,22 +3,24 @@ package com.scanpilot.scanner.dispatcher;
 import com.scanpilot.persistence.entity.RepositoryEntity;
 import com.scanpilot.persistence.entity.ScanJobEntity;
 import com.scanpilot.persistence.repository.RepositoryRepository;
+import com.scanpilot.persistence.repository.ScanEventRepository;
 import com.scanpilot.persistence.repository.ScanJobRepository;
 import com.scanpilot.scanner.config.ScanWorkerInstance;
-import com.scanpilot.scanner.exception.ScanCapacityExceededException;
 import com.scanpilot.scanner.pipeline.ScanPipelineService;
+import com.scanpilot.scanner.telemetry.ScanEventPayload;
+import com.scanpilot.scanner.telemetry.TelemetryPayloadSerializer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.RejectedExecutionException;
 
@@ -37,8 +39,10 @@ public class ScanJobDispatcher {
 
     private final ScanPipelineService scanPipelineService;
     private final ScanJobRepository scanJobRepository;
+    private final ScanEventRepository scanEventRepository;
     private final RepositoryRepository repositoryRepository;
     private final ScanWorkerInstance scanWorkerInstance;
+    private final TelemetryPayloadSerializer telemetryPayloadSerializer;
 
     @Qualifier("scanTaskExecutor")
     private final ThreadPoolTaskExecutor scanTaskExecutor;
@@ -92,6 +96,9 @@ public class ScanJobDispatcher {
         UUID jobId = savedJob.getId();
         UUID repoId = repo.getId();
 
+        // Emit QUEUED stage started milestone event within dispatch transaction (AC-02, maxLimit = 95)
+        emitEvent(jobId, "QUEUED", "STAGE_TRANSITION", "STAGE_STARTED", new ScanEventPayload.StageStartedPayload("QUEUED"), 95L);
+
         // 4. Submit task to bounded executor strictly AFTER database transaction commits
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -122,7 +129,36 @@ public class ScanJobDispatcher {
         } catch (RejectedExecutionException e) {
             log.warn("Scan executor capacity exceeded after commit for jobId={} repositoryId={}: errorType={}",
                     jobId, repoId, e.getClass().getSimpleName());
+            emitEvent(jobId, "FAILED", "SCAN_FAILED", "JOB_FAILED", new ScanEventPayload.JobFailedPayload("DISPATCH_CAPACITY_EXCEEDED"), 100L);
             scanJobRepository.updateJobStatusAndError(jobId, "FAILED", "FAILED", CAPACITY_EXCEEDED_MESSAGE, Instant.now());
+        }
+    }
+
+    public void emitEvent(UUID jobId, String stage, String eventType, String messageCode, ScanEventPayload payload, long maxLimit) {
+        if (scanEventRepository == null || jobId == null) {
+            return;
+        }
+        try {
+            String payloadJson = telemetryPayloadSerializer != null ? telemetryPayloadSerializer.serialize(payload) : null;
+            if (payload != null && payloadJson == null) {
+                log.debug("Event {} ({}) suppressed due to invalid/oversized payload", eventType, messageCode);
+                return;
+            }
+            Optional<Long> allocatedSeq = scanEventRepository.insertEventAtomicCTE(
+                    jobId,
+                    maxLimit,
+                    UUID.randomUUID(),
+                    stage,
+                    eventType,
+                    messageCode,
+                    payloadJson,
+                    Instant.now()
+            );
+            if (allocatedSeq.isEmpty()) {
+                log.debug("Event {} ({}) dropped/suppressed", eventType, messageCode);
+            }
+        } catch (Exception e) {
+            log.warn("Event persistence error for eventType={}", eventType);
         }
     }
 }

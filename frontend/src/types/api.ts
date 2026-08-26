@@ -163,3 +163,23 @@ export interface BranchConfigRequest {
 export interface InstallUrlResponse {
   installUrl: string;
 }
+
+export interface ScanEvent {
+  id: string;
+  scanJobId: string;
+  sequenceNumber: number;
+  stage: string;
+  eventType: string;
+  messageCode: string;
+  payloadJson: string | null;
+  createdAt: string;
+}
+
+export interface ScanEventsResponse {
+  jobId: string;
+  status: string;
+  stage: string;
+  lastSequence: number;
+  hasMore: boolean;
+  events: ScanEvent[];
+}

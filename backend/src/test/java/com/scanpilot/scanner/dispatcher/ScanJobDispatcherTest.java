@@ -44,6 +44,12 @@ class ScanJobDispatcherTest {
     private ScanJobRepository scanJobRepository;
 
     @Autowired
+    private com.scanpilot.persistence.repository.ScanEventRepository scanEventRepository;
+
+    @Autowired
+    private com.scanpilot.scanner.telemetry.TelemetryPayloadSerializer telemetryPayloadSerializer;
+
+    @Autowired
     private RepositoryRepository repositoryRepository;
 
     @Autowired
@@ -62,6 +68,9 @@ class ScanJobDispatcherTest {
 
     @BeforeEach
     void setUp() {
+        if (scanEventRepository != null) {
+            scanEventRepository.deleteAll();
+        }
         scanJobRepository.deleteAll();
         repositoryRepository.deleteAll();
         userRepository.deleteAll();
@@ -86,7 +95,7 @@ class ScanJobDispatcherTest {
     }
 
     @Test
-    @DisplayName("Test 1: Worker only executes after transaction commits and job is fully visible in DB")
+    @DisplayName("Test 1: Worker only executes after transaction commits and job is fully visible in DB, emitting QUEUED event")
     void testWorkerExecutesAfterTransactionCommit() throws Exception {
         AtomicBoolean jobVisibleDuringExecution = new AtomicBoolean(false);
         CountDownLatch executionLatch = new CountDownLatch(1);
@@ -116,7 +125,7 @@ class ScanJobDispatcherTest {
     }
 
     @Test
-    @DisplayName("Test 2: Executor rejection after commit transitions job to FAILED with safe message and leaves 0 orphan QUEUED jobs")
+    @DisplayName("Test 2: Executor rejection after commit transitions job to FAILED with safe message and emits JOB_FAILED event")
     void testExecutorRejectionAfterCommitTransitionsJobToFailed() {
         ThreadPoolTaskExecutor mockExecutor = org.mockito.Mockito.mock(ThreadPoolTaskExecutor.class);
         doThrow(new RejectedExecutionException("Queue full with secret token ghp_secretmarker1234567890"))
@@ -125,8 +134,10 @@ class ScanJobDispatcherTest {
         ScanJobDispatcher dispatcherWithMockExecutor = new ScanJobDispatcher(
                 scanPipelineService,
                 scanJobRepository,
+                scanEventRepository,
                 repositoryRepository,
                 scanWorkerInstance,
+                telemetryPayloadSerializer,
                 mockExecutor
         );
 

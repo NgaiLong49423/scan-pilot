@@ -89,6 +89,9 @@ class ScanControllerTest {
     @Autowired
     private CoverageItemRepository coverageItemRepository;
 
+    @Autowired
+    private com.scanpilot.persistence.repository.ScanEventRepository scanEventRepository;
+
     private UserSession userSession;
     private UserEntity userEntity;
     private RepositoryEntity repositoryEntity;
@@ -99,6 +102,9 @@ class ScanControllerTest {
 
     @BeforeEach
     void setUp() {
+        if (scanEventRepository != null) {
+            scanEventRepository.deleteAll();
+        }
         findingLocationRepository.deleteAll();
         findingRepository.deleteAll();
         coverageItemRepository.deleteAll();
@@ -778,5 +784,136 @@ class ScanControllerTest {
         mockMvc.perform(get("/api/v1/scans/repositories/" + otherRepositoryEntity.getId() + "/coverage")
                 .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId())))
             .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/scans/jobs/{jobId}/events returns 401 unauthenticated when no session cookie")
+    void testGetScanEventsUnauthenticatedReturns401() throws Exception {
+        mockMvc.perform(get("/api/v1/scans/jobs/" + UUID.randomUUID() + "/events"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/scans/jobs/{jobId}/events returns 404 for non-owner job")
+    void testGetScanEventsNonOwnerReturns404() throws Exception {
+        ScanJobEntity otherJob = scanJobRepository.save(ScanJobEntity.builder()
+            .repositoryId(otherRepositoryEntity.getId())
+            .branchName("main")
+            .scanMode("SNAPSHOT_AND_HISTORY")
+            .status("RUNNING")
+            .stage("SCANNING_SECRETS")
+            .nextEventSequence(2L)
+            .createdAt(Instant.now())
+            .build());
+
+        mockMvc.perform(get("/api/v1/scans/jobs/" + otherJob.getId() + "/events")
+                .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId())))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/scans/jobs/{jobId}/events returns ascending events with lastSequence and hasMore metadata")
+    void testGetScanEventsAuthorizedReturnsEvents() throws Exception {
+        ScanJobEntity job = scanJobRepository.save(ScanJobEntity.builder()
+            .repositoryId(repositoryEntity.getId())
+            .branchName("main")
+            .scanMode("SNAPSHOT_AND_HISTORY")
+            .status("RUNNING")
+            .stage("SCANNING_SECRETS")
+            .nextEventSequence(3L)
+            .createdAt(Instant.now())
+            .build());
+
+        scanEventRepository.save(com.scanpilot.persistence.entity.ScanEventEntity.builder()
+            .id(UUID.randomUUID())
+            .scanJobId(job.getId())
+            .sequenceNumber(1L)
+            .stage("FETCHING_SNAPSHOT")
+            .eventType("STAGE_TRANSITION")
+            .messageCode("STAGE_STARTED")
+            .payloadJson("{\"stage\":\"FETCHING_SNAPSHOT\"}")
+            .createdAt(Instant.now().minusSeconds(5))
+            .build());
+
+        scanEventRepository.save(com.scanpilot.persistence.entity.ScanEventEntity.builder()
+            .id(UUID.randomUUID())
+            .scanJobId(job.getId())
+            .sequenceNumber(2L)
+            .stage("FETCHING_SNAPSHOT")
+            .eventType("SNAPSHOT_ACQUIRED")
+            .messageCode("SNAPSHOT_FETCHED")
+            .payloadJson("{\"archiveBytes\":1024,\"workspaceBytes\":2048,\"entryCount\":5}")
+            .createdAt(Instant.now().minusSeconds(4))
+            .build());
+
+        scanEventRepository.save(com.scanpilot.persistence.entity.ScanEventEntity.builder()
+            .id(UUID.randomUUID())
+            .scanJobId(job.getId())
+            .sequenceNumber(3L)
+            .stage("CLASSIFYING_FILES")
+            .eventType("STAGE_TRANSITION")
+            .messageCode("STAGE_STARTED")
+            .payloadJson("{\"stage\":\"CLASSIFYING_FILES\"}")
+            .createdAt(Instant.now().minusSeconds(3))
+            .build());
+
+        // Fetch first page with afterSeq=0, limit=2
+        mockMvc.perform(get("/api/v1/scans/jobs/" + job.getId() + "/events?afterSeq=0&limit=2")
+                .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.jobId").value(job.getId().toString()))
+            .andExpect(jsonPath("$.status").value("RUNNING"))
+            .andExpect(jsonPath("$.lastSequence").value(3))
+            .andExpect(jsonPath("$.hasMore").value(true))
+            .andExpect(jsonPath("$.events", hasSize(2)))
+            .andExpect(jsonPath("$.events[0].sequenceNumber").value(1))
+            .andExpect(jsonPath("$.events[0].messageCode").value("STAGE_STARTED"))
+            .andExpect(jsonPath("$.events[1].sequenceNumber").value(2))
+            .andExpect(jsonPath("$.events[1].messageCode").value("SNAPSHOT_FETCHED"));
+
+        // Fetch second page with afterSeq=2, limit=2
+        mockMvc.perform(get("/api/v1/scans/jobs/" + job.getId() + "/events?afterSeq=2&limit=2")
+                .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.jobId").value(job.getId().toString()))
+            .andExpect(jsonPath("$.lastSequence").value(3))
+            .andExpect(jsonPath("$.hasMore").value(false))
+            .andExpect(jsonPath("$.events", hasSize(1)))
+            .andExpect(jsonPath("$.events[0].sequenceNumber").value(3))
+            .andExpect(jsonPath("$.events[0].messageCode").value("STAGE_STARTED"));
+    }
+
+    @Test
+    @DisplayName("Fail-Closed Pagination: limit <= 0, limit > 50, afterSeq < 0 return 400 Bad Request")
+    void testFailClosedPaginationValidation() throws Exception {
+        ScanJobEntity job = scanJobRepository.save(ScanJobEntity.builder()
+            .repositoryId(repositoryEntity.getId())
+            .branchName("main")
+            .scanMode("SNAPSHOT_AND_HISTORY")
+            .status("RUNNING")
+            .stage("SCANNING_SECRETS")
+            .nextEventSequence(1L)
+            .createdAt(Instant.now())
+            .build());
+
+        // limit = 0 -> 400
+        mockMvc.perform(get("/api/v1/scans/jobs/" + job.getId() + "/events?afterSeq=0&limit=0")
+                .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId())))
+            .andExpect(status().isBadRequest());
+
+        // limit = -1 -> 400
+        mockMvc.perform(get("/api/v1/scans/jobs/" + job.getId() + "/events?afterSeq=0&limit=-1")
+                .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId())))
+            .andExpect(status().isBadRequest());
+
+        // limit = 51 -> 400
+        mockMvc.perform(get("/api/v1/scans/jobs/" + job.getId() + "/events?afterSeq=0&limit=51")
+                .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId())))
+            .andExpect(status().isBadRequest());
+
+        // afterSeq = -1 -> 400
+        mockMvc.perform(get("/api/v1/scans/jobs/" + job.getId() + "/events?afterSeq=-1&limit=50")
+                .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId())))
+            .andExpect(status().isBadRequest());
     }
 }
