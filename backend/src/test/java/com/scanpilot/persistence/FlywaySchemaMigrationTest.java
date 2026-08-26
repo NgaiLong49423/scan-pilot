@@ -27,12 +27,12 @@ class FlywaySchemaMigrationTest {
     private DataSource dataSource;
 
     @Test
-    @DisplayName("Should successfully apply V1 migration and record schema history")
+    @DisplayName("Should successfully apply V3 migration and record schema history")
     void shouldVerifyFlywayMigrationApplied() {
         MigrationInfo current = flyway.info().current();
         assertThat(current).isNotNull();
-        assertThat(current.getVersion().getVersion()).isEqualTo("2");
-        assertThat(current.getDescription()).isEqualTo("add scan job stage and created at");
+        assertThat(current.getVersion().getVersion()).isEqualTo("3");
+        assertThat(current.getDescription()).isEqualTo("add coverage guardrail telemetry");
         assertThat(current.getState().isApplied()).isTrue();
     }
 

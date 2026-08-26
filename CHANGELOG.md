@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.35.0
+> **Version:** v2.36.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-24
+> **Last Updated:** 2026-08-25
 > **Status:** Active
 
 # Scan Pilot Changelog
@@ -10,6 +10,64 @@
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
+
+## 2026-08-25 — GitHub Snapshot Resource Limits and Guardrails (Issue #67)
+
+**Status:** Committed (`83ed889`)
+
+**Scope:** Enforced robust resource guardrails on GitHub snapshot downloads and workspace extractions to prevent container OOM, disk exhaustion, zip-bombs, and hangs on Cloud Run (NFR-001, FR-028, FR-031, DEC-036). Implemented streaming download with a 20 MiB archive ceiling, streaming extraction with a 150 MiB uncompressed workspace ceiling and 10,000 archive entries ceiling, canonical multi-platform Zip-Slip path traversal defense, and an overarching 180-second whole scan-job cumulative deadline across all pipeline stages coupled with a Gitleaks process-tree watchdog. Enforced fail-closed coverage reporting where guardrail limits record `ScanJobEntity.status=COMPLETED` and `CoverageImpact=INCOMPLETE`, persist `reason_code` and `limit_hit_value` in PostgreSQL via Flyway V3, strictly block scan checkpoint advancement, and render truthful neutral metrics (`—`) and warning banners without claiming Clean or 100% Safe.
+
+### Added
+
+- Added Flyway migration `V3__add_coverage_guardrail_telemetry.sql` adding `reason_code` and `limit_hit_value` columns to `coverage_records`.
+- Added `SnapshotGuardrailProperties` configuring maximum archive download bytes (20 MiB), maximum uncompressed workspace bytes (150 MiB), maximum entry count (10,000), and cumulative whole scan-job timeout (180 seconds).
+- Added `overrideTimeoutSeconds` parameter and factory overloads to `GitleaksScanRequest` for dynamically allocating remaining job deadline to detector stages.
+- Added `ResourceGuardrailExceededException` carrying structured reason code, observed bytes/files, and limit hit value.
+- Added `StreamedSnapshotFetcher` for bounded streaming archive download, multi-platform Zip-Slip traversal rejection, streaming extraction limits, and overarching job deadline enforcement across HTTP transfer, entry iterations, and buffer writes.
+- Added `CoverageWarningBanner.tsx` in frontend for truthful warning disclosure when scan coverage is incomplete due to safety limits.
+- Added unit and integration tests: `StreamedSnapshotFetcherTest`, `ScanPipelineGuardrailTest`, and `GitleaksConfigPropertiesTest`.
+
+### Changed
+
+- Updated `GitleaksConfigProperties` default production watchdog timeout to 180 seconds and synchronized `application.yml`.
+- Updated `GitleaksDetectorAdapter` to calculate effective timeout per request (`overrideTimeoutSeconds`), forcibly terminate process trees (`ProcessHandle.descendants()`), await exit on timeout, and propagate typed `ResourceGuardrailExceededException("SCAN_TIMEOUT")` without modifying singleton configuration properties or falling back to embedded scan.
+- Updated `ScanPipelineService` across both asynchronous `executeScanJob` and synchronous `executeScan` entry points to establish an immutable whole scan-job deadline (180s), check deadline bounds prior to each pipeline stage, propagate `jobDeadline` into snapshot download and extraction stages (`StreamedSnapshotFetcher`) as well as detector stages (`GitleaksDetectorAdapter`), catch guardrail exceptions, record early `CoverageRecordEntity(coverageImpact="INCOMPLETE")`, and strictly block `ScanCheckpointEntity` advancement while guaranteeing workspace cleanup in `finally`.
+- Updated `CoverageSummaryDto`, `frontend/src/types/index.ts`, and `frontend/src/types/api.ts` with reason code and limit telemetry.
+- Updated `App.tsx`, `HealthGauge.tsx`, and `FleetDashboard.tsx` to handle incomplete coverage by rendering neutral health score (`—`) rather than claiming a false 100/100 or Grade A.
+
+### Fixed
+
+- Fixed Zip-Slip path traversal handling to reject Unix (`/`), Windows (`\`), drive-qualified (`:`), UNC, and `..` segments before stripping GitHub wrapper prefixes.
+- Fixed HTTP response stream handling in `StreamedSnapshotFetcher` to ensure `response.body()` is closed via try-with-resources on non-2xx status codes without exposing raw error bodies.
+- Fixed benchmark test harness in `IndependentSecretBenchmarkTest` to isolate report generation to temporary directories unless explicitly configured.
+
+### Affected files
+
+- `backend/src/main/java/com/scanpilot/persistence/entity/CoverageRecordEntity.java`
+- `backend/src/main/java/com/scanpilot/scanner/config/SnapshotGuardrailProperties.java`
+- `backend/src/main/java/com/scanpilot/scanner/detector/gitleaks/GitleaksConfigProperties.java`
+- `backend/src/main/java/com/scanpilot/scanner/detector/gitleaks/GitleaksDetectorAdapter.java`
+- `backend/src/main/java/com/scanpilot/scanner/detector/gitleaks/GitleaksScanRequest.java`
+- `backend/src/main/java/com/scanpilot/scanner/dto/CoverageSummaryDto.java`
+- `backend/src/main/java/com/scanpilot/scanner/exception/ResourceGuardrailExceededException.java`
+- `backend/src/main/java/com/scanpilot/scanner/pipeline/ScanPipelineService.java`
+- `backend/src/main/java/com/scanpilot/scanner/pipeline/StreamedSnapshotFetcher.java`
+- `backend/src/main/resources/application.yml`
+- `backend/src/main/resources/db/migration/V3__add_coverage_guardrail_telemetry.sql`
+- `backend/src/test/java/com/scanpilot/benchmark/IndependentSecretBenchmarkTest.java`
+- `backend/src/test/java/com/scanpilot/persistence/CoverageRecordAndItemPersistenceTest.java`
+- `backend/src/test/java/com/scanpilot/persistence/FlywaySchemaMigrationTest.java`
+- `backend/src/test/java/com/scanpilot/scanner/detector/gitleaks/GitleaksConfigPropertiesTest.java`
+- `backend/src/test/java/com/scanpilot/scanner/detector/gitleaks/GitleaksDetectorAdapterTest.java`
+- `backend/src/test/java/com/scanpilot/scanner/pipeline/ScanPipelineGuardrailTest.java`
+- `backend/src/test/java/com/scanpilot/scanner/pipeline/ScanPipelineServiceTest.java`
+- `backend/src/test/java/com/scanpilot/scanner/pipeline/StreamedSnapshotFetcherTest.java`
+- `frontend/src/App.tsx`
+- `frontend/src/components/CoverageWarningBanner.tsx`
+- `frontend/src/components/FleetDashboard.tsx`
+- `frontend/src/components/HealthGauge.tsx`
+- `frontend/src/types/api.ts`
+- `frontend/src/types/index.ts`
 
 ## 2026-08-24 — Asynchronous Scan Job Dispatch and Real Progress (Issue #52)
 

@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface HealthGaugeProps {
-  score: number;
+  score: number | null;
   grade: string;
   isScanned?: boolean;
 }
@@ -9,10 +9,11 @@ interface HealthGaugeProps {
 export const HealthGauge: React.FC<HealthGaugeProps> = ({ score, grade, isScanned = true }) => {
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = isScanned ? circumference - (score / 100) * circumference : circumference;
+  const hasValidScore = isScanned && score !== null && score !== undefined && score >= 0;
+  const strokeDashoffset = hasValidScore ? circumference - (score / 100) * circumference : circumference;
 
   const getScoreColor = () => {
-    if (!isScanned) return 'text-[#8b949e] stroke-[#30363d]';
+    if (!hasValidScore) return 'text-[#8b949e] stroke-[#30363d]';
     if (score >= 90) return 'text-[#3fb950] stroke-[#238636]';
     if (score >= 70) return 'text-[#e3b341] stroke-[#d29922]';
     return 'text-[#f85149] stroke-[#da3633]';
@@ -20,6 +21,7 @@ export const HealthGauge: React.FC<HealthGaugeProps> = ({ score, grade, isScanne
 
   const getBadgeStyle = () => {
     if (!isScanned) return 'bg-[#21262d] text-[#8b949e] border-[#30363d]';
+    if (!hasValidScore) return 'bg-[#d29922]/15 text-[#e3b341] border-[#d29922]/30';
     if (score >= 90) return 'bg-[#238636]/15 text-[#3fb950] border-[#238636]/30';
     if (score >= 70) return 'bg-[#d29922]/15 text-[#e3b341] border-[#d29922]/30';
     return 'bg-[#da3633]/15 text-[#f85149] border-[#da3633]/30';
@@ -56,9 +58,9 @@ export const HealthGauge: React.FC<HealthGaugeProps> = ({ score, grade, isScanne
 
         <div className="absolute flex flex-col items-center justify-center text-center">
           <span className="text-2xl font-bold tracking-tight text-[#f0f6fc] tabular-nums">
-            {isScanned ? score : '—'}
+            {hasValidScore ? score : '—'}
           </span>
-          <span className="text-[10px] text-[#8b949e] font-medium -mt-1">/100</span>
+          {hasValidScore && <span className="text-[10px] text-[#8b949e] font-medium -mt-1">/100</span>}
         </div>
       </div>
 

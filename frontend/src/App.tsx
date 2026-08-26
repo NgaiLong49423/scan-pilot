@@ -31,6 +31,7 @@ import { HeroLanding } from './components/HeroLanding';
 import { ScanProgressStepper } from './components/ScanProgressStepper';
 import { CoverageAuditView } from './components/CoverageAuditView';
 import { LiveScanTerminal, ScanLogEntry } from './components/LiveScanTerminal';
+import { CoverageWarningBanner } from './components/CoverageWarningBanner';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<'landing' | 'fleet' | 'dashboard'>('landing');
@@ -102,12 +103,18 @@ export default function App() {
               ]);
               const isScanned = Boolean(realCoverage != null || (realFindings && realFindings.length > 0));
               const openCount = realFindings ? realFindings.filter(f => f.status === 'OPEN').length : 0;
+              const isIncomplete = realCoverage?.coverageImpact === 'INCOMPLETE';
+              const healthScore: number | null = !isScanned
+                ? 0
+                : isIncomplete
+                ? null
+                : Math.max(0, 100 - openCount * 15);
               return {
                 ...repo,
                 isScanned,
                 lastScanned: isScanned ? 'Audited' : null,
                 findingCount: openCount,
-                healthScore: !isScanned ? 0 : Math.max(0, 100 - openCount * 15),
+                healthScore,
               };
             }
             return repo;
@@ -243,11 +250,14 @@ export default function App() {
 
       // Exact Formula: Score = max(0, 100 - (Critical * 15 + High * 8 + Medium * 4))
       const totalDeductions = criticalCount * 15 + highCount * 8 + mediumCount * 4;
-      const healthScore = Math.max(0, 100 - totalDeductions);
+      const isIncomplete = realCoverage?.coverageImpact === 'INCOMPLETE';
+      const healthScore: number | null = isIncomplete ? null : Math.max(0, 100 - totalDeductions);
 
-      const grade = healthScore >= 90
+      const grade = isIncomplete
+        ? 'Incomplete Coverage (Limits Reached)'
+        : healthScore !== null && healthScore >= 90
         ? 'No open findings in this completed scan'
-        : healthScore >= 70
+        : healthScore !== null && healthScore >= 70
         ? 'Grade B (Moderate Risk)'
         : 'Action Required (Critical Risk)';
 
@@ -262,6 +272,9 @@ export default function App() {
         aiFixReadyCount: openCount,
         mttrMinutes: 0,
         trendData: [],
+        reasonCode: realCoverage?.reasonCode,
+        limitHitValue: realCoverage?.limitHitValue,
+        isCoverageIncomplete: isIncomplete,
       });
 
       setSelectedRepo((prev) =>
@@ -485,10 +498,14 @@ export default function App() {
 
             // Exact Formula: Score = max(0, 100 - (Critical * 15 + High * 8 + Medium * 4))
             const totalDeductions = criticalCount * 15 + highCount * 8 + mediumCount * 4;
-            const healthScore = Math.max(0, 100 - totalDeductions);
-            const grade = healthScore >= 90
+            const isIncomplete = realCoverage?.coverageImpact === 'INCOMPLETE';
+            const healthScore: number | null = isIncomplete ? null : Math.max(0, 100 - totalDeductions);
+
+            const grade = isIncomplete
+              ? 'Incomplete Coverage (Limits Reached)'
+              : healthScore !== null && healthScore >= 90
               ? 'No open findings in this completed scan'
-              : healthScore >= 70
+              : healthScore !== null && healthScore >= 70
               ? 'Grade B (Moderate Risk)'
               : 'Action Required (Critical Risk)';
 
@@ -503,6 +520,9 @@ export default function App() {
               aiFixReadyCount: openCount,
               mttrMinutes: 0,
               trendData: [],
+              reasonCode: realCoverage?.reasonCode,
+              limitHitValue: realCoverage?.limitHitValue,
+              isCoverageIncomplete: isIncomplete,
             });
 
             setSelectedRepo((prev) =>
@@ -719,6 +739,17 @@ export default function App() {
                 totalFiles={coverageData?.totalFiles || 0}
                 leaksFoundCount={liveLeaksCount || findings.filter(f => f.status === 'OPEN').length}
                 onClose={() => setIsTerminalOpen(false)}
+              />
+            )}
+
+            {/* Incomplete Coverage Guardrail Warning Banner (FR-028, FR-031) */}
+            {(coverageData?.coverageImpact === 'INCOMPLETE' || metrics?.isCoverageIncomplete) && (
+              <CoverageWarningBanner
+                reasonCode={coverageData?.reasonCode || metrics?.reasonCode}
+                limitHitValue={coverageData?.limitHitValue || metrics?.limitHitValue}
+                totalBytes={coverageData?.totalBytes}
+                totalFiles={coverageData?.totalFiles}
+                onViewCoverage={() => setActiveNavTab('coverage')}
               />
             )}
 

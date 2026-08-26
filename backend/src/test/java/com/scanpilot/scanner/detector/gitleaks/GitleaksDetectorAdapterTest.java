@@ -1,6 +1,7 @@
 package com.scanpilot.scanner.detector.gitleaks;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scanpilot.scanner.exception.ResourceGuardrailExceededException;
 import com.scanpilot.security.secret.RedactedEvidence;
 import com.scanpilot.security.secret.SecretFingerprintService;
 import com.scanpilot.security.secret.SecretRedactionService;
@@ -16,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -449,6 +451,137 @@ class GitleaksDetectorAdapterTest {
             // Verify error was caught and temp files are cleaned up
             assertThat(result.isSuccess()).isFalse();
             assertThat(result.errorMessage()).contains("Execution failure");
+        }
+    }
+
+    @Nested
+    @DisplayName("Watchdog Process-Tree Termination Tests (AC-04)")
+    class WatchdogTimeoutTests {
+
+        @Test
+        @DisplayName("testWatchdogTimeoutKillsProcessTreeAndThrows: Watchdog times out slow process, kills tree, and throws ResourceGuardrailExceededException without embedded fallback")
+        void testWatchdogTimeoutKillsProcessTreeAndThrows(@TempDir Path tempDir) throws Exception {
+            boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+            String mockBinaryPath;
+            Path childPidFile = tempDir.resolve("child.pid");
+
+            if (isWindows) {
+                Path batchScript = tempDir.resolve("mock-slow-gitleaks.bat");
+                String scriptContent = String.format("""
+                    @echo off
+                    if "%%~1"=="version" (
+                        echo gitleaks version 8.18.0
+                        exit /b 0
+                    )
+                    powershell -NoProfile -Command "$p = Start-Process powershell -ArgumentList '-NoProfile','-Command','Start-Sleep -Seconds 30' -PassThru; $p.Id | Out-File -FilePath '%s' -Encoding ascii; Start-Sleep -Seconds 30"
+                    exit /b 0
+                    """, childPidFile.toAbsolutePath().toString().replace("\\", "\\\\"));
+                Files.writeString(batchScript, scriptContent, StandardCharsets.UTF_8);
+                mockBinaryPath = batchScript.toAbsolutePath().toString();
+            } else {
+                Path shellScript = tempDir.resolve("mock-slow-gitleaks.sh");
+                String scriptContent = String.format("""
+                    #!/bin/sh
+                    if [ "$1" = "version" ]; then
+                        echo "gitleaks version 8.18.0"
+                        exit 0
+                    fi
+                    sleep 30 &
+                    echo $! > "%s"
+                    sleep 30
+                    exit 0
+                    """, childPidFile.toAbsolutePath().toString());
+                Files.writeString(shellScript, scriptContent, StandardCharsets.UTF_8);
+                shellScript.toFile().setExecutable(true);
+                mockBinaryPath = shellScript.toAbsolutePath().toString();
+            }
+
+            properties.setBinaryPath(mockBinaryPath);
+            properties.setTimeoutSeconds(2); // 2-second timeout for watchdog test
+
+            assertThat(adapter.isBinaryAvailable()).isTrue();
+
+            Path dummyTarget = tempDir.resolve("repo");
+            Files.createDirectories(dummyTarget);
+            Files.writeString(dummyTarget.resolve("secret.txt"), "apiKey=AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q");
+
+            GitleaksScanRequest request = GitleaksScanRequest.forSnapshot(dummyTarget);
+
+            assertThatThrownBy(() -> adapter.scan(request))
+                .isInstanceOf(ResourceGuardrailExceededException.class)
+                .satisfies(ex -> {
+                    ResourceGuardrailExceededException rge = (ResourceGuardrailExceededException) ex;
+                    assertThat(rge.getReasonCode()).isEqualTo("SCAN_TIMEOUT");
+                    assertThat(rge.getLimitHitValue()).isEqualTo(2L);
+                });
+
+            // Assert spawned child process was forcibly killed by the watchdog process-tree cleanup
+            long deadline = System.currentTimeMillis() + 5000;
+            while (!Files.exists(childPidFile) && System.currentTimeMillis() < deadline) {
+                Thread.sleep(50);
+            }
+
+            assertThat(Files.exists(childPidFile)).as("Child PID file must exist").isTrue();
+            long childPid = Long.parseLong(Files.readString(childPidFile).trim());
+            Optional<ProcessHandle> ph = ProcessHandle.of(childPid);
+            ph.ifPresent(p -> assertThat(p.isAlive()).isFalse());
+        }
+
+        @Test
+        @DisplayName("R67-09: Watchdog enforces overrideTimeoutSeconds and does not mutate properties object")
+        void testWatchdogEnforcesOverrideTimeoutWithoutMutatingProperties(@TempDir Path tempDir) throws Exception {
+            boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+            String mockBinaryPath;
+
+            if (isWindows) {
+                Path batchScript = tempDir.resolve("mock-slow-override.bat");
+                String scriptContent = """
+                    @echo off
+                    if "%~1"=="version" (
+                        echo gitleaks version 8.18.0
+                        exit /b 0
+                    )
+                    powershell -NoProfile -Command "Start-Sleep -Seconds 30"
+                    exit /b 0
+                    """;
+                Files.writeString(batchScript, scriptContent, StandardCharsets.UTF_8);
+                mockBinaryPath = batchScript.toAbsolutePath().toString();
+            } else {
+                Path shellScript = tempDir.resolve("mock-slow-override.sh");
+                String scriptContent = """
+                    #!/bin/sh
+                    if [ "$1" = "version" ]; then
+                        echo "gitleaks version 8.18.0"
+                        exit 0
+                    fi
+                    sleep 30
+                    exit 0
+                    """;
+                Files.writeString(shellScript, scriptContent, StandardCharsets.UTF_8);
+                shellScript.toFile().setExecutable(true);
+                mockBinaryPath = shellScript.toAbsolutePath().toString();
+            }
+
+            properties.setBinaryPath(mockBinaryPath);
+            properties.setTimeoutSeconds(180);
+
+            Path dummyTarget = tempDir.resolve("repo");
+            Files.createDirectories(dummyTarget);
+            Files.writeString(dummyTarget.resolve("secret.txt"), "apiKey=AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q");
+
+            // Pass overrideTimeoutSeconds = 1
+            GitleaksScanRequest request = GitleaksScanRequest.forSnapshot(dummyTarget, 1);
+
+            assertThatThrownBy(() -> adapter.scan(request))
+                .isInstanceOf(ResourceGuardrailExceededException.class)
+                .satisfies(ex -> {
+                    ResourceGuardrailExceededException rge = (ResourceGuardrailExceededException) ex;
+                    assertThat(rge.getReasonCode()).isEqualTo("SCAN_TIMEOUT");
+                    assertThat(rge.getLimitHitValue()).isEqualTo(1L);
+                });
+
+            // Ensure singleton properties object was NOT mutated
+            assertThat(properties.getTimeoutSeconds()).isEqualTo(180);
         }
     }
 }

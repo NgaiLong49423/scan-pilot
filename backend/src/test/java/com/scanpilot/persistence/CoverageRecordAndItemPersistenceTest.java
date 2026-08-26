@@ -81,12 +81,16 @@ class CoverageRecordAndItemPersistenceTest {
                 .binaryFiles(6)
                 .undeterminedFiles(2)
                 .totalBytes(52428800L)
-                .coverageImpact("LOW")
+                .coverageImpact("INCOMPLETE")
+                .reasonCode("REPOSITORY_TOO_LARGE")
+                .limitHitValue(20971520L)
                 .createdAt(Instant.now())
                 .build();
 
         CoverageRecordEntity savedRecord = coverageRecordRepository.save(record);
         assertThat(savedRecord.getId()).isNotNull();
+        assertThat(savedRecord.getReasonCode()).isEqualTo("REPOSITORY_TOO_LARGE");
+        assertThat(savedRecord.getLimitHitValue()).isEqualTo(20971520L);
 
         CoverageItemEntity scannedItem = CoverageItemEntity.builder()
                 .coverageRecordId(savedRecord.getId())
@@ -126,6 +130,8 @@ class CoverageRecordAndItemPersistenceTest {
         assertThat(foundRecord).isPresent();
         assertThat(foundRecord.get().getTotalFiles()).isEqualTo(100);
         assertThat(foundRecord.get().getSkippedFiles()).isEqualTo(8);
+        assertThat(foundRecord.get().getReasonCode()).isEqualTo("REPOSITORY_TOO_LARGE");
+        assertThat(foundRecord.get().getLimitHitValue()).isEqualTo(20971520L);
 
         List<CoverageItemEntity> items = coverageItemRepository.findByCoverageRecordId(savedRecord.getId());
         assertThat(items).hasSize(3);

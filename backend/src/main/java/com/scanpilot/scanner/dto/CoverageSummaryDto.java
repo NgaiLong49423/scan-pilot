@@ -22,6 +22,8 @@ public record CoverageSummaryDto(
     Integer undeterminedFiles,
     Long totalBytes,
     String coverageImpact,
+    String reasonCode,
+    Long limitHitValue,
     Instant createdAt,
     List<CoverageItemDto> skippedItems,
     List<CoverageItemDto> items
@@ -48,6 +50,8 @@ public record CoverageSummaryDto(
             record.getUndeterminedFiles(),
             record.getTotalBytes(),
             record.getCoverageImpact(),
+            record.getReasonCode(),
+            record.getLimitHitValue(),
             record.getCreatedAt(),
             skipped,
             allItems

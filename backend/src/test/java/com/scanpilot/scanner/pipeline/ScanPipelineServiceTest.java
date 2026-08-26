@@ -59,6 +59,9 @@ class ScanPipelineServiceTest {
     @MockitoSpyBean
     private GitleaksDetectorAdapter gitleaksDetectorAdapter;
 
+    @MockitoSpyBean
+    private StreamedSnapshotFetcher streamedSnapshotFetcher;
+
     @Autowired
     private UserRepository userRepository;
 
@@ -254,7 +257,8 @@ class ScanPipelineServiceTest {
         @Test
         @DisplayName("Configured secondary branch with unavailable remote snapshot fails job, creates zero findings/coverage/checkpoints, and does NOT fallback to default branch")
         void testConfiguredSecondaryBranchSnapshotFailureFailsJobWithoutFallback() {
-            doReturn(null).when(scanPipelineService).downloadZipBytes(any(), argThat(url -> url != null && url.contains("/zipball/develop")), any());
+            org.mockito.Mockito.doThrow(new IllegalStateException("Remote repository snapshot for branch 'develop' could not be acquired or verified"))
+                .when(streamedSnapshotFetcher).downloadAndExtract(any(), argThat(url -> url != null && url.contains("/zipball/develop")), any(), any(), any());
 
             // Target branch 'develop' is requested with sourcePath=null (remote snapshot download will fail deterministically without network)
             ScanJobEntity job = scanPipelineService.executeScan(testRepo.getId(), "develop", null);
@@ -266,8 +270,8 @@ class ScanPipelineServiceTest {
             assertThat(job.getCompletedAt()).isNotNull();
 
             // Verify transport seam called for /zipball/develop and never for fallback /zipball
-            verify(scanPipelineService).downloadZipBytes(any(), argThat(url -> url != null && url.contains("/zipball/develop")), any());
-            verify(scanPipelineService, never()).downloadZipBytes(any(), argThat(url -> url != null && url.endsWith("/zipball")), any());
+            verify(streamedSnapshotFetcher).downloadAndExtract(any(), argThat(url -> url != null && url.contains("/zipball/develop")), any(), any(), any());
+            verify(streamedSnapshotFetcher, never()).downloadAndExtract(any(), argThat(url -> url != null && url.endsWith("/zipball")), any(), any(), any());
 
             // Zero CoverageRecord recorded
             assertTrue(coverageRecordRepository.findAll().stream().filter(c -> c.getScanJobId().equals(job.getId())).findAny().isEmpty());
@@ -302,7 +306,8 @@ class ScanPipelineServiceTest {
                     .createdAt(Instant.now())
                     .build());
 
-            doReturn(null).when(scanPipelineService).downloadZipBytes(any(), any(), any());
+            org.mockito.Mockito.doThrow(new IllegalStateException("Remote repository snapshot for branch 'main' could not be acquired or verified"))
+                    .when(streamedSnapshotFetcher).downloadAndExtract(any(), any(), any(), any(), any());
 
             ScanJobEntity result = scanPipelineService.executeScanJob(queuedJob.getId());
 
@@ -333,7 +338,7 @@ class ScanPipelineServiceTest {
                     .build());
 
             org.mockito.Mockito.doThrow(new RuntimeException("GitHub error with token " + secretToken + ", Bearer secret_token_xyz, and " + passwordMarker))
-                    .when(scanPipelineService).fetchRemoteRepositorySnapshot(any(), any(), any());
+                    .when(scanPipelineService).fetchRemoteRepositorySnapshot(any(), any(), any(), any());
 
             ScanJobEntity result = scanPipelineService.executeScanJob(queuedJob.getId());
 

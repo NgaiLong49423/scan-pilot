@@ -129,6 +129,8 @@ export interface CoverageSummary {
   undeterminedFiles: number;
   totalBytes: number;
   coverageImpact: string;
+  reasonCode?: string;
+  limitHitValue?: number;
   createdAt: string;
   skippedItems?: CoverageItem[];
   items?: CoverageItem[];
