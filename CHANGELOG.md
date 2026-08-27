@@ -13,7 +13,7 @@ Each entry states whether it is already committed or still in the working tree. 
 
 ## 2026-08-27 — Truthful Security Action Summary (Issue #71)
 
-**Status:** Committed (`0cb0e19`)
+**Status:** Committed (`613a6a5`)
 
 **Scope:** Replaced synthetic health score formulas (e.g. `/100`), letter grades (`Grade A/B/C`), fabricated 30-day sparklines, and unverified AI Fix Ready counts with an evidence-based `SecurityActionSummary` (DEC-060). Implemented typed `ApiResult<T>` discriminated unions in the API client to prevent swallowing HTTP 5xx errors and network drops. Created pure, deterministic `postureResolver` following a strict 7-rule precedence hierarchy with zero diagnostic leakage (`ScanJobDto.errorMessage` is never displayed in user-facing copy). Created `SecurityActionSummaryCard.tsx` with high contrast, WCAG AA compliance, and operable fresh retry capabilities. Updated `FleetDashboard.tsx` and `App.tsx` to display verified evidence states, authentic fleet severity breakdown (Crit/High/Med/Low), and explicit separation of unavailable evidence.
 
