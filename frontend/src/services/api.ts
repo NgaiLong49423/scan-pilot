@@ -1,4 +1,4 @@
-import { Repository, Finding, HealthMetrics, UserProfile } from '../types';
+import { Repository, Finding, UserProfile, ApiResult } from '../types';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -88,7 +88,6 @@ export async function fetchAvailableGitHubRepositories(): Promise<Repository[]> 
           lastScanned: null,
           isScanned: false,
           findingCount: 0,
-          healthScore: 0,
           attentionStatus: 'NotScanned',
         }));
       }
@@ -126,7 +125,6 @@ export async function fetchMonitoredProjects(): Promise<Repository[] | null> {
             lastScanned: null,
             isScanned: false,
             findingCount: 0,
-            healthScore: 0,
             attentionStatus: 'NotScanned',
           };
         });
@@ -184,11 +182,33 @@ export async function selectRepositoryOnBackend(repo: Repository): Promise<strin
 }
 
 /**
- * Fetches real findings from PostgreSQL database for the selected repository.
+ * DTO representing coverage summary from backend.
  */
-export async function fetchFindingsForRepo(repositoryId: string): Promise<Finding[] | null> {
+export interface CoverageSummaryDto {
+  id?: string;
+  scanJobId?: string;
+  repositoryId?: string;
+  branchName?: string;
+  totalFiles?: number;
+  scannedFiles?: number;
+  skippedFiles?: number;
+  textFiles?: number;
+  binaryFiles?: number;
+  undeterminedFiles?: number;
+  totalBytes?: number;
+  coverageImpact?: 'COMPLETE' | 'INCOMPLETE' | 'NONE' | string;
+  reasonCode?: string;
+  limitHitValue?: number;
+  createdAt?: string;
+}
+
+/**
+ * Fetches real findings from PostgreSQL database for the selected repository.
+ * Returns ApiResult<Finding[]> discriminated union. Never swallows errors as empty list or NOT_FOUND.
+ */
+export async function fetchFindingsForRepo(repositoryId: string): Promise<ApiResult<Finding[]>> {
   if (!isValidUuid(repositoryId)) {
-    return null;
+    return { status: 'ERROR', error: 'Invalid repository UUID' };
   }
   try {
     const baseUrl = getApiBaseUrl();
@@ -196,9 +216,14 @@ export async function fetchFindingsForRepo(repositoryId: string): Promise<Findin
       credentials: 'include',
     });
     if (response.ok) {
-      const data = await response.json();
+      let data: any;
+      try {
+        data = await response.json();
+      } catch (_jsonErr) {
+        return { status: 'ERROR', error: 'Malformed JSON response for findings', statusCode: response.status };
+      }
       if (Array.isArray(data)) {
-        return data.map((item: any) => {
+        const mapped: Finding[] = data.map((item: any) => {
           const loc = item.locations && item.locations.length > 0 ? item.locations[0] : null;
           const masked = item.fingerprint 
             ? (item.fingerprint.length > 8 ? item.fingerprint.substring(0, 6) + '************' + item.fingerprint.substring(item.fingerprint.length - 2) : '************')
@@ -225,34 +250,53 @@ export async function fetchFindingsForRepo(repositoryId: string): Promise<Findin
             },
           };
         });
+        return { status: 'SUCCESS', data: mapped };
       }
-      return [];
+      return { status: 'ERROR', error: 'Invalid response payload format for findings', statusCode: response.status };
     }
-  } catch (_e) {
-    // Ignore error
+
+    const err = await response.json().catch(() => ({}));
+    const message = err.message || `HTTP ${response.status}: Failed to fetch findings`;
+    return { status: 'ERROR', error: message, statusCode: response.status };
+  } catch (e: any) {
+    return { status: 'ERROR', error: e?.message || 'Network error while fetching findings' };
   }
-  return null;
 }
 
 /**
  * Fetches real coverage summary from PostgreSQL database for the repository.
+ * Returns ApiResult<CoverageSummaryDto> discriminated union.
+ * Returns NOT_FOUND on HTTP 404 (indicating no coverage record exists yet).
  */
-export async function fetchCoverageForRepo(repositoryId: string): Promise<any | null> {
+export async function fetchCoverageForRepo(repositoryId: string): Promise<ApiResult<CoverageSummaryDto>> {
   if (!isValidUuid(repositoryId)) {
-    return null;
+    return { status: 'ERROR', error: 'Invalid repository UUID' };
   }
   try {
     const baseUrl = getApiBaseUrl();
     const response = await fetch(`${baseUrl}/api/v1/scans/repositories/${repositoryId}/coverage`, {
       credentials: 'include',
     });
-    if (response.ok) {
-      return await response.json();
+
+    if (response.status === 404) {
+      return { status: 'NOT_FOUND' };
     }
-  } catch (_e) {
-    // Ignore error
+
+    if (response.ok) {
+      try {
+        const data = await response.json();
+        return { status: 'SUCCESS', data };
+      } catch (_jsonErr) {
+        return { status: 'ERROR', error: 'Malformed JSON response for coverage', statusCode: response.status };
+      }
+    }
+
+    const err = await response.json().catch(() => ({}));
+    const message = err.message || `HTTP ${response.status}: Failed to fetch coverage`;
+    return { status: 'ERROR', error: message, statusCode: response.status };
+  } catch (e: any) {
+    return { status: 'ERROR', error: e?.message || 'Network error while fetching coverage' };
   }
-  return null;
 }
 
 /**

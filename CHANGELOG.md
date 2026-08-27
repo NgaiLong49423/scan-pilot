@@ -11,6 +11,33 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
 
+## 2026-08-27 — Truthful Security Action Summary (Issue #71)
+
+**Status:** Committed (`0cb0e19`)
+
+**Scope:** Replaced synthetic health score formulas (e.g. `/100`), letter grades (`Grade A/B/C`), fabricated 30-day sparklines, and unverified AI Fix Ready counts with an evidence-based `SecurityActionSummary` (DEC-060). Implemented typed `ApiResult<T>` discriminated unions in the API client to prevent swallowing HTTP 5xx errors and network drops. Created pure, deterministic `postureResolver` following a strict 7-rule precedence hierarchy with zero diagnostic leakage (`ScanJobDto.errorMessage` is never displayed in user-facing copy). Created `SecurityActionSummaryCard.tsx` with high contrast, WCAG AA compliance, and operable fresh retry capabilities. Updated `FleetDashboard.tsx` and `App.tsx` to display verified evidence states, authentic fleet severity breakdown (Crit/High/Med/Low), and explicit separation of unavailable evidence.
+
+### Added
+
+- Added `ApiResult<T>`, `RepositoryPostureStatus`, `FindingSeverityCounts`, and `SecurityActionSummary` interfaces to `frontend/src/types/index.ts`.
+- Added pure `resolveRepositoryPosture` function in `frontend/src/services/postureResolver.ts` enforcing 7-rule precedence and safe error messages.
+- Added comprehensive unit tests in `frontend/src/services/postureResolver.test.ts`.
+- Added `frontend/src/services/api.test.ts` testing `ApiResult<T>` mapping on HTTP 200, 404, 500, network errors, and malformed responses.
+- Added `frontend/src/components/SecurityActionSummaryCard.tsx` providing truthful visual representations across all six evidence-based posture states: `ACTION_REQUIRED`, `NO_OPEN_FINDINGS`, `COVERAGE_INCOMPLETE`, `AWAITING_INITIAL_SCAN`, `SCAN_IN_PROGRESS`, and `SCAN_UNAVAILABLE`.
+- Added `frontend/src/components/SecurityActionSummaryCard.test.tsx` verifying component markup via `renderToStaticMarkup`.
+- Added `frontend/src/components/FleetDashboard.test.tsx` verifying fleet aggregation, severity distributions, and posture badges.
+
+### Changed
+
+- Updated `frontend/src/services/api.ts` so `fetchFindingsForRepo` and `fetchCoverageForRepo` return typed `ApiResult<T>` without swallowing failures.
+- Updated `frontend/src/components/FleetDashboard.tsx` to remove synthetic `/100` scores and letter grades, replacing them with authentic posture badges, severity distribution pills, and explicit evidence availability counts.
+- Updated `frontend/src/App.tsx` to remove deduction math and top 3-card analytics grid, wiring `SecurityActionSummaryCard` to verified PostgreSQL evidence and propagating `severityCounts` across all repository lifecycle states.
+
+### Removed
+
+- Removed synthetic health score deduction formulas and `HealthMetrics` type.
+- Removed obsolete `HealthGauge.tsx`, `TrendSparkline.tsx`, and `MetricsGrid.tsx` components.
+
 ## 2026-08-26 — Real Scan Event Telemetry & Truthful Terminal Progress (Issue #69)
 
 **Status:** Committed (`06c01df`)

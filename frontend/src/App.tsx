@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Search, 
-  CheckCircle2, 
+import {
+  Search,
+  CheckCircle2,
   ArrowLeft,
   AlertCircle,
   RefreshCw
 } from 'lucide-react';
-import { Repository, Finding, HealthMetrics, UserProfile } from './types';
+import { Repository, Finding, UserProfile, SecurityActionSummary } from './types';
 import { 
   fetchAvailableGitHubRepositories,
   fetchMonitoredProjects,
@@ -19,14 +19,14 @@ import {
   triggerRealScan,
   fetchScanJob,
   fetchScanEvents,
-  isValidUuid
+  isValidUuid,
+  CoverageSummaryDto
 } from './services/api';
+import { resolveRepositoryPosture } from './services/postureResolver';
 import { shouldContinueTelemetryPolling } from './services/telemetryPolling';
 import { Navbar } from './components/Navbar';
 import { FleetDashboard } from './components/FleetDashboard';
-import { HealthGauge } from './components/HealthGauge';
-import { TrendSparkline } from './components/TrendSparkline';
-import { MetricsGrid } from './components/MetricsGrid';
+import { SecurityActionSummaryCard } from './components/SecurityActionSummaryCard';
 import { FindingCard } from './components/FindingCard';
 import { RepoSelectModal } from './components/RepoSelectModal';
 import { HeroLanding } from './components/HeroLanding';
@@ -47,8 +47,8 @@ export default function App() {
   
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
-  const [coverageData, setCoverageData] = useState<any | null>(null);
-  const [metrics, setMetrics] = useState<HealthMetrics | null>(null);
+  const [coverageData, setCoverageData] = useState<CoverageSummaryDto | null>(null);
+  const [postureSummary, setPostureSummary] = useState<SecurityActionSummary | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [activeStage, setActiveStage] = useState<string | null>(null);
   const [scanDurationStr, setScanDurationStr] = useState<string | null>(null);
@@ -99,24 +99,27 @@ export default function App() {
         const hydrated = await Promise.all(
           dbMonitored.map(async (repo) => {
             if (repo.dbRepositoryId && isValidUuid(repo.dbRepositoryId)) {
-              const [realFindings, realCoverage] = await Promise.all([
+              const [findingsResult, coverageResult] = await Promise.all([
                 fetchFindingsForRepo(repo.dbRepositoryId),
                 fetchCoverageForRepo(repo.dbRepositoryId),
               ]);
-              const isScanned = Boolean(realCoverage != null || (realFindings && realFindings.length > 0));
-              const openCount = realFindings ? realFindings.filter(f => f.status === 'OPEN').length : 0;
-              const isIncomplete = realCoverage?.coverageImpact === 'INCOMPLETE';
-              const healthScore: number | null = !isScanned
-                ? 0
-                : isIncomplete
-                ? null
-                : Math.max(0, 100 - openCount * 15);
+
+              let jobResult = null;
+              if (coverageResult.status === 'SUCCESS' && coverageResult.data.scanJobId) {
+                jobResult = await fetchScanJob(coverageResult.data.scanJobId);
+              }
+
+              const summary = resolveRepositoryPosture(findingsResult, coverageResult, jobResult);
+              const isAudited = summary.status === 'ACTION_REQUIRED' || summary.status === 'NO_OPEN_FINDINGS' || summary.status === 'COVERAGE_INCOMPLETE';
+              const openCount = summary.severityCounts.total;
+
               return {
                 ...repo,
-                isScanned,
-                lastScanned: isScanned ? 'Audited' : null,
+                isScanned: isAudited,
+                lastScanned: isAudited ? (summary.scanCompletedAt ? new Date(summary.scanCompletedAt).toLocaleDateString() : 'Audited') : null,
                 findingCount: openCount,
-                healthScore,
+                postureStatus: summary.status,
+                severityCounts: summary.severityCounts,
               };
             }
             return repo;
@@ -181,7 +184,7 @@ export default function App() {
       isScanned: false,
       lastScanned: null,
       findingCount: 0,
-      healthScore: 0,
+      postureStatus: 'AWAITING_INITIAL_SCAN',
     };
 
     setMonitoredRepos((prev) => {
@@ -204,7 +207,7 @@ export default function App() {
     setScanDurationStr(null);
     setFindings([]);
     setCoverageData(null);
-    setMetrics(null);
+    setPostureSummary(null);
     setScanLogs([]);
     setLiveScannedCount(0);
     setLiveLeaksCount(0);
@@ -231,105 +234,70 @@ export default function App() {
     setSelectedRepo(updatedRepo);
 
     // Fetch real findings & coverage from PostgreSQL
-    const [realFindings, realCoverage] = await Promise.all([
+    const [findingsResult, coverageResult] = await Promise.all([
       fetchFindingsForRepo(dbRepoId),
       fetchCoverageForRepo(dbRepoId),
     ]);
 
-    const isActuallyScanned = Boolean(realCoverage != null || (realFindings && realFindings.length > 0));
-    setFindings(realFindings || []);
-    setCoverageData(realCoverage);
-
-    if (isActuallyScanned) {
-      const criticalCount = realFindings ? realFindings.filter(f => f.severity === 'CRITICAL' && f.status === 'OPEN').length : 0;
-      const highCount = realFindings ? realFindings.filter(f => f.severity === 'HIGH' && f.status === 'OPEN').length : 0;
-      const mediumCount = realFindings ? realFindings.filter(f => f.severity === 'MEDIUM' && f.status === 'OPEN').length : 0;
-      const openCount = realFindings ? realFindings.filter(f => f.status === 'OPEN').length : 0;
-      const resolvedCount = realFindings ? realFindings.filter(f => f.status === 'RESOLVED').length : 0;
-      const scannedFiles = realCoverage?.scannedFiles || 0;
-      const totalFiles = realCoverage?.totalFiles || scannedFiles;
-      const skippedFiles = realCoverage?.skippedFiles || (totalFiles > scannedFiles ? totalFiles - scannedFiles : 0);
-
-      // Exact Formula: Score = max(0, 100 - (Critical * 15 + High * 8 + Medium * 4))
-      const totalDeductions = criticalCount * 15 + highCount * 8 + mediumCount * 4;
-      const isIncomplete = realCoverage?.coverageImpact === 'INCOMPLETE';
-      const healthScore: number | null = isIncomplete ? null : Math.max(0, 100 - totalDeductions);
-
-      const grade = isIncomplete
-        ? 'Incomplete Coverage (Limits Reached)'
-        : healthScore !== null && healthScore >= 90
-        ? 'No open findings in this completed scan'
-        : healthScore !== null && healthScore >= 70
-        ? 'Grade B (Moderate Risk)'
-        : 'Action Required (Critical Risk)';
-
-      setMetrics({
-        healthScore,
-        grade,
-        scannedFilesCount: scannedFiles,
-        totalFilesCount: totalFiles,
-        skippedFilesCount: skippedFiles,
-        openLeaksCount: openCount,
-        resolvedLeaksCount: resolvedCount,
-        aiFixReadyCount: openCount,
-        mttrMinutes: 0,
-        trendData: [],
-        reasonCode: realCoverage?.reasonCode,
-        limitHitValue: realCoverage?.limitHitValue,
-        isCoverageIncomplete: isIncomplete,
-      });
-
-      setSelectedRepo((prev) =>
-        prev
-          ? {
-              ...prev,
-              isScanned: true,
-              lastScanned: 'Audited',
-              findingCount: openCount,
-              healthScore,
-            }
-          : null
-      );
-
-      setMonitoredRepos((prev) =>
-        prev.map((r) =>
-          r.dbRepositoryId === dbRepoId
-            ? {
-                ...r,
-                isScanned: true,
-                lastScanned: 'Audited',
-                findingCount: openCount,
-                healthScore,
-              }
-            : r
-        )
-      );
-    } else {
-      setMetrics({
-        healthScore: 0,
-        grade: 'Not Scanned Yet',
-        scannedFilesCount: 0,
-        openLeaksCount: 0,
-        resolvedLeaksCount: 0,
-        aiFixReadyCount: 0,
-        mttrMinutes: 0,
-        trendData: [],
-      });
-
-      setSelectedRepo((prev) =>
-        prev
-          ? {
-              ...prev,
-              isScanned: false,
-              lastScanned: null,
-              findingCount: 0,
-              healthScore: 0,
-            }
-          : null
-      );
+    let jobResult = null;
+    if (coverageResult.status === 'SUCCESS' && coverageResult.data.scanJobId) {
+      jobResult = await fetchScanJob(coverageResult.data.scanJobId);
     }
 
+    const summary = resolveRepositoryPosture(findingsResult, coverageResult, jobResult);
+    setPostureSummary(summary);
+
+    if (findingsResult.status === 'SUCCESS') {
+      setFindings(findingsResult.data);
+    } else {
+      setFindings([]);
+    }
+
+    if (coverageResult.status === 'SUCCESS') {
+      setCoverageData(coverageResult.data);
+    } else {
+      setCoverageData(null);
+    }
+
+    const isAudited = summary.status === 'ACTION_REQUIRED' || summary.status === 'NO_OPEN_FINDINGS' || summary.status === 'COVERAGE_INCOMPLETE';
+    const openCount = summary.severityCounts.total;
+
+    setSelectedRepo((prev) =>
+      prev
+        ? {
+            ...prev,
+            isScanned: isAudited,
+            lastScanned: isAudited ? (summary.scanCompletedAt ? new Date(summary.scanCompletedAt).toLocaleDateString() : 'Audited') : null,
+            findingCount: openCount,
+            postureStatus: summary.status,
+            severityCounts: summary.severityCounts,
+          }
+        : null
+    );
+
+    setMonitoredRepos((prev) =>
+      prev.map((r) =>
+        r.dbRepositoryId === dbRepoId
+          ? {
+              ...r,
+              isScanned: isAudited,
+              lastScanned: isAudited ? (summary.scanCompletedAt ? new Date(summary.scanCompletedAt).toLocaleDateString() : 'Audited') : null,
+              findingCount: openCount,
+              postureStatus: summary.status,
+              severityCounts: summary.severityCounts,
+            }
+          : r
+      )
+    );
+
     setCurrentView('dashboard');
+  };
+
+  // Fresh retry handler for single repo view
+  const handleRetryDetailEvidence = async () => {
+    if (selectedRepo) {
+      await handleSelectRepo(selectedRepo);
+    }
   };
 
   // Handle trigger real repository scan on Backend with async execution and live stage polling
@@ -363,7 +331,7 @@ export default function App() {
         setActiveStage(null);
         setFindings([]);
         setCoverageData(null);
-        setMetrics(null);
+        setPostureSummary(resolveRepositoryPosture({ status: 'ERROR', error: errorMsg }, { status: 'ERROR', error: errorMsg }, null));
         setSelectedRepo((prev) =>
           prev
             ? {
@@ -371,7 +339,7 @@ export default function App() {
                 isScanned: false,
                 lastScanned: 'Failed',
                 findingCount: 0,
-                healthScore: 0,
+                postureStatus: 'SCAN_UNAVAILABLE',
               }
             : null
         );
@@ -389,7 +357,7 @@ export default function App() {
         // Fail-closed: clear any stale findings/coverage, do NOT display previous scan data
         setFindings([]);
         setCoverageData(null);
-        setMetrics(null);
+        setPostureSummary(resolveRepositoryPosture({ status: 'ERROR', error: errorMsg }, { status: 'ERROR', error: errorMsg }, null));
         setSelectedRepo((prev) =>
           prev
             ? {
@@ -397,7 +365,7 @@ export default function App() {
                 isScanned: false,
                 lastScanned: 'Failed',
                 findingCount: 0,
-                healthScore: 0,
+                postureStatus: 'SCAN_UNAVAILABLE',
               }
             : null
         );
@@ -431,7 +399,7 @@ export default function App() {
               setScanError(errorMsg);
               setFindings([]);
               setCoverageData(null);
-              setMetrics(null);
+              setPostureSummary(resolveRepositoryPosture({ status: 'ERROR', error: errorMsg }, { status: 'ERROR', error: errorMsg }, null));
               setSelectedRepo((prev) =>
                 prev
                   ? {
@@ -439,7 +407,7 @@ export default function App() {
                       isScanned: false,
                       lastScanned: 'Failed',
                       findingCount: 0,
-                      healthScore: 0,
+                      postureStatus: 'SCAN_UNAVAILABLE',
                     }
                   : null
               );
@@ -467,7 +435,6 @@ export default function App() {
                   try {
                     const payload = JSON.parse(event.payloadJson);
                     const eligible = payload.eligibleFiles || 0;
-                    const skipped = payload.skippedFiles || 0;
                     setLiveScannedCount(eligible);
                   } catch {}
                 }
@@ -476,73 +443,47 @@ export default function App() {
           }
 
           const shouldContinue = shouldContinueTelemetryPolling(status, hasMore, cursorSeq, lastSequence);
-
           if (!shouldContinue) {
             stopPolling();
             setIsScanning(false);
 
             if (status === 'COMPLETED') {
               setActiveStage('COMPLETED');
+              appendLog('SUCCESS', '✅ Scan pipeline completed successfully. Persisting evidence.');
 
-              // Fetch real findings and coverage summary from DB ONCE upon completion
-              const [realFindings, realCoverage] = await Promise.all([
+              // Fetch final persisted findings, coverage, and scan job status
+              const [findingsResult, coverageResult, jobPoll] = await Promise.all([
                 fetchFindingsForRepo(dbRepoId),
                 fetchCoverageForRepo(dbRepoId),
+                fetchScanJob(jobId),
               ]);
 
-              const realFindingsList = realFindings || [];
+              const realFindingsList = findingsResult.status === 'SUCCESS' ? findingsResult.data : [];
+              const realCoverage = coverageResult.status === 'SUCCESS' ? coverageResult.data : null;
+
               setFindings(realFindingsList);
               setCoverageData(realCoverage);
 
-              const criticalCount = realFindingsList.filter(f => f.severity === 'CRITICAL' && f.status === 'OPEN').length;
-              const highCount = realFindingsList.filter(f => f.severity === 'HIGH' && f.status === 'OPEN').length;
-              const mediumCount = realFindingsList.filter(f => f.severity === 'MEDIUM' && f.status === 'OPEN').length;
-              const openCount = realFindingsList.filter(f => f.status === 'OPEN').length;
-              const resolvedCount = realFindingsList.filter(f => f.status === 'RESOLVED').length;
+              const summary = resolveRepositoryPosture(findingsResult, coverageResult, jobPoll);
+              setPostureSummary(summary);
+
+              const openCount = summary.severityCounts.total;
               const scannedFiles = realCoverage?.scannedFiles || 0;
-              const totalFiles = realCoverage?.totalFiles || scannedFiles;
-              const skippedFiles = realCoverage?.skippedFiles || (totalFiles > scannedFiles ? totalFiles - scannedFiles : 0);
 
               setLiveScannedCount(scannedFiles);
               setLiveLeaksCount(openCount);
 
-              // Exact Formula: Score = max(0, 100 - (Critical * 15 + High * 8 + Medium * 4))
-              const totalDeductions = criticalCount * 15 + highCount * 8 + mediumCount * 4;
-              const isIncomplete = realCoverage?.coverageImpact === 'INCOMPLETE';
-              const healthScore: number | null = isIncomplete ? null : Math.max(0, 100 - totalDeductions);
-
-              const grade = isIncomplete
-                ? 'Incomplete Coverage (Limits Reached)'
-                : healthScore !== null && healthScore >= 90
-                ? 'No open findings in this completed scan'
-                : healthScore !== null && healthScore >= 70
-                ? 'Grade B (Moderate Risk)'
-                : 'Action Required (Critical Risk)';
-
-              setMetrics({
-                healthScore,
-                grade,
-                scannedFilesCount: scannedFiles,
-                totalFilesCount: totalFiles,
-                skippedFilesCount: skippedFiles,
-                openLeaksCount: openCount,
-                resolvedLeaksCount: resolvedCount,
-                aiFixReadyCount: openCount,
-                mttrMinutes: 0,
-                trendData: [],
-                reasonCode: realCoverage?.reasonCode,
-                limitHitValue: realCoverage?.limitHitValue,
-                isCoverageIncomplete: isIncomplete,
-              });
+              const isAudited = summary.status === 'ACTION_REQUIRED' || summary.status === 'NO_OPEN_FINDINGS' || summary.status === 'COVERAGE_INCOMPLETE';
 
               setSelectedRepo((prev) =>
                 prev
                   ? {
                       ...prev,
-                      isScanned: true,
-                      lastScanned: 'Just now',
+                      isScanned: isAudited,
+                      lastScanned: isAudited ? 'Just now' : (summary.status === 'SCAN_UNAVAILABLE' ? 'Failed' : null),
                       findingCount: openCount,
-                      healthScore,
+                      postureStatus: summary.status,
+                      severityCounts: summary.severityCounts,
                     }
                   : null
               );
@@ -552,10 +493,11 @@ export default function App() {
                   r.dbRepositoryId === dbRepoId
                     ? {
                         ...r,
-                        isScanned: true,
-                        lastScanned: 'Just now',
+                        isScanned: isAudited,
+                        lastScanned: isAudited ? 'Just now' : (summary.status === 'SCAN_UNAVAILABLE' ? 'Failed' : null),
                         findingCount: openCount,
-                        healthScore,
+                        postureStatus: summary.status,
+                        severityCounts: summary.severityCounts,
                       }
                     : r
                 )
@@ -566,7 +508,11 @@ export default function App() {
               setScanError(errorMsg);
               setFindings([]);
               setCoverageData(null);
-              setMetrics(null);
+              setPostureSummary(resolveRepositoryPosture(
+                { status: 'ERROR', error: errorMsg },
+                { status: 'ERROR', error: errorMsg },
+                { success: true, job: { id: jobId, repositoryId: dbRepoId, status: 'FAILED' } }
+              ));
               setSelectedRepo((prev) =>
                 prev
                   ? {
@@ -574,7 +520,7 @@ export default function App() {
                       isScanned: false,
                       lastScanned: 'Failed',
                       findingCount: 0,
-                      healthScore: 0,
+                      postureStatus: 'SCAN_UNAVAILABLE',
                     }
                   : null
               );
@@ -591,7 +537,7 @@ export default function App() {
             setScanError(errorMsg);
             setFindings([]);
             setCoverageData(null);
-            setMetrics(null);
+            setPostureSummary(resolveRepositoryPosture({ status: 'ERROR', error: errorMsg }, { status: 'ERROR', error: errorMsg }, null));
             setSelectedRepo((prev) =>
               prev
                 ? {
@@ -599,7 +545,7 @@ export default function App() {
                     isScanned: false,
                     lastScanned: 'Failed',
                     findingCount: 0,
-                    healthScore: 0,
+                    postureStatus: 'SCAN_UNAVAILABLE',
                   }
                 : null
             );
@@ -616,7 +562,7 @@ export default function App() {
       setScanError(errorMsg);
       setFindings([]);
       setCoverageData(null);
-      setMetrics(null);
+      setPostureSummary(resolveRepositoryPosture({ status: 'ERROR', error: errorMsg }, { status: 'ERROR', error: errorMsg }, null));
       setSelectedRepo((prev) =>
         prev
           ? {
@@ -624,7 +570,7 @@ export default function App() {
               isScanned: false,
               lastScanned: 'Failed',
               findingCount: 0,
-              healthScore: 0,
+              postureStatus: 'SCAN_UNAVAILABLE',
             }
           : null
       );
@@ -706,6 +652,7 @@ export default function App() {
                 onSelectRepo={handleSelectRepo}
                 onOpenImportModal={() => setIsImportModalOpen(true)}
                 onLogout={logoutUser}
+                onRetry={loadData}
               />
             )}
           </>
@@ -746,10 +693,10 @@ export default function App() {
             )}
 
             {/* Incomplete Coverage Guardrail Warning Banner (FR-028, FR-031) */}
-            {(coverageData?.coverageImpact === 'INCOMPLETE' || metrics?.isCoverageIncomplete) && (
+            {coverageData?.coverageImpact === 'INCOMPLETE' && (
               <CoverageWarningBanner
-                reasonCode={coverageData?.reasonCode || metrics?.reasonCode}
-                limitHitValue={coverageData?.limitHitValue || metrics?.limitHitValue}
+                reasonCode={coverageData?.reasonCode}
+                limitHitValue={coverageData?.limitHitValue}
                 totalBytes={coverageData?.totalBytes}
                 totalFiles={coverageData?.totalFiles}
                 onViewCoverage={() => setActiveNavTab('coverage')}
@@ -759,8 +706,8 @@ export default function App() {
             {/* Tab 1: Findings & Remediation View */}
             {activeNavTab === 'findings' && (
               <div className="space-y-8 animate-in fade-in duration-200">
-                {/* Top Overview Section: Health Gauge + Trend Sparkline + Metrics */}
-                {metrics && (
+                {/* Top Overview Section: Verified Security Posture Summary Card */}
+                {postureSummary && (
                   <section className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
@@ -784,29 +731,11 @@ export default function App() {
                       </button>
                     </div>
 
-                    {/* Visual Analytics Bento Banner with strict equal height */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
-                      <div className="md:col-span-4 lg:col-span-3 flex flex-col">
-                        <HealthGauge 
-                          score={metrics.healthScore} 
-                          grade={metrics.grade} 
-                          isScanned={isCurrentRepoScanned}
-                        />
-                      </div>
-                      <div className="md:col-span-8 lg:col-span-4 flex flex-col">
-                        <TrendSparkline 
-                          data={metrics.trendData} 
-                          isScanned={isCurrentRepoScanned}
-                        />
-                      </div>
-                      <div className="md:col-span-12 lg:col-span-5 flex flex-col">
-                        <MetricsGrid 
-                          metrics={metrics} 
-                          isScanned={isCurrentRepoScanned}
-                          onViewCoverage={() => setActiveNavTab('coverage')}
-                        />
-                      </div>
-                    </div>
+                    <SecurityActionSummaryCard
+                      summary={postureSummary}
+                      onRetry={handleRetryDetailEvidence}
+                      onViewCoverage={() => setActiveNavTab('coverage')}
+                    />
                   </section>
                 )}
 
