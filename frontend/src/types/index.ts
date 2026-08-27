@@ -14,6 +14,40 @@ export interface UserProfile {
   email?: string;
 }
 
+export type ApiResult<T> =
+  | { status: 'SUCCESS'; data: T }
+  | { status: 'NOT_FOUND' }
+  | { status: 'ERROR'; error: string; statusCode?: number };
+
+export type RepositoryPostureStatus =
+  | 'ACTION_REQUIRED'
+  | 'NO_OPEN_FINDINGS'
+  | 'COVERAGE_INCOMPLETE'
+  | 'AWAITING_INITIAL_SCAN'
+  | 'SCAN_IN_PROGRESS'
+  | 'SCAN_UNAVAILABLE';
+
+export interface FindingSeverityCounts {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  total: number;
+}
+
+export interface SecurityActionSummary {
+  status: RepositoryPostureStatus;
+  statusLabel: string;
+  statusDescription: string;
+  severityCounts: FindingSeverityCounts;
+  totalFilesScanned: number | null;
+  totalFilesSkipped: number | null;
+  coverageImpact: 'COMPLETE' | 'INCOMPLETE' | 'NONE' | null;
+  coverageRecordedAt: string | null;
+  scanCompletedAt: string | null;
+  actionPrompt: string;
+}
+
 export interface Repository {
   id: string;
   githubRepoId?: number;
@@ -25,8 +59,9 @@ export interface Repository {
   lastScanned?: string | null;
   isScanned?: boolean;
   findingCount: number;
-  healthScore?: number | null;
   attentionStatus: AttentionStatus;
+  postureStatus?: RepositoryPostureStatus;
+  severityCounts?: FindingSeverityCounts;
 }
 
 export interface CodeDiffSnippet {
@@ -50,22 +85,6 @@ export interface Finding {
   detectedCommit: string;
   detectedAt: string;
   remediationDiff: CodeDiffSnippet;
-}
-
-export interface HealthMetrics {
-  healthScore: number | null;
-  grade: string;
-  scannedFilesCount: number;
-  totalFilesCount?: number;
-  skippedFilesCount?: number;
-  openLeaksCount: number;
-  resolvedLeaksCount: number;
-  aiFixReadyCount: number;
-  mttrMinutes: number;
-  trendData: number[];
-  reasonCode?: string;
-  limitHitValue?: number;
-  isCoverageIncomplete?: boolean;
 }
 
 export type { ScanEvent, ScanEventsResponse } from './api';

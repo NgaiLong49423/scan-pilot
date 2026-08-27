@@ -9,10 +9,12 @@ import {
   ArrowRight,
   AlertTriangle,
   Clock,
-  Sparkles,
   Plus,
   CheckCircle2,
-  FolderPlus
+  FolderPlus,
+  AlertCircle,
+  RefreshCw,
+  RotateCcw
 } from 'lucide-react';
 import { Repository, UserProfile } from '../types';
 
@@ -22,6 +24,7 @@ interface FleetDashboardProps {
   onSelectRepo: (repo: Repository) => void;
   onOpenImportModal: () => void;
   onLogout?: () => void;
+  onRetry?: () => void;
 }
 
 export const FleetDashboard: React.FC<FleetDashboardProps> = ({
@@ -29,31 +32,44 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({
   currentUser,
   onSelectRepo,
   onOpenImportModal,
+  onRetry,
 }) => {
-  const [activeTab, setActiveTab] = useState<'ALL' | 'ACTION_REQUIRED' | 'CLEAN' | 'UNSCANNED'>('ALL');
+  const [activeTab, setActiveTab] = useState<
+    'ALL' | 'ACTION_REQUIRED' | 'NO_OPEN_FINDINGS' | 'COVERAGE_INCOMPLETE' | 'AWAITING_SCAN' | 'SCAN_IN_PROGRESS'
+  >('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<string>('ALL');
 
-  // Compute fleet-level metrics from real data ONLY
-  const scannedRepos = monitoredRepositories.filter((r) => r.isScanned);
-  const unscannedRepos = monitoredRepositories.filter((r) => !r.isScanned);
-  const leakingRepos = monitoredRepositories.filter((r) => r.isScanned && r.findingCount > 0);
-  const cleanRepos = monitoredRepositories.filter((r) => r.isScanned && r.findingCount === 0);
+  // Compute fleet-level aggregates strictly from verified repository posture
+  const auditedRepos = monitoredRepositories.filter(
+    (r) => r.postureStatus === 'ACTION_REQUIRED' || r.postureStatus === 'NO_OPEN_FINDINGS' || r.postureStatus === 'COVERAGE_INCOMPLETE'
+  );
+  const actionRequiredRepos = monitoredRepositories.filter(
+    (r) => r.postureStatus === 'ACTION_REQUIRED' || (r.postureStatus === 'COVERAGE_INCOMPLETE' && r.findingCount > 0)
+  );
+  const cleanRepos = monitoredRepositories.filter((r) => r.postureStatus === 'NO_OPEN_FINDINGS');
+  const incompleteCoverageRepos = monitoredRepositories.filter((r) => r.postureStatus === 'COVERAGE_INCOMPLETE');
+  const inProgressRepos = monitoredRepositories.filter((r) => r.postureStatus === 'SCAN_IN_PROGRESS');
+  const awaitingScanRepos = monitoredRepositories.filter(
+    (r) => r.postureStatus === 'AWAITING_INITIAL_SCAN' || (!r.postureStatus && !r.isScanned)
+  );
+  const unavailableRepos = monitoredRepositories.filter((r) => r.postureStatus === 'SCAN_UNAVAILABLE');
 
-  const totalOpenLeaks = leakingRepos.reduce((acc, r) => acc + r.findingCount, 0);
+  // Total open leaks and severity counts describe the exact same verified actionable population (actionRequiredRepos)
+  const totalOpenLeaks = actionRequiredRepos.reduce((acc, r) => acc + (r.findingCount || 0), 0);
 
-  const scoredRepos = scannedRepos.filter((r) => r.healthScore !== null && r.healthScore !== undefined && r.healthScore >= 0);
-  const averageHealthScore = scoredRepos.length > 0
-    ? Math.round(scoredRepos.reduce((acc, r) => acc + (r.healthScore ?? 0), 0) / scoredRepos.length)
-    : 0;
-
-  const fleetGrade = scannedRepos.length === 0 
-    ? 'Awaiting Initial Scan' 
-    : averageHealthScore >= 90 
-    ? 'No Open Findings Baseline'
-    : averageHealthScore >= 70 
-    ? 'Grade B (Moderate Risk)' 
-    : 'Grade C (Action Required)';
+  const fleetSeverityCounts = actionRequiredRepos.reduce(
+    (acc, r) => {
+      if (r.severityCounts) {
+        acc.critical += r.severityCounts.critical || 0;
+        acc.high += r.severityCounts.high || 0;
+        acc.medium += r.severityCounts.medium || 0;
+        acc.low += r.severityCounts.low || 0;
+      }
+      return acc;
+    },
+    { critical: 0, high: 0, medium: 0, low: 0 }
+  );
 
   // Languages from monitored repos
   const languages = ['ALL', ...Array.from(new Set(monitoredRepositories.map((r) => r.language).filter(Boolean)))];
@@ -68,12 +84,73 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({
 
     if (selectedLanguage !== 'ALL' && repo.language !== selectedLanguage) return false;
 
-    if (activeTab === 'ACTION_REQUIRED') return repo.isScanned && repo.findingCount > 0;
-    if (activeTab === 'CLEAN') return repo.isScanned && repo.findingCount === 0;
-    if (activeTab === 'UNSCANNED') return !repo.isScanned;
+    if (activeTab === 'ACTION_REQUIRED') {
+      return repo.postureStatus === 'ACTION_REQUIRED' || (repo.postureStatus === 'COVERAGE_INCOMPLETE' && repo.findingCount > 0);
+    }
+    if (activeTab === 'NO_OPEN_FINDINGS') {
+      return repo.postureStatus === 'NO_OPEN_FINDINGS';
+    }
+    if (activeTab === 'COVERAGE_INCOMPLETE') {
+      return repo.postureStatus === 'COVERAGE_INCOMPLETE';
+    }
+    if (activeTab === 'SCAN_IN_PROGRESS') {
+      return repo.postureStatus === 'SCAN_IN_PROGRESS';
+    }
+    if (activeTab === 'AWAITING_SCAN') {
+      return repo.postureStatus === 'AWAITING_INITIAL_SCAN' || (!repo.postureStatus && !repo.isScanned);
+    }
 
     return true;
   });
+
+  const getRepoPostureBadge = (repo: Repository) => {
+    if (repo.postureStatus === 'SCAN_IN_PROGRESS') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#1f6feb]/15 text-[#58a6ff] border border-[#1f6feb]/30">
+          <RefreshCw className="w-3.5 h-3.5 animate-spin motion-reduce:animate-none" />
+          <span>Scan In Progress</span>
+        </span>
+      );
+    }
+    if (repo.postureStatus === 'COVERAGE_INCOMPLETE') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#d29922]/15 text-[#d29922] border border-[#d29922]/30">
+          <AlertCircle className="w-3.5 h-3.5" />
+          <span>Coverage Incomplete ({repo.findingCount} open)</span>
+        </span>
+      );
+    }
+    if (repo.postureStatus === 'SCAN_UNAVAILABLE') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#da3633]/15 text-[#f85149] border border-[#da3633]/30">
+          <AlertTriangle className="w-3.5 h-3.5" />
+          <span>Scan Unavailable</span>
+        </span>
+      );
+    }
+    if (!repo.isScanned || repo.postureStatus === 'AWAITING_INITIAL_SCAN') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-[#8b949e] bg-[#21262d] border border-[#30363d]">
+          <Clock className="w-3.5 h-3.5 text-[#8b949e]" />
+          <span>Awaiting Initial Scan</span>
+        </span>
+      );
+    }
+    if (repo.findingCount === 0) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#238636]/15 text-[#3fb950] border border-[#238636]/30">
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          <span>No Open Findings</span>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#da3633]/15 text-[#f85149] border border-[#da3633]/30">
+        <AlertTriangle className="w-3.5 h-3.5" />
+        <span>{repo.findingCount} Open {repo.findingCount === 1 ? 'Finding' : 'Findings'}</span>
+      </span>
+    );
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
@@ -83,7 +160,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({
           <div className="flex items-center gap-2 text-xs font-mono text-[#8b949e] mb-1">
             <span>Organization:</span>
             <span className="text-[#58a6ff] font-semibold bg-[#1f6feb]/15 px-2 py-0.5 rounded border border-[#1f6feb]/30">
-              {currentUser?.login || 'NgaiLong49423'}
+              {currentUser?.login || 'Scan Pilot Workspace'}
             </span>
             <span>•</span>
             <span className="text-[#3fb950] flex items-center gap-1">
@@ -95,11 +172,22 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({
             Organization Fleet Overview
           </h1>
           <p className="text-xs sm:text-sm text-[#8b949e] mt-1">
-            Security posture and vulnerability management across your explicitly monitored repositories.
+            Verified evidence-based security posture and action summaries across monitored repositories.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-[#21262d] hover:bg-[#30363d] text-[#c9d1d9] hover:text-[#f0f6fc] text-xs font-medium border border-[#30363d] transition-all focus:outline-none focus:ring-2 focus:ring-[#58a6ff] focus:ring-offset-2 focus:ring-offset-[#0d1117]"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Refresh Fleet</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onOpenImportModal}
@@ -111,7 +199,7 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({
         </div>
       </div>
 
-      {/* Global Fleet Posture Bento Row (Calculated from Real Data) */}
+      {/* Global Fleet Posture Bento Row (Evidence-Based ONLY) */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Monitored Repos */}
         <div className="p-5 bg-[#161b22] border border-[#30363d] rounded-2xl flex flex-col justify-between shadow-sm">
@@ -124,73 +212,88 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({
               {monitoredRepositories.length}
             </div>
             <span className="text-xs text-[#8b949e] mt-1 block">
-              {scannedRepos.length} Audited • {unscannedRepos.length} Awaiting Scan
+              {auditedRepos.length} Audited • {awaitingScanRepos.length} Awaiting Scan • {unavailableRepos.length} Evidence Unavailable
             </span>
           </div>
           <div className="mt-3 pt-3 border-t border-[#30363d]/60 text-[11px] text-[#58a6ff] font-mono">
-            Explicitly Monitored
+            Continuous Monitoring
           </div>
         </div>
 
-        {/* Card 2: Fleet Health Score */}
+        {/* Card 2: Action Required */}
         <div className="p-5 bg-[#161b22] border border-[#30363d] rounded-2xl flex flex-col justify-between shadow-sm">
           <div className="flex items-center justify-between text-[#8b949e]">
-            <span className="text-xs font-semibold uppercase tracking-wider">Fleet Health Score</span>
-            <ShieldCheck className={`w-4 h-4 ${scannedRepos.length > 0 ? 'text-[#3fb950]' : 'text-[#8b949e]'}`} />
+            <span className="text-xs font-semibold uppercase tracking-wider">Action Required</span>
+            <AlertTriangle className={`w-4 h-4 ${actionRequiredRepos.length > 0 ? 'text-[#f85149]' : 'text-[#8b949e]'}`} />
           </div>
           <div className="mt-4">
-            <div className={`text-3xl font-bold tabular-nums ${scannedRepos.length > 0 ? 'text-[#3fb950]' : 'text-[#f0f6fc]'}`}>
-              {scannedRepos.length > 0 ? `${averageHealthScore}/100` : '—'}
+            <div className={`text-3xl font-bold tabular-nums ${actionRequiredRepos.length > 0 ? 'text-[#f85149]' : 'text-[#f0f6fc]'}`}>
+              {actionRequiredRepos.length}
             </div>
-            <span className={`text-xs mt-1 block font-medium ${scannedRepos.length > 0 ? 'text-[#3fb950]' : 'text-[#8b949e]'}`}>
-              {fleetGrade}
+            <span className="text-xs text-[#8b949e] mt-1 block">
+              {actionRequiredRepos.length > 0 ? 'Repositories with open findings' : 'No repos require urgent remediation'}
             </span>
           </div>
           <div className="mt-3 pt-3 border-t border-[#30363d]/60 text-[11px] text-[#8b949e] font-mono">
-            {scannedRepos.length > 0 ? 'Persisted database metrics' : 'Requires initial scan'}
+            Verified Findings
           </div>
         </div>
 
-        {/* Card 3: Total Open Leaks */}
+        {/* Card 3: Total Open Findings */}
         <div className="p-5 bg-[#161b22] border border-[#30363d] rounded-2xl flex flex-col justify-between shadow-sm">
           <div className="flex items-center justify-between text-[#8b949e]">
             <span className="text-xs font-semibold uppercase tracking-wider">Total Open Leaks</span>
             <AlertTriangle className={`w-4 h-4 ${totalOpenLeaks > 0 ? 'text-[#f85149]' : 'text-[#3fb950]'}`} />
           </div>
-          <div className="mt-4">
+          <div className="mt-3">
             <div className={`text-3xl font-bold tabular-nums ${totalOpenLeaks > 0 ? 'text-[#f85149]' : 'text-[#f0f6fc]'}`}>
               {totalOpenLeaks}
             </div>
             <span className={`text-xs mt-1 block ${totalOpenLeaks > 0 ? 'text-[#f85149]/80 font-medium' : 'text-[#8b949e]'}`}>
-              {totalOpenLeaks > 0 ? `Across ${leakingRepos.length} Repositories` : 'Zero Leaks in Monitored Fleet'}
+              {totalOpenLeaks > 0 ? `Across ${actionRequiredRepos.length} ${actionRequiredRepos.length === 1 ? 'Repository' : 'Repositories'}` : 'Zero Open Leaks Detected'}
             </span>
+            {/* Severity Distribution Pills */}
+            <div className="flex items-center gap-1.5 mt-2.5 text-[11px] font-mono">
+              <span className="px-1.5 py-0.5 rounded bg-[#da3633]/15 text-[#f85149] border border-[#da3633]/30">
+                {fleetSeverityCounts.critical} Crit
+              </span>
+              <span className="px-1.5 py-0.5 rounded bg-[#d29922]/15 text-[#d29922] border border-[#d29922]/30">
+                {fleetSeverityCounts.high} High
+              </span>
+              <span className="px-1.5 py-0.5 rounded bg-[#1f6feb]/15 text-[#58a6ff] border border-[#1f6feb]/30">
+                {fleetSeverityCounts.medium} Med
+              </span>
+              <span className="px-1.5 py-0.5 rounded bg-[#21262d] text-[#8b949e] border border-[#30363d]">
+                {fleetSeverityCounts.low} Low
+              </span>
+            </div>
           </div>
           <div className="mt-3 pt-3 border-t border-[#30363d]/60 text-[11px] text-[#8b949e] font-mono">
-            {totalOpenLeaks > 0 ? 'SP-CONFIG-001 Action Required' : 'Clean Git History'}
+            SP-CONFIG-001 Severity Breakdown
           </div>
         </div>
 
-        {/* Card 4: AI Remediation Velocity */}
+        {/* Card 4: Clean & Audited Baseline */}
         <div className="p-5 bg-[#161b22] border border-[#30363d] rounded-2xl flex flex-col justify-between shadow-sm">
           <div className="flex items-center justify-between text-[#8b949e]">
-            <span className="text-xs font-semibold uppercase tracking-wider">AI Remediation</span>
-            <Sparkles className="w-4 h-4 text-[#58a6ff]" />
+            <span className="text-xs font-semibold uppercase tracking-wider">Verified Clean</span>
+            <ShieldCheck className="w-4 h-4 text-[#3fb950]" />
           </div>
           <div className="mt-4">
             <div className="text-3xl font-bold text-[#f0f6fc] tabular-nums">
-              {scannedRepos.length > 0 ? `${cleanRepos.length}/${scannedRepos.length}` : '—'}
+              {cleanRepos.length}
             </div>
             <span className="text-xs text-[#8b949e] mt-1 block">
-              {scannedRepos.length > 0 ? 'Clean Repositories' : 'Awaiting First Scan'}
+              {cleanRepos.length > 0 ? 'Completed scans with 0 open findings' : 'Awaiting clean audit baseline'}
             </span>
           </div>
           <div className="mt-3 pt-3 border-t border-[#30363d]/60 text-[11px] text-[#8b949e] font-mono">
-            Gemini 1.5 Pro Guard
+            Audit Posture Clean
           </div>
         </div>
       </section>
 
-      {/* Multi-Repository Portfolio Management Section (Horizontal List / Rows) */}
+      {/* Multi-Repository Portfolio Management Section */}
       <section className="space-y-4">
         {/* Filter Controls Bar */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#161b22] border border-[#30363d] p-3.5 rounded-2xl">
@@ -217,31 +320,59 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({
                   : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d]'
               }`}
             >
-              Action Required ({leakingRepos.length})
+              Action Required ({actionRequiredRepos.length})
             </button>
 
             <button
               type="button"
-              onClick={() => setActiveTab('CLEAN')}
+              onClick={() => setActiveTab('NO_OPEN_FINDINGS')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
-                activeTab === 'CLEAN'
+                activeTab === 'NO_OPEN_FINDINGS'
                   ? 'bg-[#238636] text-white shadow-sm'
                   : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d]'
               }`}
             >
-              Clean ({cleanRepos.length})
+              No Open Findings ({cleanRepos.length})
             </button>
+
+            {incompleteCoverageRepos.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('COVERAGE_INCOMPLETE')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                  activeTab === 'COVERAGE_INCOMPLETE'
+                    ? 'bg-[#d29922] text-black shadow-sm'
+                    : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d]'
+                }`}
+              >
+                Incomplete Coverage ({incompleteCoverageRepos.length})
+              </button>
+            )}
+
+            {inProgressRepos.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('SCAN_IN_PROGRESS')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                  activeTab === 'SCAN_IN_PROGRESS'
+                    ? 'bg-[#1f6feb] text-white shadow-sm'
+                    : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d]'
+                }`}
+              >
+                In Progress ({inProgressRepos.length})
+              </button>
+            )}
 
             <button
               type="button"
-              onClick={() => setActiveTab('UNSCANNED')}
+              onClick={() => setActiveTab('AWAITING_SCAN')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
-                activeTab === 'UNSCANNED'
+                activeTab === 'AWAITING_SCAN'
                   ? 'bg-[#21262d] text-[#c9d1d9] border border-[#30363d]'
                   : 'text-[#8b949e] hover:text-[#f0f6fc] hover:bg-[#21262d]'
               }`}
             >
-              Awaiting Scan ({unscannedRepos.length})
+              Awaiting Scan ({awaitingScanRepos.length})
             </button>
           </div>
 
@@ -275,101 +406,66 @@ export const FleetDashboard: React.FC<FleetDashboardProps> = ({
         {/* Horizontal List / Table Rows */}
         <div className="space-y-3">
           {filteredRepos.length > 0 ? (
-            filteredRepos.map((repo) => {
-              const isLeaking = repo.isScanned && repo.findingCount > 0;
-              const isClean = repo.isScanned && repo.findingCount === 0;
-
-              return (
-                <div
-                  key={repo.id}
-                  onClick={() => onSelectRepo(repo)}
-                  className="p-4 sm:p-5 bg-[#161b22] border border-[#30363d] rounded-2xl hover:border-[#58a6ff] transition-all duration-150 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 group shadow-sm hover:shadow-md"
-                >
-                  {/* Column 1: Repo info & tags */}
-                  <div className="flex items-center gap-3.5 min-w-0 md:w-1/3">
-                    <div className="p-2.5 rounded-xl bg-[#0d1117] border border-[#30363d] text-[#8b949e] group-hover:text-[#58a6ff] group-hover:border-[#58a6ff]/40 transition-colors shrink-0">
-                      {repo.isPrivate ? <Lock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
-                    </div>
-
-                    <div className="min-w-0">
-                      <div className="text-sm font-bold text-[#f0f6fc] group-hover:text-[#58a6ff] transition-colors truncate font-mono">
-                        {repo.name}
-                      </div>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-[#8b949e]">
-                        <span className="flex items-center gap-1 font-mono">
-                          <GitBranch className="w-3 h-3 text-[#8b949e]" />
-                          {repo.branch}
-                        </span>
-                        <span>•</span>
-                        <span className="px-2 py-0.5 rounded bg-[#0d1117] text-[#c9d1d9] border border-[#30363d] font-mono text-[10px]">
-                          {repo.language}
-                        </span>
-                      </div>
-                    </div>
+            filteredRepos.map((repo) => (
+              <div
+                key={repo.id}
+                onClick={() => onSelectRepo(repo)}
+                className="p-4 sm:p-5 bg-[#161b22] border border-[#30363d] rounded-2xl hover:border-[#58a6ff] transition-all duration-150 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 group shadow-sm hover:shadow-md"
+              >
+                {/* Column 1: Repo info & tags */}
+                <div className="flex items-center gap-3.5 min-w-0 md:w-2/5">
+                  <div className="p-2.5 rounded-xl bg-[#0d1117] border border-[#30363d] text-[#8b949e] group-hover:text-[#58a6ff] group-hover:border-[#58a6ff]/40 transition-colors shrink-0">
+                    {repo.isPrivate ? <Lock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
                   </div>
 
-                  {/* Column 2: Status Badge & Leak Count */}
-                  <div className="flex items-center gap-4 text-xs md:w-1/4">
-                    {!repo.isScanned ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-[#8b949e] bg-[#21262d] border border-[#30363d]">
-                        <Clock className="w-3.5 h-3.5 text-[#8b949e]" />
-                        <span>Awaiting Initial Scan</span>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-[#f0f6fc] group-hover:text-[#58a6ff] transition-colors truncate font-mono">
+                      {repo.name}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-[#8b949e]">
+                      <span className="flex items-center gap-1 font-mono">
+                        <GitBranch className="w-3 h-3 text-[#8b949e]" />
+                        {repo.branch}
                       </span>
-                    ) : isClean ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#238636]/15 text-[#3fb950] border border-[#238636]/30">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>100% Scanned (0 Leaks)</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#da3633]/15 text-[#f85149] border border-[#da3633]/30">
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        <span>{repo.findingCount} Open Leaks</span>
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Column 3: Health Score & Timestamp */}
-                  <div className="flex items-center gap-6 text-xs text-[#8b949e] font-mono md:w-1/4">
-                    <div>
-                      <span className="text-[10px] uppercase text-[#8b949e] block font-sans">Health Score</span>
-                      <span className={`font-bold text-sm ${
-                        !repo.isScanned || repo.healthScore === null || repo.healthScore === undefined || repo.healthScore < 0
-                          ? 'text-[#8b949e]'
-                          : repo.healthScore >= 90
-                          ? 'text-[#3fb950]'
-                          : 'text-[#f85149]'
-                      }`}>
-                        {repo.isScanned && repo.healthScore !== null && repo.healthScore !== undefined && repo.healthScore >= 0
-                          ? `${repo.healthScore}/100`
-                          : '—'}
+                      <span>•</span>
+                      <span className="px-2 py-0.5 rounded bg-[#0d1117] text-[#c9d1d9] border border-[#30363d] font-mono text-[10px]">
+                        {repo.language}
                       </span>
                     </div>
-
-                    <div>
-                      <span className="text-[10px] uppercase text-[#8b949e] block font-sans">Last Audit</span>
-                      <span className="text-[#c9d1d9] text-xs">
-                        {repo.lastScanned || 'Never'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Column 4: Direct Action Button */}
-                  <div className="flex items-center justify-end shrink-0">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectRepo(repo);
-                      }}
-                      className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[#21262d] group-hover:bg-[#1f6feb] text-[#c9d1d9] group-hover:text-white border border-[#30363d] group-hover:border-[#1f6feb] text-xs font-medium transition-all duration-150 active:scale-95"
-                    >
-                      <span>Inspect Posture</span>
-                      <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                    </button>
                   </div>
                 </div>
-              );
-            })
+
+                {/* Column 2: Status Badge */}
+                <div className="flex items-center gap-4 text-xs md:w-1/3">
+                  {getRepoPostureBadge(repo)}
+                </div>
+
+                {/* Column 3: Audit Timestamp */}
+                <div className="flex items-center gap-6 text-xs text-[#8b949e] font-mono md:w-1/5">
+                  <div>
+                    <span className="text-[10px] uppercase text-[#8b949e] block font-sans">Audit Status</span>
+                    <span className="text-[#c9d1d9] text-xs">
+                      {repo.lastScanned || 'Never'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Column 4: Direct Action Button */}
+                <div className="flex items-center justify-end shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectRepo(repo);
+                    }}
+                    className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[#21262d] group-hover:bg-[#1f6feb] text-[#c9d1d9] group-hover:text-white border border-[#30363d] group-hover:border-[#1f6feb] text-xs font-medium transition-all duration-150 active:scale-95"
+                  >
+                    <span>Inspect Posture</span>
+                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                </div>
+              </div>
+            ))
           ) : (
             <div className="p-12 text-center bg-[#161b22] border border-[#30363d] rounded-2xl space-y-4">
               <div className="w-12 h-12 rounded-full bg-[#1f6feb]/15 border border-[#1f6feb]/30 text-[#58a6ff] mx-auto flex items-center justify-center">
