@@ -92,6 +92,9 @@ class ScanControllerTest {
     @Autowired
     private com.scanpilot.persistence.repository.ScanEventRepository scanEventRepository;
 
+    @Autowired
+    private com.scanpilot.persistence.repository.FindingIssueLinkRepository findingIssueLinkRepository;
+
     private UserSession userSession;
     private UserEntity userEntity;
     private RepositoryEntity repositoryEntity;
@@ -104,6 +107,9 @@ class ScanControllerTest {
     void setUp() {
         if (scanEventRepository != null) {
             scanEventRepository.deleteAll();
+        }
+        if (findingIssueLinkRepository != null) {
+            findingIssueLinkRepository.deleteAll();
         }
         findingLocationRepository.deleteAll();
         findingRepository.deleteAll();
@@ -915,5 +921,75 @@ class ScanControllerTest {
         mockMvc.perform(get("/api/v1/scans/jobs/" + job.getId() + "/events?afterSeq=-1&limit=50")
                 .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId())))
             .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("AC-C Proof: Persisted CREATED GitHub Issue link survives reload in getFindings endpoint")
+    void testPersistedGitHubLinkSurvivesReloadInGetFindings() throws Exception {
+        FindingEntity finding1 = findingRepository.save(FindingEntity.builder()
+            .repositoryId(repositoryEntity.getId())
+            .ruleId("SP-CONFIG-001")
+            .fingerprint("fp-linked-1")
+            .severity("HIGH")
+            .title("Exposed API Key")
+            .lifecycle("OPEN")
+            .remediationQuality("ACTION_REQUIRED")
+            .firstSeenAt(Instant.now())
+            .lastSeenAt(Instant.now())
+            .build());
+
+        findingLocationRepository.save(FindingLocationEntity.builder()
+            .findingId(finding1.getId())
+            .filePath("src/main/resources/application.yml")
+            .startLine(42)
+            .commitSha("abcdef123456")
+            .build());
+
+        // Persist CREATED issue link for finding1
+        findingIssueLinkRepository.save(com.scanpilot.persistence.entity.FindingIssueLinkEntity.builder()
+            .findingId(finding1.getId())
+            .repositoryId(repositoryEntity.getId())
+            .state("CREATED")
+            .githubIssueNumber(42)
+            .githubIssueUrl("https://github.com/scanpilot-tester/target-repo/issues/42")
+            .idempotencyMarker("scanpilot-finding-" + finding1.getId())
+            .createdByUserId(userEntity.getId())
+            .createdAt(Instant.now())
+            .updatedAt(Instant.now())
+            .build());
+
+        // Create an unlinked finding2
+        FindingEntity finding2 = findingRepository.save(FindingEntity.builder()
+            .repositoryId(repositoryEntity.getId())
+            .ruleId("SP-CONFIG-001")
+            .fingerprint("fp-unlinked-2")
+            .severity("MEDIUM")
+            .title("Exposed JWT Secret")
+            .lifecycle("OPEN")
+            .remediationQuality("ACTION_REQUIRED")
+            .firstSeenAt(Instant.now())
+            .lastSeenAt(Instant.now())
+            .build());
+
+        findingLocationRepository.save(FindingLocationEntity.builder()
+            .findingId(finding2.getId())
+            .filePath("src/main/resources/jwt.properties")
+            .startLine(10)
+            .commitSha("abcdef123456")
+            .build());
+
+        mockMvc.perform(get("/api/v1/scans/repositories/" + repositoryEntity.getId() + "/findings")
+                .cookie(new Cookie("SCANPILOT_SESSION", userSession.getSessionId())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$", hasSize(2)))
+            .andExpect(jsonPath("$[0].id").value(finding1.getId().toString()))
+            .andExpect(jsonPath("$[0].githubIssueNumber").value(42))
+            .andExpect(jsonPath("$[0].githubIssueUrl").value("https://github.com/scanpilot-tester/target-repo/issues/42"))
+            .andExpect(jsonPath("$[0].issueLinkState").value("CREATED"))
+            .andExpect(jsonPath("$[0].lifecycle").value("OPEN"))
+            .andExpect(jsonPath("$[1].id").value(finding2.getId().toString()))
+            .andExpect(jsonPath("$[1].githubIssueNumber").doesNotExist())
+            .andExpect(jsonPath("$[1].githubIssueUrl").doesNotExist())
+            .andExpect(jsonPath("$[1].issueLinkState").doesNotExist());
     }
 }

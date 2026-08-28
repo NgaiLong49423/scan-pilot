@@ -73,6 +73,7 @@ public class ScanController {
     private final RepositoryRepository repositoryRepository;
     private final UserRepository userRepository;
     private final MonitoredBranchRepository monitoredBranchRepository;
+    private final com.scanpilot.persistence.repository.FindingIssueLinkRepository findingIssueLinkRepository;
 
     /**
      * Triggers a snapshot and git history scan on an active monitored repository (FR-025, Issue #52, Issue #53).
@@ -278,14 +279,32 @@ public class ScanController {
         }
 
         List<FindingEntity> findings = findingRepository.findByRepositoryId(repositoryId);
-        List<FindingDto> dtos = new ArrayList<>();
+        if (findings.isEmpty()) {
+            return ResponseEntity.ok(List.of());
+        }
 
+        List<UUID> findingIds = findings.stream().map(FindingEntity::getId).toList();
+        java.util.Map<UUID, com.scanpilot.persistence.entity.FindingIssueLinkEntity> linkMap =
+            findingIssueLinkRepository.findByFindingIdIn(findingIds).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                    com.scanpilot.persistence.entity.FindingIssueLinkEntity::getFindingId,
+                    java.util.function.Function.identity(),
+                    (a, b) -> a
+                ));
+
+        List<FindingDto> dtos = new ArrayList<>();
         for (FindingEntity finding : findings) {
             List<FindingLocationEntity> locations = findingLocationRepository.findByFindingId(finding.getId());
             List<FindingLocationDto> locationDtos = locations.stream()
                 .map(FindingLocationDto::from)
                 .toList();
-            dtos.add(FindingDto.from(finding, locationDtos));
+
+            com.scanpilot.persistence.entity.FindingIssueLinkEntity link = linkMap.get(finding.getId());
+            Integer githubIssueNumber = (link != null) ? link.getGithubIssueNumber() : null;
+            String githubIssueUrl = (link != null) ? link.getGithubIssueUrl() : null;
+            String issueLinkState = (link != null) ? link.getState() : null;
+
+            dtos.add(FindingDto.from(finding, locationDtos, githubIssueNumber, githubIssueUrl, issueLinkState));
         }
 
         return ResponseEntity.ok(dtos);

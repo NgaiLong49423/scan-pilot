@@ -1,4 +1,4 @@
-package com.scanpilot.persistence;
+package com.scanpilot.migration;
 
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
@@ -17,8 +17,8 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-@DisplayName("Flyway Schema Migration Verification Tests")
-class FlywaySchemaMigrationTest {
+@DisplayName("Flyway V5 Migration Verification Tests")
+class FlywayV5MigrationTest {
 
     @Autowired
     private Flyway flyway;
@@ -27,17 +27,26 @@ class FlywaySchemaMigrationTest {
     private DataSource dataSource;
 
     @Test
-    @DisplayName("Should successfully apply V4 migration and record schema history")
-    void shouldVerifyFlywayMigrationApplied() {
+    @DisplayName("Should successfully apply V5 migration and record schema history")
+    void shouldVerifyFlywayV5MigrationApplied() {
         MigrationInfo current = flyway.info().current();
         assertThat(current).isNotNull();
-        assertThat(Integer.parseInt(current.getVersion().getVersion())).isGreaterThanOrEqualTo(4);
+        assertThat(Integer.parseInt(current.getVersion().getVersion())).isGreaterThanOrEqualTo(5);
         assertThat(current.getState().isApplied()).isTrue();
+
+        MigrationInfo v5 = java.util.Arrays.stream(flyway.info().applied())
+                .filter(m -> "5".equals(m.getVersion().getVersion()))
+                .findFirst()
+                .orElse(null);
+
+        assertThat(v5).isNotNull();
+        assertThat(v5.getDescription()).isEqualTo("add finding issue links");
+        assertThat(v5.getState().isApplied()).isTrue();
     }
 
     @Test
-    @DisplayName("Should verify that all core tables exist in the database metadata")
-    void shouldVerifyAllCoreTablesExist() throws Exception {
+    @DisplayName("Should verify that finding_issue_links and all 14 core tables exist in the database metadata")
+    void shouldVerifyAllCoreTablesIncludingV5Exist() throws Exception {
         Set<String> expectedTables = Set.of(
                 "users",
                 "user_sessions",
@@ -51,7 +60,8 @@ class FlywaySchemaMigrationTest {
                 "coverage_records",
                 "coverage_items",
                 "review_requests",
-                "scan_events"
+                "scan_events",
+                "finding_issue_links"
         );
 
         Set<String> actualTables = new HashSet<>();
