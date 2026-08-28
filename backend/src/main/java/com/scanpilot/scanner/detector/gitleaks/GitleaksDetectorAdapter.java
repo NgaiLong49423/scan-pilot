@@ -187,6 +187,8 @@ public class GitleaksDetectorAdapter {
                 command.add(targetPath.toAbsolutePath().toString());
                 if (request.commitRange() != null && !request.commitRange().isBlank()) {
                     command.add("--log-opts=" + request.commitRange());
+                } else if (request.logOpts() != null && !request.logOpts().isBlank()) {
+                    command.add("--log-opts=" + request.logOpts());
                 }
             } else {
                 command.add("dir");

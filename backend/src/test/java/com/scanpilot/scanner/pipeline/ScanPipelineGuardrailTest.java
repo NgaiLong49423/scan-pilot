@@ -58,6 +58,9 @@ class ScanPipelineGuardrailTest {
     private StreamedSnapshotFetcher streamedSnapshotFetcher;
 
     @MockitoSpyBean
+    private com.scanpilot.scanner.git.GitCloneService gitCloneService;
+
+    @MockitoSpyBean
     private GitleaksDetectorAdapter gitleaksDetectorAdapter;
 
     @MockitoSpyBean
@@ -132,9 +135,9 @@ class ScanPipelineGuardrailTest {
     @Test
     @DisplayName("AC-07: Guardrail abort persists early INCOMPLETE coverage record and blocks checkpoint advancement")
     void testGuardrailAbortPersistsIncompleteRecordAndBlocksCheckpoint() {
-        // Mock snapshot fetcher to throw ResourceGuardrailExceededException
+        // Mock git clone service to throw ResourceGuardrailExceededException
         doThrow(new ResourceGuardrailExceededException("REPOSITORY_TOO_LARGE", 25 * 1024 * 1024L, 100, 20 * 1024 * 1024L))
-                .when(streamedSnapshotFetcher).downloadAndExtract(any(), any(), any(), any(), any());
+                .when(gitCloneService).cloneRepository(any(), any(), any(), any(), any());
 
         ScanJobEntity resultJob = scanPipelineService.executeScan(testRepo.getId(), "main", null);
 
@@ -352,7 +355,7 @@ class ScanPipelineGuardrailTest {
         }).when(gitWorkspaceManager).createWorkspace(any());
 
         doThrow(new ResourceGuardrailExceededException("SCAN_TIMEOUT", 1024, 5, 180))
-                .when(streamedSnapshotFetcher).downloadAndExtract(any(), any(), any(), any(), any());
+                .when(gitCloneService).cloneRepository(any(), any(), any(), any(), any());
 
         // 1. Test synchronous executeScan
         ScanJobEntity syncJob = scanPipelineService.executeScan(testRepo.getId(), "main", null);

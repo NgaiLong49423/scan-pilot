@@ -18,7 +18,11 @@ public sealed interface ScanEventPayload permits
 
     record StageStartedPayload(String stage) implements ScanEventPayload {}
 
-    record SnapshotFetchedPayload(long archiveBytes, long workspaceBytes, int entryCount) implements ScanEventPayload {}
+    record SnapshotFetchedPayload(String mode, Long archiveBytes, long workspaceBytes, int entryCount) implements ScanEventPayload {
+        public SnapshotFetchedPayload(long archiveBytes, long workspaceBytes, int entryCount) {
+            this("ZIP_DOWNLOAD", archiveBytes, workspaceBytes, entryCount);
+        }
+    }
 
     record FilesClassifiedPayload(int eligibleFiles, int skippedFiles, int totalFiles) implements ScanEventPayload {}
 

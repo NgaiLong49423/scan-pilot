@@ -115,4 +115,34 @@ describe('LiveScanTerminal: formatScanEventLog safe formatting', () => {
     expect(formatted.level).toBe('ALERT');
     expect(formatted.message).toBe('+70 additional finding alerts omitted from stream');
   });
+
+  it('renders SNAPSHOT_FETCHED for GIT_CLONE correctly with no negative archive numbers and no claim of archive download', () => {
+    const formatted = formatScanEventLog({
+      sequenceNumber: 2,
+      stage: 'FETCHING_SNAPSHOT',
+      eventType: 'SNAPSHOT_ACQUIRED',
+      messageCode: 'SNAPSHOT_FETCHED',
+      payloadJson: JSON.stringify({ mode: 'GIT_CLONE', workspaceBytes: 5242880, entryCount: 42 }),
+      createdAt: new Date().toISOString(),
+    });
+
+    expect(formatted.level).toBe('WORKSPACE');
+    expect(formatted.message).toBe('Shallow Git clone completed: 5.00 MB workspace populated (42 entries).');
+    expect(formatted.message).not.toContain('archive');
+    expect(formatted.message).not.toContain('-');
+  });
+
+  it('renders SNAPSHOT_FETCHED for ZIP_DOWNLOAD correctly preserving download wording and metrics', () => {
+    const formatted = formatScanEventLog({
+      sequenceNumber: 2,
+      stage: 'FETCHING_SNAPSHOT',
+      eventType: 'SNAPSHOT_ACQUIRED',
+      messageCode: 'SNAPSHOT_FETCHED',
+      payloadJson: JSON.stringify({ mode: 'ZIP_DOWNLOAD', archiveBytes: 1048576, workspaceBytes: 3145728, entryCount: 20 }),
+      createdAt: new Date().toISOString(),
+    });
+
+    expect(formatted.level).toBe('WORKSPACE');
+    expect(formatted.message).toBe('Snapshot downloaded: 1.00 MB archive extracted to 3.00 MB workspace (20 entries).');
+  });
 });

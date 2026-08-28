@@ -53,9 +53,13 @@ export function formatScanEventLog(event: {
       return { level: 'INFO', message: `Stage transition: ${event.stage}` };
 
     case 'SNAPSHOT_FETCHED': {
-      const archMb = (Number(payload.archiveBytes || 0) / (1024 * 1024)).toFixed(2);
+      const mode = payload.mode;
       const wsMb = (Number(payload.workspaceBytes || 0) / (1024 * 1024)).toFixed(2);
       const entries = payload.entryCount || 0;
+      if (mode === 'GIT_CLONE' || payload.archiveBytes === undefined || payload.archiveBytes === null) {
+        return { level: 'WORKSPACE', message: `Shallow Git clone completed: ${wsMb} MB workspace populated (${entries} entries).` };
+      }
+      const archMb = (Number(payload.archiveBytes || 0) / (1024 * 1024)).toFixed(2);
       return { level: 'WORKSPACE', message: `Snapshot downloaded: ${archMb} MB archive extracted to ${wsMb} MB workspace (${entries} entries).` };
     }
 

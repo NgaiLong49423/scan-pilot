@@ -28,6 +28,7 @@ import com.scanpilot.scanner.detector.gitleaks.GitleaksRawFinding;
 import com.scanpilot.scanner.detector.gitleaks.GitleaksScanRequest;
 import com.scanpilot.scanner.detector.gitleaks.GitleaksScanResult;
 import com.scanpilot.scanner.exception.ResourceGuardrailExceededException;
+import com.scanpilot.scanner.git.GitCloneService;
 import com.scanpilot.scanner.lifecycle.FindingLifecycle;
 import com.scanpilot.scanner.lifecycle.FindingLifecycleEngine;
 import com.scanpilot.scanner.lifecycle.FindingLifecycleResult;
@@ -67,7 +68,7 @@ import java.util.stream.Stream;
 /**
  * Orchestrator service for executing Snapshot and Git History Scan Pipelines
  * with Finding Lifecycle tracking and coverage recording (FR-007, FR-018, FR-019,
- * FR-025, FR-028, FR-029, FR-051, DEC-012).
+ * FR-025, FR-028, FR-029, FR-051, DEC-012, DEC-015).
  */
 @Slf4j
 @Service
@@ -81,6 +82,7 @@ public class ScanPipelineService {
     private final FindingLifecycleEngine findingLifecycleEngine;
     private final StreamedSnapshotFetcher streamedSnapshotFetcher;
     private final SnapshotGuardrailProperties snapshotGuardrailProperties;
+    private final GitCloneService gitCloneService;
 
     private final ScanJobRepository scanJobRepository;
     private final ScanEventRepository scanEventRepository;
@@ -137,17 +139,18 @@ public class ScanPipelineService {
 
         GitWorkspace workspace = null;
         try {
-            // Stage 1: Fetching Snapshot
+            // Stage 1: Fetching Snapshot (or Shallow Git Clone)
             checkJobDeadline(jobDeadline, maxTimeoutSeconds);
             emitEvent(scanJob.getId(), "FETCHING_SNAPSHOT", "STAGE_TRANSITION", "STAGE_STARTED", new ScanEventPayload.StageStartedPayload("FETCHING_SNAPSHOT"), 95L);
             workspace = gitWorkspaceManager.createWorkspace(repositoryId);
             Path workspacePath = workspace.workspacePath();
             SnapshotTransferMetrics snapshotMetrics = fetchRemoteRepositorySnapshot(repositoryId, branch, workspacePath, jobDeadline);
-            emitEvent(scanJob.getId(), "FETCHING_SNAPSHOT", "SNAPSHOT_ACQUIRED", "SNAPSHOT_FETCHED", new ScanEventPayload.SnapshotFetchedPayload(
-                    snapshotMetrics != null ? snapshotMetrics.archiveBytes() : 0L,
-                    snapshotMetrics != null ? snapshotMetrics.workspaceBytes() : 0L,
-                    snapshotMetrics != null ? snapshotMetrics.entryCount() : 0
-            ), 95L);
+            String mode = snapshotMetrics != null && snapshotMetrics.mode() != null ? snapshotMetrics.mode() : "GIT_CLONE";
+            Long archiveBytes = snapshotMetrics != null ? snapshotMetrics.archiveBytes() : null;
+            long wsBytes = snapshotMetrics != null ? snapshotMetrics.workspaceBytes() : 0L;
+            int count = snapshotMetrics != null ? snapshotMetrics.entryCount() : 0;
+            emitEvent(scanJob.getId(), "FETCHING_SNAPSHOT", "SNAPSHOT_ACQUIRED", "SNAPSHOT_FETCHED",
+                    new ScanEventPayload.SnapshotFetchedPayload(mode, archiveBytes, wsBytes, count), 95L);
 
             // Stage 2: Classifying Files & Coverage
             checkJobDeadline(jobDeadline, maxTimeoutSeconds);
@@ -164,7 +167,7 @@ public class ScanPipelineService {
                     coverageSummary.totalFiles()
             ), 95L);
 
-            // Stage 3: Scanning Secrets
+            // Stage 3: Scanning Secrets (Stage 1 Snapshot + Stage 2 Git History)
             checkJobDeadline(jobDeadline, maxTimeoutSeconds);
             scanJob.setStage("SCANNING_SECRETS");
             Instant stage3Time = Instant.now();
@@ -369,7 +372,7 @@ public class ScanPipelineService {
             workspace = gitWorkspaceManager.createWorkspace(repositoryId);
             Path workspacePath = workspace.workspacePath();
 
-            // Copy source files if provided, or download snapshot from remote GitHub repository
+            // Copy source files if provided, or download snapshot / clone from remote GitHub repository
             if (sourcePath != null && Files.exists(sourcePath)) {
                 gitWorkspaceManager.copyDirectory(sourcePath, workspacePath);
                 long workspaceSize = 0L;
@@ -383,18 +386,16 @@ public class ScanPipelineService {
                         } catch (IOException ignored) {}
                     }
                 }
-                emitEvent(scanJob.getId(), "FETCHING_SNAPSHOT", "SNAPSHOT_ACQUIRED", "SNAPSHOT_FETCHED", new ScanEventPayload.SnapshotFetchedPayload(
-                        workspaceSize,
-                        workspaceSize,
-                        fileCount
-                ), 95L);
+                emitEvent(scanJob.getId(), "FETCHING_SNAPSHOT", "SNAPSHOT_ACQUIRED", "SNAPSHOT_FETCHED",
+                        new ScanEventPayload.SnapshotFetchedPayload("LOCAL_WORKSPACE", null, workspaceSize, fileCount), 95L);
             } else {
                 SnapshotTransferMetrics snapshotMetrics = fetchRemoteRepositorySnapshot(repositoryId, branch, workspacePath, jobDeadline);
-                emitEvent(scanJob.getId(), "FETCHING_SNAPSHOT", "SNAPSHOT_ACQUIRED", "SNAPSHOT_FETCHED", new ScanEventPayload.SnapshotFetchedPayload(
-                        snapshotMetrics != null ? snapshotMetrics.archiveBytes() : 0L,
-                        snapshotMetrics != null ? snapshotMetrics.workspaceBytes() : 0L,
-                        snapshotMetrics != null ? snapshotMetrics.entryCount() : 0
-                ), 95L);
+                String mode = snapshotMetrics != null && snapshotMetrics.mode() != null ? snapshotMetrics.mode() : "GIT_CLONE";
+                Long archiveBytes = snapshotMetrics != null ? snapshotMetrics.archiveBytes() : null;
+                long wsBytes = snapshotMetrics != null ? snapshotMetrics.workspaceBytes() : 0L;
+                int count = snapshotMetrics != null ? snapshotMetrics.entryCount() : 0;
+                emitEvent(scanJob.getId(), "FETCHING_SNAPSHOT", "SNAPSHOT_ACQUIRED", "SNAPSHOT_FETCHED",
+                        new ScanEventPayload.SnapshotFetchedPayload(mode, archiveBytes, wsBytes, count), 95L);
             }
 
             // 3. Resolve commit SHA if git repository exists
@@ -897,7 +898,8 @@ public class ScanPipelineService {
     private boolean isGitInternal(Path file, Path root) {
         Path relative = root.relativize(file);
         for (Path part : relative) {
-            if (part.toString().equals(".git")) {
+            String name = part.toString();
+            if (name.equals(".git") || name.equals(".empty-hooks")) {
                 return true;
             }
         }
@@ -925,7 +927,7 @@ public class ScanPipelineService {
             throw new IllegalStateException("Repository full name could not be determined for repository: " + repositoryId);
         }
 
-        log.info("Fetching remote snapshot for repository {} on branch {}", fullName, branch);
+        log.info("Fetching remote repository {} on branch {}", fullName, branch);
         String token = null;
         if (repo.getUserId() != null && userSessionRepository != null) {
             List<com.scanpilot.persistence.entity.UserSessionEntity> sessions = userSessionRepository.findByUserId(repo.getUserId());
@@ -934,13 +936,56 @@ public class ScanPipelineService {
             }
         }
 
-        java.net.http.HttpClient httpClient = createHttpClient();
-        String url = "https://api.github.com/repos/" + fullName + "/zipball/" + branch;
+        if (gitCloneService != null) {
+            gitCloneService.cloneRepository(fullName, branch, token, workspacePath, jobDeadline);
+            long wsSize = computeDirectorySize(workspacePath);
+            int entryCount = countEntries(workspacePath);
+            log.info("Successfully cloned repository {} on branch {} via GitCloneService (workspaceBytes={}, entries={})",
+                    fullName, branch, wsSize, entryCount);
+            // Represent Git clone transfer evidence truthfully: mode=GIT_CLONE, archiveBytes=null
+            return SnapshotTransferMetrics.forGitClone(wsSize, entryCount);
+        }
 
-        // Bounded streaming snapshot acquisition and extraction (FR-028, FR-031, NFR-001)
-        SnapshotTransferMetrics metrics = streamedSnapshotFetcher.downloadAndExtract(httpClient, url, token, workspacePath, jobDeadline);
-        log.info("Successfully fetched and extracted repository snapshot for {}", fullName);
-        return metrics;
+        if (streamedSnapshotFetcher != null) {
+            java.net.http.HttpClient httpClient = createHttpClient();
+            String url = "https://api.github.com/repos/" + fullName + "/zipball/" + branch;
+
+            // Bounded streaming snapshot acquisition and extraction (FR-028, FR-031, NFR-001)
+            SnapshotTransferMetrics metrics = streamedSnapshotFetcher.downloadAndExtract(httpClient, url, token, workspacePath, jobDeadline);
+            log.info("Successfully fetched and extracted repository snapshot for {}", fullName);
+            return metrics;
+        }
+
+        throw new IllegalStateException("No repository fetcher service configured for repository: " + fullName);
+    }
+
+    private long computeDirectorySize(Path dir) {
+        if (dir == null || !Files.exists(dir)) {
+            return 0L;
+        }
+        try (Stream<Path> stream = Files.walk(dir)) {
+            return stream.filter(Files::isRegularFile)
+                    .mapToLong(p -> {
+                        try {
+                            return Files.size(p);
+                        } catch (IOException e) {
+                            return 0L;
+                        }
+                    }).sum();
+        } catch (IOException e) {
+            return 0L;
+        }
+    }
+
+    private int countEntries(Path dir) {
+        if (dir == null || !Files.exists(dir)) {
+            return 0;
+        }
+        try (Stream<Path> stream = Files.walk(dir)) {
+            return (int) stream.count();
+        } catch (IOException e) {
+            return 0;
+        }
     }
 
     public void emitEvent(UUID jobId, String stage, String eventType, String messageCode, ScanEventPayload payload, long maxLimit) {

@@ -63,3 +63,9 @@ jobs:
 
       - name: Build and verify backend
         run: mvn -B clean verify
+
+      - name: Smoke check backend container runtime binaries
+        run: |
+          docker build -t scanpilot-backend:smoke .
+          docker run --rm --entrypoint git scanpilot-backend:smoke --version
+          docker run --rm --entrypoint gitleaks scanpilot-backend:smoke version

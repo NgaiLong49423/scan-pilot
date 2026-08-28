@@ -14,6 +14,13 @@ RUN mvn clean package -DskipTests -B
 # Stage 2: Minimal runtime stage
 FROM eclipse-temurin:21-jre-alpine AS runner
 
+RUN apk add --no-cache git curl && \
+    curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.24.0/gitleaks_8.24.0_linux_x64.tar.gz -o gitleaks.tar.gz && \
+    echo "cb49b7de5ee986510fe8666ca0273a6cc15eb82571f2f14832c9e8920751f3a4  gitleaks.tar.gz" | sha256sum -c - && \
+    tar -xzf gitleaks.tar.gz -C /usr/local/bin/ gitleaks && \
+    rm gitleaks.tar.gz && \
+    chmod 755 /usr/local/bin/gitleaks
+
 # Security: create non-root user scanpilot (UID 10001)
 RUN addgroup -g 10001 scanpilot && \
     adduser -u 10001 -G scanpilot -s /bin/sh -D scanpilot

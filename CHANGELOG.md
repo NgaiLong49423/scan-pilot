@@ -1,15 +1,33 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.36.0
+> **Version:** v2.37.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-25
+> **Last Updated:** 2026-08-28
 > **Status:** Active
 
 # Scan Pilot Changelog
 
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
-Each entry states whether it is already committed or still in the working tree. A working-tree entry is replaced with its commit hash when the coherent checkpoint is committed; it is not copied into a second entry. File paths in older entries may be normalized to a later canonical directory after an explicit structural migration; Git history remains the exact source for the path used by each historical commit.
+## 2026-08-28 — Authenticated Shallow Git Clone & History Traversal (Issue #49)
+
+**Status:** Working tree (pre-commit)
+
+**Scope:** Implemented authenticated shallow Git clone (`git clone --depth 50 --single-branch`) and Git history traversal across the reachable shallow clone (up to 50 commits) for secret detection in Git commit diffs (FR-025, DEC-012, DEC-015). Token transport is strictly isolated to environment variables (`GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_0`, `GIT_CONFIG_VALUE_0`, `GIT_TERMINAL_PROMPT=0`) with zero tokens or credentials in command line arguments (argv), `.git/config`, or log outputs. Enforced untrusted repository execution hardening using `-c core.hooksPath` pointing to an isolated controlled `.empty-hooks` directory, `-c core.fsmonitor=false`, `--no-recurse-submodules`, and `--no-tags`. Implemented active background watchdog monitoring workspace size against a 120 MiB operational stop threshold (80% watermark) and cumulative job deadlines with fail-closed tree process termination. Hardened backend Dockerfile runner stage with pinned Git and Gitleaks v8.24.0 verified with official SHA-256 integrity checksums. Added CI container smoke checks verifying runtime binaries.
+
+### Added
+
+- Added `GitCloneProperties` configuration with default depth 50, max depth 100, 60s timeout, 120 MiB watchdog threshold, and 250ms polling interval.
+- Added `GitCloneService` implementing shallow Git clone with environment-only credential transport, `.empty-hooks` hook suppression, active directory size watchdog, and process-tree termination.
+- Added `GitCloneServiceTest` verifying command construction (zero token in argv), environment credential isolation, empty hooks isolation, and active watchdog size/timeout aborts.
+- Added `ScanPipelineGitHistoryTest` verifying end-to-end Git history secret detection, commit SHA recording, and lifecycle resolution (`RESOLVED` / `RISK_CONTAINED`).
+
+### Changed
+
+- Updated `ScanPipelineService` to utilize `GitCloneService` for repository acquisition, enabling Stage 2 Git history traversal on reachable commits.
+- Updated `GitleaksDetectorAdapter` to support both `commitRange` and `logOpts` for Git history scans.
+- Updated `backend/Dockerfile` runner stage to install pinned Git and Gitleaks v8.24.0 with official SHA-256 checksum verification.
+- Updated `.github/workflows/ci.yml` backend job with container runtime binary smoke check.
 
 ## 2026-08-27 — Truthful Security Action Summary (Issue #71)
 
