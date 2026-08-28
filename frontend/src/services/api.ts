@@ -1,4 +1,4 @@
-import { Repository, Finding, UserProfile, ApiResult } from '../types';
+import { Repository, Finding, UserProfile, ApiResult, FindingIssuePreviewDto, FindingIssueLinkDto } from '../types';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -433,5 +433,96 @@ export async function fetchScanEvents(
     return { success: false, isTerminal: false, status: response.status, message };
   } catch (e: any) {
     return { success: false, isTerminal: false, message: e?.message || 'Network error while fetching scan events' };
+  }
+}
+
+/**
+ * Fetches secret-safe GitHub issue preview with signed previewToken for a finding.
+ */
+export async function fetchFindingIssuePreview(findingId: string): Promise<ApiResult<FindingIssuePreviewDto>> {
+  if (!isValidUuid(findingId)) {
+    return { status: 'ERROR', error: 'Invalid finding UUID' };
+  }
+  try {
+    const baseUrl = getApiBaseUrl();
+    const response = await fetch(`${baseUrl}/api/v1/findings/${findingId}/issue-preview`, {
+      credentials: 'include',
+    });
+
+    if (response.status === 404) {
+      return { status: 'NOT_FOUND' };
+    }
+
+    if (response.ok) {
+      const data: FindingIssuePreviewDto = await response.json();
+      return { status: 'SUCCESS', data };
+    }
+
+    if (response.status === 401) {
+      return { status: 'ERROR', error: 'AUTH_REQUIRED', statusCode: 401 };
+    }
+    if (response.status === 403) {
+      return { status: 'ERROR', error: 'GITHUB_APP_REQUIRED', statusCode: 403 };
+    }
+    return { status: 'ERROR', error: 'PREVIEW_UNAVAILABLE', statusCode: response.status };
+  } catch {
+    return { status: 'ERROR', error: 'NETWORK_ERROR' };
+  }
+}
+
+/**
+ * Confirms and creates a GitHub issue from a finding preview token.
+ */
+export async function createFindingIssue(
+  findingId: string,
+  payload: { previewToken: string }
+): Promise<ApiResult<FindingIssueLinkDto>> {
+  if (!isValidUuid(findingId)) {
+    return { status: 'ERROR', error: 'Invalid finding UUID' };
+  }
+  try {
+    const baseUrl = getApiBaseUrl();
+    const response = await fetch(`${baseUrl}/api/v1/findings/${findingId}/issue`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+
+    if (response.status === 404) {
+      return { status: 'NOT_FOUND' };
+    }
+
+    if (response.ok || response.status === 201) {
+      const data: FindingIssueLinkDto = await response.json();
+      return { status: 'SUCCESS', data };
+    }
+
+    if (response.status === 409) {
+      const err = await response.json().catch(() => ({}));
+      const rawCode = typeof err?.message === 'string'
+        ? err.message.trim()
+        : typeof err?.error === 'string'
+          ? err.error.trim()
+          : '';
+      if (rawCode === 'CREATION_IN_PROGRESS') {
+        return { status: 'ERROR', error: 'CREATION_IN_PROGRESS', statusCode: 409 };
+      }
+      if (rawCode === 'PREVIEW_TOKEN_EXPIRED_OR_INVALID') {
+        return { status: 'ERROR', error: 'PREVIEW_TOKEN_EXPIRED_OR_INVALID', statusCode: 409 };
+      }
+      return { status: 'ERROR', error: 'ISSUE_CREATION_FAILED', statusCode: 409 };
+    }
+    if (response.status === 401) {
+      return { status: 'ERROR', error: 'AUTH_REQUIRED', statusCode: 401 };
+    }
+    if (response.status === 403) {
+      return { status: 'ERROR', error: 'GITHUB_APP_REQUIRED', statusCode: 403 };
+    }
+    return { status: 'ERROR', error: 'ISSUE_CREATION_FAILED', statusCode: response.status };
+  } catch {
+    return { status: 'ERROR', error: 'NETWORK_ERROR' };
   }
 }

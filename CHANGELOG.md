@@ -9,6 +9,35 @@
 
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
+## 2026-08-28 — Secret-Safe GitHub Issue Creation from Finding (Issue #55)
+
+**Status:** Committed (`8ecb081`)
+
+**Scope:** Implemented secret-safe GitHub Issue creation from detected security findings under FR-006 with durable 4-state machine, constant-time HMAC-SHA256 preview token verification, repository-relative path sanitization, bounded external request lease, full multi-page marker reconciliation excluding pull requests, exact allow-listed error code parsing, and persisted issue link hydration in repository findings.
+
+### Added
+
+- Added Flyway migration `V5__add_finding_issue_links.sql` creating `finding_issue_links` table with durable states (`PENDING`, `CREATED`, `UNKNOWN`, `FAILED`) and `uq_issue_links_finding` unique constraint.
+- Added `FindingIssueLinkEntity` and `FindingIssueLinkRepository` supporting conditional atomic state transitions (`updateStateConditional`) and batch link retrieval (`findByFindingIdIn`).
+- Added DTOs: `FindingIssuePreviewDto`, `CreateFindingIssueRequest`, and `FindingIssueLinkDto`.
+- Added `FindingIssueTemplateService` rendering canonical markdown with hidden finding marker (`<!-- scan-pilot-finding-id: <uuid> -->`), masked secret evidence, and sanitized repository-relative paths (zero raw secrets or absolute system paths).
+- Added `FindingIssueTokenService` generating and verifying domain-separated HMAC-SHA256 signed `previewToken` (15-minute TTL, constant-time signature verification, exact-boundary expiration, finding revision check, draft hash validation).
+- Added `GitHubIssueClient` REST client seam for GitHub Issues API (`POST /repos/{owner}/{repo}/issues` and marker search) with finite connect/read timeouts (30s max request duration), full multi-page pagination, and pull request exclusion.
+- Added `FindingIssueService` orchestrating pre-write reservation, remote GitHub API execution outside DB transactions, 60s bounded stale-PENDING recovery, and reconciliation on retry from `UNKNOWN`.
+- Added `FindingIssueController` exposing `GET /api/v1/findings/{findingId}/issue-preview`, `POST /api/v1/findings/{findingId}/issue`, and `GET /api/v1/findings/{findingId}/issue`.
+- Added automated backend tests: `FlywayV5MigrationTest`, `FindingIssueLinkPersistenceTest`, `FindingIssueTemplateServiceTest`, `FindingIssueTokenServiceTest`, `FindingIssueServiceStateMachineTest`, `GitHubIssueClientTest`, and `FindingIssueControllerTest`.
+- Added frontend helper `findingIssueHelper.ts` with pure state transition reducer, exact allow-listed error code mapping, and confirmation payload builder.
+- Added frontend `CreateIssueModal.tsx` displaying read-only canonical markdown draft, security notice, loading spinner, focus-visible styles, and confirm button.
+- Added frontend unit & render tests: `findingIssueHelper.test.ts`, `api.test.ts` 409 isolation tests, and `CreateIssueModal.test.tsx`.
+
+### Changed
+
+- Updated `ScanController` to hydrate persisted GitHub issue link fields (`githubIssueNumber`, `githubIssueUrl`, `issueLinkState`) in `GET /api/v1/scans/repositories/{repositoryId}/findings` using a single batch link query.
+- Updated `FindingDto` to include `githubIssueNumber`, `githubIssueUrl`, and `issueLinkState`.
+- Updated `frontend/src/types/index.ts` to include `FindingIssuePreviewDto`, `FindingIssueLinkDto`, and optional issue metadata on `Finding`.
+- Updated `frontend/src/services/api.ts` to add `fetchFindingIssuePreview` and `createFindingIssue` with exact allow-list 409 classification.
+- Updated `frontend/src/components/FindingCard.tsx` to wire "Create GitHub Issue" button opening modal, focus-visible styles, and external issue link badge when created.
+
 ## 2026-08-28 — Authenticated Shallow Git Clone & History Traversal (Issue #49)
 
 **Status:** Committed (`f0a1b2c`)

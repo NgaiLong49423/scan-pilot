@@ -85,6 +85,30 @@ export interface Finding {
   detectedCommit: string;
   detectedAt: string;
   remediationDiff: CodeDiffSnippet;
+  githubIssueNumber?: number | null;
+  githubIssueUrl?: string | null;
+  issueLinkState?: 'PENDING' | 'CREATED' | 'UNKNOWN' | 'FAILED' | null;
+}
+
+export interface FindingIssuePreviewDto {
+  findingId: string;
+  title: string;
+  body: string;
+  previewToken: string;
+  linkState?: string | null;
+  alreadyLinked: boolean;
+  existingIssueNumber?: number | null;
+  existingIssueUrl?: string | null;
+}
+
+export interface FindingIssueLinkDto {
+  id: string;
+  findingId: string;
+  repositoryId: string;
+  state: 'PENDING' | 'CREATED' | 'UNKNOWN' | 'FAILED';
+  githubIssueNumber?: number | null;
+  githubIssueUrl?: string | null;
+  createdAt: string;
 }
 
 export type { ScanEvent, ScanEventsResponse } from './api';

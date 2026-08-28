@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fetchFindingsForRepo, fetchCoverageForRepo } from './api';
+import { fetchFindingsForRepo, fetchCoverageForRepo, createFindingIssue } from './api';
 
 describe('API Service - ApiResult Error Mapping', () => {
   const validUuid = '11111111-2222-3333-4444-555555555555';
@@ -216,6 +216,85 @@ describe('API Service - ApiResult Error Mapping', () => {
       expect(result.status).toBe('ERROR');
       if (result.status === 'ERROR') {
         expect(result.error).toContain('Malformed JSON');
+      }
+    });
+  });
+
+  describe('createFindingIssue 409 allow-list and secret-safe isolation', () => {
+    it('maps exact HTTP 409 CREATION_IN_PROGRESS to CREATION_IN_PROGRESS', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: async () => ({ message: 'CREATION_IN_PROGRESS' }),
+      } as Response);
+
+      const result = await createFindingIssue(validUuid, { previewToken: 'tok-123' });
+      expect(result.status).toBe('ERROR');
+      if (result.status === 'ERROR') {
+        expect(result.error).toBe('CREATION_IN_PROGRESS');
+        expect(result.statusCode).toBe(409);
+      }
+    });
+
+    it('maps exact HTTP 409 PREVIEW_TOKEN_EXPIRED_OR_INVALID to PREVIEW_TOKEN_EXPIRED_OR_INVALID', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: async () => ({ message: 'PREVIEW_TOKEN_EXPIRED_OR_INVALID' }),
+      } as Response);
+
+      const result = await createFindingIssue(validUuid, { previewToken: 'tok-123' });
+      expect(result.status).toBe('ERROR');
+      if (result.status === 'ERROR') {
+        expect(result.error).toBe('PREVIEW_TOKEN_EXPIRED_OR_INVALID');
+        expect(result.statusCode).toBe(409);
+      }
+    });
+
+    it('rejects injected substring "CREATION_IN_PROGRESS injected-text" and maps to ISSUE_CREATION_FAILED', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: async () => ({ message: 'CREATION_IN_PROGRESS injected-text' }),
+      } as Response);
+
+      const result = await createFindingIssue(validUuid, { previewToken: 'tok-123' });
+      expect(result.status).toBe('ERROR');
+      if (result.status === 'ERROR') {
+        expect(result.error).toBe('ISSUE_CREATION_FAILED');
+        expect(result.statusCode).toBe(409);
+      }
+    });
+
+    it('rejects injected substring "PREVIEW_TOKEN_EXPIRED_OR_INVALID injected-text" and maps to ISSUE_CREATION_FAILED', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: async () => ({ message: 'PREVIEW_TOKEN_EXPIRED_OR_INVALID injected-text' }),
+      } as Response);
+
+      const result = await createFindingIssue(validUuid, { previewToken: 'tok-123' });
+      expect(result.status).toBe('ERROR');
+      if (result.status === 'ERROR') {
+        expect(result.error).toBe('ISSUE_CREATION_FAILED');
+        expect(result.statusCode).toBe(409);
+      }
+    });
+
+    it('maps HTTP 409 with malicious/unknown content to generic ISSUE_CREATION_FAILED without leaking text', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: async () => ({ message: 'Fatal exception at /var/app/secrets.env with token gho_secret999' }),
+      } as Response);
+
+      const result = await createFindingIssue(validUuid, { previewToken: 'tok-123' });
+      expect(result.status).toBe('ERROR');
+      if (result.status === 'ERROR') {
+        expect(result.error).toBe('ISSUE_CREATION_FAILED');
+        expect(result.error).not.toContain('/var/app');
+        expect(result.error).not.toContain('gho_secret999');
+        expect(result.statusCode).toBe(409);
       }
     });
   });

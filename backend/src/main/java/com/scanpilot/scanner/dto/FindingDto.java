@@ -8,7 +8,7 @@ import java.util.UUID;
 
 /**
  * DTO representing a security finding with severity, lifecycle state, remediation quality,
- * and associated locations.
+ * associated locations, and linked GitHub issue metadata.
  */
 public record FindingDto(
     UUID id,
@@ -23,9 +23,22 @@ public record FindingDto(
     Instant firstSeenAt,
     Instant lastSeenAt,
     Instant resolvedAt,
-    List<FindingLocationDto> locations
+    List<FindingLocationDto> locations,
+    Integer githubIssueNumber,
+    String githubIssueUrl,
+    String issueLinkState
 ) {
     public static FindingDto from(FindingEntity entity, List<FindingLocationDto> locations) {
+        return from(entity, locations, null, null, null);
+    }
+
+    public static FindingDto from(
+        FindingEntity entity,
+        List<FindingLocationDto> locations,
+        Integer githubIssueNumber,
+        String githubIssueUrl,
+        String issueLinkState
+    ) {
         if (entity == null) {
             return null;
         }
@@ -42,7 +55,10 @@ public record FindingDto(
             entity.getFirstSeenAt(),
             entity.getLastSeenAt(),
             entity.getResolvedAt(),
-            locations != null ? locations : List.of()
+            locations != null ? locations : List.of(),
+            githubIssueNumber,
+            githubIssueUrl,
+            issueLinkState
         );
     }
 }
