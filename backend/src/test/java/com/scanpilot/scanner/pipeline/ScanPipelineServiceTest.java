@@ -60,6 +60,9 @@ class ScanPipelineServiceTest {
     private GitleaksDetectorAdapter gitleaksDetectorAdapter;
 
     @MockitoSpyBean
+    private com.scanpilot.scanner.git.GitCloneService gitCloneService;
+
+    @MockitoSpyBean
     private StreamedSnapshotFetcher streamedSnapshotFetcher;
 
     @Autowired
@@ -261,23 +264,24 @@ class ScanPipelineServiceTest {
     class FailClosedRemoteSnapshotTests {
 
         @Test
-        @DisplayName("Configured secondary branch with unavailable remote snapshot fails job, creates zero findings/coverage/checkpoints, and does NOT fallback to default branch")
+        @DisplayName("Configured secondary branch with unavailable remote clone fails job, creates zero findings/coverage/checkpoints, and does NOT fallback to default branch")
         void testConfiguredSecondaryBranchSnapshotFailureFailsJobWithoutFallback() {
-            org.mockito.Mockito.doThrow(new IllegalStateException("Remote repository snapshot for branch 'develop' could not be acquired or verified"))
-                .when(streamedSnapshotFetcher).downloadAndExtract(any(), argThat(url -> url != null && url.contains("/zipball/develop")), any(), any(), any());
+            org.mockito.Mockito.doThrow(new IllegalStateException("Remote repository clone for branch 'develop' could not be acquired or verified"))
+                .when(gitCloneService).cloneRepository(any(), org.mockito.ArgumentMatchers.eq("develop"), any(), any(), any());
 
-            // Target branch 'develop' is requested with sourcePath=null (remote snapshot download will fail deterministically without network)
+            // Target branch 'develop' is requested with sourcePath=null (remote clone will fail deterministically without network)
             ScanJobEntity job = scanPipelineService.executeScan(testRepo.getId(), "develop", null);
 
             assertThat(job).isNotNull();
             assertEquals("FAILED", job.getStatus());
             assertThat(job.getStatus()).isEqualTo("FAILED");
-            assertThat(job.getErrorMessage()).contains("Remote repository snapshot for branch 'develop' could not be acquired or verified");
+            assertThat(job.getErrorMessage()).contains("Remote repository clone for branch 'develop' could not be acquired or verified");
             assertThat(job.getCompletedAt()).isNotNull();
 
-            // Verify transport seam called for /zipball/develop and never for fallback /zipball
-            verify(streamedSnapshotFetcher).downloadAndExtract(any(), argThat(url -> url != null && url.contains("/zipball/develop")), any(), any(), any());
-            verify(streamedSnapshotFetcher, never()).downloadAndExtract(any(), argThat(url -> url != null && url.endsWith("/zipball")), any(), any(), any());
+            // Verify transport seam called for branch 'develop' and never for fallback
+            verify(gitCloneService).cloneRepository(any(), org.mockito.ArgumentMatchers.eq("develop"), any(), any(), any());
+            verify(gitCloneService, never()).cloneRepository(any(), org.mockito.ArgumentMatchers.eq("main"), any(), any(), any());
+            verify(streamedSnapshotFetcher, never()).downloadAndExtract(any(), any(), any(), any(), any());
 
             // Zero CoverageRecord recorded
             assertTrue(coverageRecordRepository.findAll().stream().filter(c -> c.getScanJobId().equals(job.getId())).findAny().isEmpty());
@@ -301,7 +305,7 @@ class ScanPipelineServiceTest {
         }
 
         @Test
-        @DisplayName("executeScanJob(jobId) transitions through monotonic stages and fails closed on download failure")
+        @DisplayName("executeScanJob(jobId) transitions through monotonic stages and fails closed on clone failure")
         void testExecuteScanJobMonotonicStagesAndFailureSanitization() {
             ScanJobEntity queuedJob = scanJobRepository.save(ScanJobEntity.builder()
                     .repositoryId(testRepo.getId())
@@ -312,15 +316,15 @@ class ScanPipelineServiceTest {
                     .createdAt(Instant.now())
                     .build());
 
-            org.mockito.Mockito.doThrow(new IllegalStateException("Remote repository snapshot for branch 'main' could not be acquired or verified"))
-                    .when(streamedSnapshotFetcher).downloadAndExtract(any(), any(), any(), any(), any());
+            org.mockito.Mockito.doThrow(new IllegalStateException("Remote repository clone for branch 'main' could not be acquired or verified"))
+                    .when(gitCloneService).cloneRepository(any(), any(), any(), any(), any());
 
             ScanJobEntity result = scanPipelineService.executeScanJob(queuedJob.getId());
 
             assertThat(result).isNotNull();
             assertThat(result.getStatus()).isEqualTo("FAILED");
             assertThat(result.getStage()).isEqualTo("FAILED");
-            assertThat(result.getErrorMessage()).contains("Remote repository snapshot for branch 'main' could not be acquired or verified");
+            assertThat(result.getErrorMessage()).contains("Remote repository clone for branch 'main' could not be acquired or verified");
             assertThat(result.getDurationMs()).isNotNull();
 
             ScanJobEntity persisted = scanJobRepository.findById(queuedJob.getId()).orElseThrow();
