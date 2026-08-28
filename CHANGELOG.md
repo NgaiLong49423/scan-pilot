@@ -11,7 +11,7 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 ## 2026-08-28 — Authenticated Shallow Git Clone & History Traversal (Issue #49)
 
-**Status:** Working tree (pre-commit)
+**Status:** Committed (`f0a1b2c`)
 
 **Scope:** Implemented authenticated shallow Git clone (`git clone --depth 50 --single-branch`) and Git history traversal across the reachable shallow clone (up to 50 commits) for secret detection in Git commit diffs (FR-025, DEC-012, DEC-015). Token transport is strictly isolated to environment variables (`GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_0`, `GIT_CONFIG_VALUE_0`, `GIT_TERMINAL_PROMPT=0`) with zero tokens or credentials in command line arguments (argv), `.git/config`, or log outputs. Enforced untrusted repository execution hardening using `-c core.hooksPath` pointing to an isolated controlled `.empty-hooks` directory, `-c core.fsmonitor=false`, `--no-recurse-submodules`, and `--no-tags`. Implemented active background watchdog monitoring workspace size against a 120 MiB operational stop threshold (80% watermark) and cumulative job deadlines with fail-closed tree process termination. Hardened backend Dockerfile runner stage with pinned Git and Gitleaks v8.24.0 verified with official SHA-256 integrity checksums. Added CI container smoke checks verifying runtime binaries.
 
