@@ -780,4 +780,3 @@ class GitHubWebhookControllerTest {
         assertThat(entity.getCommitSha()).isEqualTo("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
     }
 }
-
