@@ -1,15 +1,16 @@
 package com.scanpilot.github.service;
 
-import com.scanpilot.auth.config.AuthConfigProperties;
 import com.scanpilot.auth.model.UserSession;
-import com.scanpilot.auth.service.SessionService;
 import com.scanpilot.github.config.GitHubAppConfigProperties;
 import com.scanpilot.github.dto.GitHubRepositoryDto;
-import com.scanpilot.project.dto.SelectRepositoryRequest;
-import com.scanpilot.project.service.ProjectService;
+import com.scanpilot.github.dto.UserAccessibleInstallationDto;
+import com.scanpilot.persistence.entity.UserEntity;
+import com.scanpilot.persistence.repository.RepositoryRepository;
+import com.scanpilot.persistence.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -17,18 +18,21 @@ import org.springframework.web.client.RestClient;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 class GitHubAppServiceTest {
 
     private GitHubAppConfigProperties properties;
-    private GitHubAppAuthService gitHubAppAuthService;
-    private SessionService sessionService;
-    private ProjectService projectService;
+    private InstallationStateService installationStateService;
+    private RepositoryRepository repositoryRepository;
+    private UserRepository userRepository;
     private GitHubAppService gitHubAppService;
     private MockRestServiceServer mockServer;
 
@@ -37,164 +41,216 @@ class GitHubAppServiceTest {
         properties = new GitHubAppConfigProperties();
         properties.setAppSlug("scan-pilot-app");
 
-        gitHubAppAuthService = mock(GitHubAppAuthService.class);
-        sessionService = new SessionService(new AuthConfigProperties());
-        com.scanpilot.persistence.repository.UserRepository mockUserRepo = mock(com.scanpilot.persistence.repository.UserRepository.class);
-        com.scanpilot.persistence.repository.RepositoryRepository mockRepoRepo = mock(com.scanpilot.persistence.repository.RepositoryRepository.class);
-        com.scanpilot.persistence.repository.MonitoredBranchRepository mockBranchRepo = mock(com.scanpilot.persistence.repository.MonitoredBranchRepository.class);
-
-        java.util.UUID testUserId = java.util.UUID.randomUUID();
-        when(mockUserRepo.findByGithubUserId(any())).thenReturn(Optional.of(
-                com.scanpilot.persistence.entity.UserEntity.builder().id(testUserId).githubUserId(123L).build()
-        ));
-        when(mockRepoRepo.findByUserIdAndGithubRepoId(any(), any())).thenReturn(Optional.empty());
-        when(mockRepoRepo.save(any())).thenAnswer(inv -> {
-            com.scanpilot.persistence.entity.RepositoryEntity r = inv.getArgument(0);
-            if (r != null) r.setId(java.util.UUID.randomUUID());
-            return r;
-        });
-
-        projectService = new ProjectService(
-                mockUserRepo,
-                mockRepoRepo,
-                mockBranchRepo
-        );
+        installationStateService = mock(InstallationStateService.class);
+        repositoryRepository = mock(RepositoryRepository.class);
+        userRepository = mock(UserRepository.class);
 
         RestClient.Builder builder = RestClient.builder();
         mockServer = MockRestServiceServer.bindTo(builder).build();
         gitHubAppService = new GitHubAppService(
                 properties,
-                gitHubAppAuthService,
-                sessionService,
-                projectService,
+                installationStateService,
+                repositoryRepository,
+                userRepository,
                 builder
         );
     }
 
     @Test
-    @DisplayName("getInstallUrl returns correctly formatted URL using configured slug")
+    @DisplayName("getInstallUrl returns correctly formatted URL with opaque state token")
     void testGetInstallUrl() {
-        assertThat(gitHubAppService.getInstallUrl()).isEqualTo("https://github.com/apps/scan-pilot-app/installations/new");
-
-        properties.setAppSlug("custom-scanner-bot");
-        assertThat(gitHubAppService.getInstallUrl()).isEqualTo("https://github.com/apps/custom-scanner-bot/installations/new");
-    }
-
-    @Test
-    @DisplayName("linkInstallation updates user mapping and active session")
-    void testLinkInstallation() {
-        UserSession session = sessionService.createSession(
-                123L, "octocat", "Octo Cat", "https://avatar", "octo@github.com", "gho_token"
-        );
-
-        gitHubAppService.linkInstallation(session, 99999L);
-
-        assertThat(gitHubAppService.getInstallationId(123L)).isEqualTo(99999L);
-
-        UserSession updatedSession = sessionService.getSession(session.getSessionId()).orElseThrow();
-        assertThat(updatedSession.getInstallationId()).isEqualTo(99999L);
-    }
-
-    @Test
-    @DisplayName("getAccessibleRepositories uses installation token when installation is linked and app configured")
-    void testGetAccessibleRepositoriesWithInstallation() {
+        UUID userId = UUID.randomUUID();
         UserSession session = new UserSession(
-                "session-1", 123L, "octocat", "Octo Cat", "https://avatar", "octo@github.com", "gho_token",
-                8888L, Instant.now(), Instant.now().plusSeconds(3600)
+                "session-1", 123L, "octocat", "Octo Cat", "avatar", "octo@github.com", "ghu_token", null, Instant.now(), Instant.now().plusSeconds(3600)
         );
 
-        when(gitHubAppAuthService.isConfigured()).thenReturn(true);
-        when(gitHubAppAuthService.createInstallationAccessToken(8888L)).thenReturn("ghs_ephemeral_token");
+        when(userRepository.findByGithubUserId(123L)).thenReturn(Optional.of(
+                UserEntity.builder().id(userId).githubUserId(123L).build()
+        ));
 
-        String jsonResponse = """
+        when(installationStateService.generateAndSaveState(userId, "session-1"))
+                .thenReturn("opaque-state-12345");
+
+        assertThat(gitHubAppService.getInstallUrl(session))
+                .isEqualTo("https://github.com/apps/scan-pilot-app/installations/new?state=opaque-state-12345");
+    }
+
+    @Test
+    @DisplayName("getUserAccessibleInstallations queries GitHub API with user token and handles pagination")
+    void testGetUserAccessibleInstallationsWithPagination() {
+        String userToken = "ghu_valid_user_token";
+
+        String page1Json = """
                 {
                     "total_count": 2,
-                    "repositories": [
+                    "installations": [
                         {
-                            "id": 101,
-                            "name": "repo-alpha",
-                            "full_name": "octocat/repo-alpha",
-                            "owner": { "login": "octocat" },
-                            "default_branch": "main",
-                            "private": false,
-                            "html_url": "https://github.com/octocat/repo-alpha",
-                            "description": "Alpha repo"
-                        },
-                        {
-                            "id": 102,
-                            "name": "repo-beta",
-                            "full_name": "octocat/repo-beta",
-                            "owner": { "login": "octocat" },
-                            "default_branch": "dev",
-                            "private": true,
-                            "html_url": "https://github.com/octocat/repo-beta",
-                            "description": "Beta repo"
+                            "id": 1001,
+                            "account": { "id": 123, "login": "octocat", "type": "User" }
                         }
                     ]
                 }
                 """;
 
-        mockServer.expect(requestTo("https://api.github.com/installation/repositories?per_page=100"))
-                .andExpect(header("Authorization", "Bearer ghs_ephemeral_token"))
-                .andRespond(withSuccess(jsonResponse, MediaType.APPLICATION_JSON));
+        mockServer.expect(requestTo("https://api.github.com/user/installations?per_page=100&page=1"))
+                .andExpect(header("Authorization", "Bearer " + userToken))
+                .andExpect(header("Accept", "application/vnd.github+json"))
+                .andRespond(withSuccess(page1Json, MediaType.APPLICATION_JSON));
 
-        // Select repo-beta in projectService to verify isSelected flag
-        projectService.selectRepository(session, new SelectRepositoryRequest(102L, "octocat/repo-beta", "repo-beta", "octocat", "dev", true));
+        List<UserAccessibleInstallationDto> installations = gitHubAppService.getUserAccessibleInstallations(userToken);
 
-        List<GitHubRepositoryDto> repos = gitHubAppService.getAccessibleRepositories(session);
-        assertThat(repos).hasSize(2);
-
-        GitHubRepositoryDto alpha = repos.stream().filter(r -> r.id() == 101L).findFirst().orElseThrow();
-        assertThat(alpha.name()).isEqualTo("repo-alpha");
-        assertThat(alpha.fullName()).isEqualTo("octocat/repo-alpha");
-        assertThat(alpha.owner()).isEqualTo("octocat");
-        assertThat(alpha.defaultBranch()).isEqualTo("main");
-        assertThat(alpha.isPrivate()).isFalse();
-        assertThat(alpha.isSelected()).isFalse();
-
-        GitHubRepositoryDto beta = repos.stream().filter(r -> r.id() == 102L).findFirst().orElseThrow();
-        assertThat(beta.name()).isEqualTo("repo-beta");
-        assertThat(beta.isPrivate()).isTrue();
-        assertThat(beta.isSelected()).isTrue();
-
+        assertThat(installations).hasSize(1);
+        assertThat(installations.get(0).id()).isEqualTo(1001L);
+        assertThat(installations.get(0).accountLogin()).isEqualTo("octocat");
+        assertThat(installations.get(0).accountType()).isEqualTo("User");
         mockServer.verify();
     }
 
     @Test
-    @DisplayName("getAccessibleRepositories falls back to user OAuth token when no installation linked")
-    void testGetAccessibleRepositoriesFallbackOAuth() {
-        UserSession session = new UserSession(
-                "session-1", 123L, "octocat", "Octo Cat", "https://avatar", "octo@github.com", "gho_user_token",
-                null, Instant.now(), Instant.now().plusSeconds(3600)
-        );
+    @DisplayName("Remediation R54-02: mock-dev-token performs real remote call and does not bypass verification")
+    void testMockDevTokenDoesNotBypassVerification() {
+        String mockToken = "mock-dev-token";
 
-        when(gitHubAppAuthService.isConfigured()).thenReturn(false);
+        mockServer.expect(requestTo("https://api.github.com/user/installations?per_page=100&page=1"))
+                .andExpect(header("Authorization", "Bearer " + mockToken))
+                .andRespond(withStatus(HttpStatus.UNAUTHORIZED));
 
-        String jsonResponse = """
-                [
-                    {
-                        "id": 201,
-                        "name": "personal-repo",
-                        "full_name": "octocat/personal-repo",
-                        "owner": { "login": "octocat" },
-                        "default_branch": "master",
-                        "private": false,
-                        "html_url": "https://github.com/octocat/personal-repo",
-                        "description": "Personal project"
-                    }
-                ]
+        assertThatThrownBy(() -> gitHubAppService.getUserAccessibleInstallations(mockToken))
+                .isInstanceOf(IllegalStateException.class);
+        mockServer.verify();
+    }
+
+    @Test
+    @DisplayName("getUserAccessibleInstallations fails closed when response is malformed or missing id")
+    void testLevel1MalformedResponseFailsClosed() {
+        String userToken = "ghu_valid_user_token";
+        String malformedJson = """
+                {
+                    "total_count": 1,
+                    "installations": [
+                        {
+                            "account": { "login": "octocat" }
+                        }
+                    ]
+                }
                 """;
 
-        mockServer.expect(requestTo("https://api.github.com/user/repos?per_page=100&sort=updated"))
-                .andExpect(header("Authorization", "Bearer gho_user_token"))
-                .andRespond(withSuccess(jsonResponse, MediaType.APPLICATION_JSON));
+        mockServer.expect(requestTo("https://api.github.com/user/installations?per_page=100&page=1"))
+                .andExpect(header("Authorization", "Bearer " + userToken))
+                .andRespond(withSuccess(malformedJson, MediaType.APPLICATION_JSON));
 
-        List<GitHubRepositoryDto> repos = gitHubAppService.getAccessibleRepositories(session);
+        assertThatThrownBy(() -> gitHubAppService.getUserAccessibleInstallations(userToken))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("getUserAccessibleInstallations fails closed on subsequent page error without returning partial results")
+    void testLevel1SubsequentPageErrorFailsClosed() {
+        String userToken = "ghu_valid_user_token";
+
+        StringBuilder page1Sb = new StringBuilder("{\"total_count\": 101, \"installations\": [");
+        for (int i = 0; i < 100; i++) {
+            if (i > 0) page1Sb.append(",");
+            page1Sb.append(String.format("{\"id\": %d, \"account\": {\"id\": 1, \"login\": \"org-%d\", \"type\": \"User\"}}", 2000 + i, i));
+        }
+        page1Sb.append("]}");
+
+        mockServer.expect(requestTo("https://api.github.com/user/installations?per_page=100&page=1"))
+                .andRespond(withSuccess(page1Sb.toString(), MediaType.APPLICATION_JSON));
+
+        mockServer.expect(requestTo("https://api.github.com/user/installations?per_page=100&page=2"))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        assertThatThrownBy(() -> gitHubAppService.getUserAccessibleInstallations(userToken))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("getUserAccessibleInstallationRepositories queries GitHub API with user token and handles pagination")
+    void testGetUserAccessibleInstallationRepositoriesWithPagination() {
+        String userToken = "ghu_valid_user_token";
+        Long installationId = 1001L;
+
+        String page1Json = """
+                {
+                    "total_count": 1,
+                    "repositories": [
+                        {
+                            "id": 5001,
+                            "name": "repo-alpha",
+                            "full_name": "octocat/repo-alpha",
+                            "owner": { "login": "octocat" },
+                            "default_branch": "main",
+                            "private": false
+                        }
+                    ]
+                }
+                """;
+
+        mockServer.expect(requestTo("https://api.github.com/user/installations/1001/repositories?per_page=100&page=1"))
+                .andExpect(header("Authorization", "Bearer " + userToken))
+                .andExpect(header("Accept", "application/vnd.github+json"))
+                .andRespond(withSuccess(page1Json, MediaType.APPLICATION_JSON));
+
+        List<GitHubRepositoryDto> repos = gitHubAppService.getUserAccessibleInstallationRepositories(userToken, installationId);
+
         assertThat(repos).hasSize(1);
-        assertThat(repos.get(0).id()).isEqualTo(201L);
-        assertThat(repos.get(0).name()).isEqualTo("personal-repo");
-        assertThat(repos.get(0).isSelected()).isFalse();
-
+        assertThat(repos.get(0).id()).isEqualTo(5001L);
+        assertThat(repos.get(0).fullName()).isEqualTo("octocat/repo-alpha");
+        assertThat(repos.get(0).owner()).isEqualTo("octocat");
+        assertThat(repos.get(0).defaultBranch()).isEqualTo("main");
+        assertThat(repos.get(0).isPrivate()).isFalse();
         mockServer.verify();
+    }
+
+    @Test
+    @DisplayName("Remediation R54-02: Level 2 repo parsing fails closed when owner, name, full_name, default_branch, or private is missing")
+    void testLevel2MissingRequiredFieldsFailsClosed() {
+        String userToken = "ghu_valid_user_token";
+        Long installationId = 1001L;
+
+        // Missing owner
+        String missingOwnerJson = """
+                {
+                    "repositories": [
+                        {
+                            "id": 5001,
+                            "name": "repo-alpha",
+                            "full_name": "octocat/repo-alpha",
+                            "default_branch": "main",
+                            "private": false
+                        }
+                    ]
+                }
+                """;
+
+        mockServer.expect(requestTo("https://api.github.com/user/installations/1001/repositories?per_page=100&page=1"))
+                .andRespond(withSuccess(missingOwnerJson, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> gitHubAppService.getUserAccessibleInstallationRepositories(userToken, installationId))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("getUserAccessibleInstallationRepositories fails closed on subsequent page error without returning partial results")
+    void testLevel2SubsequentPageErrorFailsClosed() {
+        String userToken = "ghu_valid_user_token";
+        Long installationId = 1001L;
+
+        StringBuilder page1Sb = new StringBuilder("{\"total_count\": 101, \"repositories\": [");
+        for (int i = 0; i < 100; i++) {
+            if (i > 0) page1Sb.append(",");
+            page1Sb.append(String.format("{\"id\": %d, \"name\": \"repo-%d\", \"full_name\": \"org/repo-%d\", \"owner\": {\"login\": \"org\"}, \"default_branch\": \"main\", \"private\": false}", 6000 + i, i, i));
+        }
+        page1Sb.append("]}");
+
+        mockServer.expect(requestTo("https://api.github.com/user/installations/1001/repositories?per_page=100&page=1"))
+                .andRespond(withSuccess(page1Sb.toString(), MediaType.APPLICATION_JSON));
+
+        mockServer.expect(requestTo("https://api.github.com/user/installations/1001/repositories?per_page=100&page=2"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN));
+
+        assertThatThrownBy(() -> gitHubAppService.getUserAccessibleInstallationRepositories(userToken, installationId))
+                .isInstanceOf(IllegalStateException.class);
     }
 }

@@ -1,11 +1,14 @@
 package com.scanpilot.project.service;
 
 import com.scanpilot.auth.model.UserSession;
+import com.scanpilot.github.service.GitHubAppService;
 import com.scanpilot.persistence.entity.MonitoredBranchEntity;
 import com.scanpilot.persistence.entity.RepositoryEntity;
 import com.scanpilot.persistence.entity.UserEntity;
+import com.scanpilot.persistence.entity.UserInstallationEntity;
 import com.scanpilot.persistence.repository.MonitoredBranchRepository;
 import com.scanpilot.persistence.repository.RepositoryRepository;
+import com.scanpilot.persistence.repository.UserInstallationRepository;
 import com.scanpilot.persistence.repository.UserRepository;
 import com.scanpilot.project.dto.BranchConfigRequest;
 import com.scanpilot.project.dto.SelectRepositoryRequest;
@@ -33,6 +36,8 @@ public class ProjectService {
     private final UserRepository userRepository;
     private final RepositoryRepository repositoryRepository;
     private final MonitoredBranchRepository monitoredBranchRepository;
+    private final UserInstallationRepository userInstallationRepository;
+    private final GitHubAppService gitHubAppService;
 
     // ponytail: in-memory map holds active UI selection context only; PostgreSQL RepositoryEntity is the strict source of truth for repository identity and scan authorization
     private final Map<Long, MonitoredProject> userProjects = new ConcurrentHashMap<>();
@@ -80,26 +85,81 @@ public class ProjectService {
                         .createdAt(Instant.now())
                         .build()));
 
+        // Two-Level Server-Side Authorization for GitHub App Installation Binding
+        Long verifiedInstallationId = null;
+        com.scanpilot.github.dto.GitHubRepositoryDto verifiedServerRepo = null;
+
+        if (user.getInstallationId() != null && userInstallationRepository != null) {
+            // Level 1: Verify user possesses verified association with this installation
+            Optional<UserInstallationEntity> userInst = userInstallationRepository.findByUserIdAndInstallationId(userEntity.getId(), user.getInstallationId());
+            if (userInst.isPresent() && gitHubAppService != null) {
+                try {
+                    // Level 2: Verify selected repository is accessible to user under this installation
+                    List<com.scanpilot.github.dto.GitHubRepositoryDto> accessibleRepos = gitHubAppService.getUserAccessibleInstallationRepositories(user.getAccessToken(), user.getInstallationId());
+                    Optional<com.scanpilot.github.dto.GitHubRepositoryDto> matched = accessibleRepos.stream()
+                            .filter(r -> r.id().equals(request.githubRepoId()))
+                            .findFirst();
+                    if (matched.isPresent()) {
+                        verifiedInstallationId = user.getInstallationId();
+                        verifiedServerRepo = matched.get();
+                    } else {
+                        log.warn("Repository is not accessible to user under installation during selection");
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to verify repository accessibility under installation during selection");
+                }
+            }
+        }
+        final Long finalInstallationId = verifiedInstallationId;
+
+        // Persist trusted server-verified metadata when available; fallback safely for unverified flow
+        String effectiveOwner;
+        String effectiveName;
+        String effectiveFullName;
+        String effectiveDefaultBranch;
+        boolean effectiveIsPrivate;
+
+        if (verifiedServerRepo != null) {
+            effectiveOwner = verifiedServerRepo.owner();
+            effectiveName = verifiedServerRepo.name();
+            effectiveFullName = verifiedServerRepo.fullName();
+            effectiveDefaultBranch = verifiedServerRepo.defaultBranch();
+            effectiveIsPrivate = verifiedServerRepo.isPrivate();
+        } else {
+            effectiveOwner = owner;
+            effectiveName = name;
+            effectiveFullName = fullName;
+            effectiveDefaultBranch = defaultBranch;
+            effectiveIsPrivate = isPrivate;
+        }
+
         RepositoryEntity repoEntity = repositoryRepository.findByUserIdAndGithubRepoId(userEntity.getId(), request.githubRepoId())
                 .map(existing -> {
-                    existing.setOwner(owner);
-                    existing.setName(name);
-                    existing.setFullName(fullName);
-                    existing.setDefaultBranch(defaultBranch);
-                    existing.setPrimaryBranch(defaultBranch);
-                    existing.setIsPrivate(isPrivate);
+                    // If existing repository was already verified bound, and this selection failed Level-2, do NOT corrupt trusted metadata
+                    if (existing.getInstallationId() != null && finalInstallationId == null) {
+                        log.warn("Preserving existing verified repository metadata during unverified selection attempt");
+                    } else {
+                        existing.setOwner(effectiveOwner);
+                        existing.setName(effectiveName);
+                        existing.setFullName(effectiveFullName);
+                        existing.setDefaultBranch(effectiveDefaultBranch);
+                        existing.setPrimaryBranch(effectiveDefaultBranch);
+                        existing.setIsPrivate(effectiveIsPrivate);
+                        existing.setInstallationId(finalInstallationId);
+                    }
                     existing.setUpdatedAt(Instant.now());
                     return repositoryRepository.save(existing);
                 })
                 .orElseGet(() -> repositoryRepository.save(RepositoryEntity.builder()
                         .userId(userEntity.getId())
                         .githubRepoId(request.githubRepoId())
-                        .owner(owner)
-                        .name(name)
-                        .fullName(fullName)
-                        .defaultBranch(defaultBranch)
-                        .primaryBranch(defaultBranch)
-                        .isPrivate(isPrivate)
+                        .installationId(finalInstallationId)
+                        .owner(effectiveOwner)
+                        .name(effectiveName)
+                        .fullName(effectiveFullName)
+                        .defaultBranch(effectiveDefaultBranch)
+                        .primaryBranch(effectiveDefaultBranch)
+                        .isPrivate(effectiveIsPrivate)
                         .status("ACTIVE")
                         .monitoredAt(Instant.now())
                         .build()));

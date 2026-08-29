@@ -69,7 +69,10 @@ class ProjectServiceTest {
             return Optional.ofNullable(repoStore.get(id));
         });
 
-        projectService = new ProjectService(userRepository, repositoryRepository, monitoredBranchRepository);
+        com.scanpilot.persistence.repository.UserInstallationRepository userInstallationRepository = mock(com.scanpilot.persistence.repository.UserInstallationRepository.class);
+        com.scanpilot.github.service.GitHubAppService gitHubAppService = mock(com.scanpilot.github.service.GitHubAppService.class);
+
+        projectService = new ProjectService(userRepository, repositoryRepository, monitoredBranchRepository, userInstallationRepository, gitHubAppService);
         userSession = new UserSession(
                 "session-123",
                 1001L,

@@ -23,7 +23,6 @@ public class GitHubOAuthService {
     public static final String GITHUB_AUTH_URL = "https://github.com/login/oauth/authorize";
     public static final String GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
     public static final String GITHUB_USER_API_URL = "https://api.github.com/user";
-    public static final String DEFAULT_SCOPES = "read:user,user:email";
 
     private final AuthConfigProperties properties;
     private final RestClient restClient;
@@ -37,7 +36,7 @@ public class GitHubOAuthService {
 
     /**
      * Generates a cryptographically secure random state, caches it with TTL,
-     * and constructs the GitHub OAuth authorization URL.
+     * and constructs the GitHub OAuth / GitHub App authorization URL.
      */
     public String generateAuthorizationUrl() {
         cleanExpiredStates();
@@ -45,13 +44,16 @@ public class GitHubOAuthService {
         Instant expiresAt = Instant.now().plusSeconds(properties.getStateTtlSeconds());
         pendingStates.put(state, expiresAt);
 
-        return UriComponentsBuilder.fromUriString(GITHUB_AUTH_URL)
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(GITHUB_AUTH_URL)
                 .queryParam("client_id", properties.getClientId())
                 .queryParam("redirect_uri", properties.getRedirectUri())
-                .queryParam("scope", DEFAULT_SCOPES)
-                .queryParam("state", state)
-                .build()
-                .toUriString();
+                .queryParam("state", state);
+
+        if (properties.getScopes() != null && !properties.getScopes().isBlank()) {
+            builder.queryParam("scope", properties.getScopes());
+        }
+
+        return builder.build().toUriString();
     }
 
     /**
@@ -69,7 +71,7 @@ public class GitHubOAuthService {
     }
 
     /**
-     * Exchanges an authorization code for a GitHub OAuth access token.
+     * Exchanges an authorization code for a GitHub OAuth / App access token.
      */
     public String exchangeCodeForAccessToken(String code) {
         if (code == null || code.isBlank()) {

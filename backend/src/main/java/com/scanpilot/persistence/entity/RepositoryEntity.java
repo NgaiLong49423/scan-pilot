@@ -43,6 +43,9 @@ public class RepositoryEntity {
     @Column(name = "github_repo_id")
     private Long githubRepoId;
 
+    @Column(name = "installation_id")
+    private Long installationId;
+
     @Column(name = "owner", length = 255)
     private String owner;
 

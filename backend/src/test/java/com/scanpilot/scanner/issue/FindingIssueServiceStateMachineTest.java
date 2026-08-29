@@ -75,9 +75,6 @@ class FindingIssueServiceStateMachineTest {
     @Mock
     private GitHubAppAuthService gitHubAppAuthService;
 
-    @Mock
-    private GitHubAppService gitHubAppService;
-
     private FindingIssueService findingIssueService;
 
     private UserSession session;
@@ -100,8 +97,7 @@ class FindingIssueServiceStateMachineTest {
                 templateService,
                 tokenService,
                 gitHubIssueClient,
-                gitHubAppAuthService,
-                gitHubAppService
+                gitHubAppAuthService
         );
 
         userId = UUID.randomUUID();
@@ -122,6 +118,7 @@ class FindingIssueServiceStateMachineTest {
         repo = RepositoryEntity.builder()
                 .id(repoId)
                 .userId(userId)
+                .installationId(9999L)
                 .owner("octocat")
                 .name("hello-world")
                 .build();
@@ -132,6 +129,25 @@ class FindingIssueServiceStateMachineTest {
                 .ruleId("SP-CONFIG-001")
                 .lastSeenAt(Instant.now())
                 .build();
+    }
+
+    @Test
+    @DisplayName("Remediation R54-02: Should throw 403 FORBIDDEN when repo installationId is null, even if session has installationId")
+    void testNullRepoInstallationIdThrowsForbiddenEvenIfSessionHasInstallationId() {
+        repo.setInstallationId(null);
+        when(findingRepository.findById(findingId)).thenReturn(Optional.of(finding));
+        when(repositoryRepository.findById(repoId)).thenReturn(Optional.of(repo));
+        when(userRepository.findByGithubUserId(12345L)).thenReturn(Optional.of(user));
+
+        ResponseStatusException exPreview = assertThrows(ResponseStatusException.class, () ->
+                findingIssueService.generatePreview(findingId, session)
+        );
+        assertThat(exPreview.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        ResponseStatusException exCreate = assertThrows(ResponseStatusException.class, () ->
+                findingIssueService.createIssue(findingId, new CreateFindingIssueRequest("any.token"), session)
+        );
+        assertThat(exCreate.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     private void mockAuthAndFindingLookups() {

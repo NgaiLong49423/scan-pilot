@@ -5,20 +5,15 @@ import com.scanpilot.auth.annotation.RequireAuth;
 import com.scanpilot.auth.model.UserSession;
 import com.scanpilot.github.dto.GitHubRepositoryDto;
 import com.scanpilot.github.dto.InstallUrlResponse;
-import com.scanpilot.github.dto.LinkInstallationRequest;
 import com.scanpilot.github.service.GitHubAppService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @RestController
@@ -29,28 +24,13 @@ public class GitHubController {
     private final GitHubAppService gitHubAppService;
 
     /**
-     * Returns the GitHub App installation URL.
+     * Returns the GitHub App installation URL with a single-use opaque state token.
      */
     @GetMapping("/install-url")
-    public ResponseEntity<InstallUrlResponse> getInstallUrl() {
-        String url = gitHubAppService.getInstallUrl();
-        return ResponseEntity.ok(new InstallUrlResponse(url));
-    }
-
-    /**
-     * Links a GitHub App installation to the authenticated user's session.
-     */
-    @PostMapping("/installations/link")
     @RequireAuth
-    public ResponseEntity<Map<String, Object>> linkInstallation(
-            @CurrentUser UserSession session,
-            @Valid @RequestBody LinkInstallationRequest request
-    ) {
-        gitHubAppService.linkInstallation(session, request.installationId());
-        return ResponseEntity.ok(Map.of(
-                "message", "Installation linked successfully",
-                "installationId", request.installationId()
-        ));
+    public ResponseEntity<InstallUrlResponse> getInstallUrl(@CurrentUser UserSession session) {
+        String url = gitHubAppService.getInstallUrl(session);
+        return ResponseEntity.ok(new InstallUrlResponse(url));
     }
 
     /**

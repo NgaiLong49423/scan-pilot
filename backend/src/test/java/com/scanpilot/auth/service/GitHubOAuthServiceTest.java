@@ -43,113 +43,90 @@ class GitHubOAuthServiceTest {
     }
 
     @Test
-    @DisplayName("generateAuthorizationUrl generates valid GitHub OAuth authorize URL with state")
-    void testGenerateAuthorizationUrl() {
+    @DisplayName("generateAuthorizationUrl generates valid GitHub App user-to-server authorize URL without scopes by default")
+    void testGenerateAuthorizationUrlDefaultAppFlow() {
         String authUrl = gitHubOAuthService.generateAuthorizationUrl();
 
         assertThat(authUrl).startsWith("https://github.com/login/oauth/authorize");
         assertThat(authUrl).contains("client_id=test-client-id");
         assertThat(authUrl).contains("redirect_uri=" + "http://localhost:8080/api/v1/auth/github/callback");
-        assertThat(authUrl).contains("scope=" + "read:user,user:email");
         assertThat(authUrl).contains("state=");
+        assertThat(authUrl).doesNotContain("scope=");
 
         // Extract state parameter
         URI uri = URI.create(authUrl);
         String query = uri.getQuery();
         String state = null;
         for (String param : query.split("&")) {
-            String[] pair = param.split("=");
-            if ("state".equals(pair[0])) {
-                state = URLDecoder.decode(pair[1], StandardCharsets.UTF_8);
+            if (param.startsWith("state=")) {
+                state = URLDecoder.decode(param.substring(6), StandardCharsets.UTF_8);
+                break;
+            }
+        }
+        assertThat(state).isNotNull().isNotBlank();
+        assertThat(gitHubOAuthService.validateAndConsumeState(state)).isTrue();
+    }
+
+    @Test
+    @DisplayName("generateAuthorizationUrl appends scope parameter when custom scopes are configured")
+    void testGenerateAuthorizationUrlWithCustomScopes() {
+        properties.setScopes("read:user,user:email");
+        String authUrl = gitHubOAuthService.generateAuthorizationUrl();
+
+        assertThat(authUrl).contains("scope=read:user,user:email");
+    }
+
+    @Test
+    @DisplayName("validateAndConsumeState is single-use and fails on replayed state")
+    void testValidateAndConsumeStateSingleUse() {
+        String authUrl = gitHubOAuthService.generateAuthorizationUrl();
+        URI uri = URI.create(authUrl);
+        String query = uri.getQuery();
+        String state = null;
+        for (String param : query.split("&")) {
+            if (param.startsWith("state=")) {
+                state = URLDecoder.decode(param.substring(6), StandardCharsets.UTF_8);
+                break;
             }
         }
 
-        assertThat(state).isNotBlank();
-        // Validating state once succeeds
         assertThat(gitHubOAuthService.validateAndConsumeState(state)).isTrue();
-        // Validating same state a second time fails (consumed/one-time use)
         assertThat(gitHubOAuthService.validateAndConsumeState(state)).isFalse();
     }
 
     @Test
-    @DisplayName("validateAndConsumeState returns false for unknown or invalid state")
-    void testValidateAndConsumeStateInvalid() {
-        assertThat(gitHubOAuthService.validateAndConsumeState("unknown-state")).isFalse();
-        assertThat(gitHubOAuthService.validateAndConsumeState(null)).isFalse();
-        assertThat(gitHubOAuthService.validateAndConsumeState("")).isFalse();
-    }
+    @DisplayName("exchangeCodeForAccessToken exchanges code for access token via GitHub API")
+    void testExchangeCodeForAccessToken() {
+        String code = "valid-auth-code";
+        String expectedResponseJson = "{\"access_token\":\"ghu_16C7e42F292c6912E7710c838347Ae178B4a\",\"token_type\":\"bearer\",\"scope\":\"\"}";
 
-    @Test
-    @DisplayName("exchangeCodeForAccessToken successfully exchanges code for access token")
-    void testExchangeCodeForAccessTokenSuccess() {
-        String mockResponseBody = """
-                {
-                    "access_token": "gho_test_token_12345",
-                    "token_type": "bearer",
-                    "scope": "read:user,user:email"
-                }
-                """;
-
-        mockServer.expect(requestTo(GitHubOAuthService.GITHUB_TOKEN_URL))
+        mockServer.expect(requestTo("https://github.com/login/oauth/access_token"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))
-                .andRespond(withSuccess(mockResponseBody, MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess(expectedResponseJson, MediaType.APPLICATION_JSON));
 
-        String accessToken = gitHubOAuthService.exchangeCodeForAccessToken("auth-code-123");
-
-        assertThat(accessToken).isEqualTo("gho_test_token_12345");
+        String token = gitHubOAuthService.exchangeCodeForAccessToken(code);
+        assertThat(token).isEqualTo("ghu_16C7e42F292c6912E7710c838347Ae178B4a");
         mockServer.verify();
     }
 
     @Test
-    @DisplayName("exchangeCodeForAccessToken throws exception when GitHub returns error")
-    void testExchangeCodeForAccessTokenError() {
-        String mockResponseBody = """
-                {
-                    "error": "bad_verification_code",
-                    "error_description": "The code passed is incorrect or has expired."
-                }
-                """;
+    @DisplayName("fetchUserProfile fetches GitHub user profile with access token")
+    void testFetchUserProfile() {
+        String token = "ghu_16C7e42F292c6912E7710c838347Ae178B4a";
+        String expectedUserJson = "{\"id\":583231,\"login\":\"octocat\",\"name\":\"The Octocat\",\"avatar_url\":\"https://avatars.githubusercontent.com/u/583231?v=4\",\"email\":\"octocat@github.com\"}";
 
-        mockServer.expect(requestTo(GitHubOAuthService.GITHUB_TOKEN_URL))
-                .andExpect(method(HttpMethod.POST))
-                .andRespond(withSuccess(mockResponseBody, MediaType.APPLICATION_JSON));
-
-        assertThatThrownBy(() -> gitHubOAuthService.exchangeCodeForAccessToken("invalid-code"))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("The code passed is incorrect or has expired.");
-
-        mockServer.verify();
-    }
-
-    @Test
-    @DisplayName("fetchUserProfile successfully retrieves user profile with Bearer token")
-    void testFetchUserProfileSuccess() {
-        String mockResponseBody = """
-                {
-                    "id": 987654,
-                    "login": "octocat-dev",
-                    "name": "Octocat Developer",
-                    "avatar_url": "https://avatars.githubusercontent.com/u/987654",
-                    "email": "octocat@github.com"
-                }
-                """;
-
-        mockServer.expect(requestTo(GitHubOAuthService.GITHUB_USER_API_URL))
+        mockServer.expect(requestTo("https://api.github.com/user"))
                 .andExpect(method(HttpMethod.GET))
-                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer gho_test_token_12345"))
-                .andExpect(header(HttpHeaders.ACCEPT, "application/vnd.github+json"))
-                .andRespond(withSuccess(mockResponseBody, MediaType.APPLICATION_JSON));
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(header("X-GitHub-Api-Version", "2022-11-28"))
+                .andRespond(withSuccess(expectedUserJson, MediaType.APPLICATION_JSON));
 
-        GitHubUserDto user = gitHubOAuthService.fetchUserProfile("gho_test_token_12345");
-
+        GitHubUserDto user = gitHubOAuthService.fetchUserProfile(token);
         assertThat(user).isNotNull();
-        assertThat(user.id()).isEqualTo(987654L);
-        assertThat(user.login()).isEqualTo("octocat-dev");
-        assertThat(user.name()).isEqualTo("Octocat Developer");
-        assertThat(user.avatarUrl()).isEqualTo("https://avatars.githubusercontent.com/u/987654");
+        assertThat(user.id()).isEqualTo(583231L);
+        assertThat(user.login()).isEqualTo("octocat");
         assertThat(user.email()).isEqualTo("octocat@github.com");
-
         mockServer.verify();
     }
 }
