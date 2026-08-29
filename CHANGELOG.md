@@ -1,17 +1,31 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.38.0
+> **Version:** v2.39.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-29
+> **Last Updated:** 2026-08-30
 > **Status:** Active
 
 # Scan Pilot Changelog
 
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
-## 2026-08-29 — Authorized Webhook-to-Async-Scan Dispatch, Queue-Safe FIFO Reconciliation & Exact-SHA Verification (Issue #54 BUILD 3)
+## 2026-08-30 — PR-First Delivery Workflow with Dev Branch Integration & Governance Harmonization (Issue #79)
 
 **Status:** Working tree (pre-commit)
+
+**Scope:** Enabled the PR-First Delivery Workflow with `origin/dev` integration branch and synchronized all governing specifications and agent skills (`.github/workflows/ci.yml`, `docs/DELIVERY-WORKFLOW.md`, `AGENTS.md`, `docs/MULTI-AGENT-GOVERNANCE-WORKFLOW.md`, `.agents/skill/agent-delivery-governance/SKILL.md`, `assets/codex-review-summary.md`). Feature branches are created from `origin/dev`, open PRs targeting `dev` with `Refs #N`, and run automated CI (`ci.yml`). Codex reviews the exact GitHub PR HEAD commit for `dev` merge eligibility (`APPROVED_FOR_DEV_MERGE`). Product Owner retains sole authority for `dev -> main` promotion (which triggers Cloud Run CD), production deployments, and final Issue closure.
+
+### Changed
+
+- Updated `.github/workflows/ci.yml` to trigger CI checks on push and pull_request for both `main` and `dev` branches.
+- Updated `docs/DELIVERY-WORKFLOW.md` (v2.2.0) harmonizing branch contracts, handoff channels, review gates, and active CI policy for PR-first delivery.
+- Updated `AGENTS.md` (v3.2.0) aligning agent delivery governance with the PR-first nested model.
+- Updated `docs/MULTI-AGENT-GOVERNANCE-WORKFLOW.md` (v2.1.0) aligning reporting templates, peer-review flow, and operating principles with `APPROVED_FOR_DEV_MERGE`.
+- Updated `.agents/skill/agent-delivery-governance/SKILL.md` (v2.0.0) and `assets/codex-review-summary.md` (v1.1.0) establishing `APPROVED_FOR_DEV_MERGE` and PR HEAD review criteria for feature-to-dev delivery.
+
+## 2026-08-29 — Authorized Webhook-to-Async-Scan Dispatch, Queue-Safe FIFO Reconciliation & Exact-SHA Verification (Issue #54 BUILD 3)
+
+**Status:** Committed (`3d6d8db`)
 
 **Scope:** Implemented authorized asynchronous scan dispatch triggered by validated webhook deliveries (BUILD 3 of Issue #54), including Flyway V8 schema migration with portable ANSI unique constraint on `scan_jobs(webhook_delivery_id)`, per-repository FIFO queue processing with at most 1 active `RUNNING` job per repository, queue capacity limit (10 queued jobs per repository), independent transaction state transitions (`ScanJobStateTransitionService`), non-recursive executor rejection handling, queue-safe heartbeat reconciliation (protecting queued jobs from stale timeouts and automatically recovering stranded queues on startup and schedule), 4-step exact-commit git clone/fetch/detached checkout (`clone --no-checkout`, `fetch origin <sha>`, `checkout --detach <sha>`, `rev-parse HEAD` verification), and exclusive GitHub App installation token authentication (`createInstallationAccessToken`).
 
