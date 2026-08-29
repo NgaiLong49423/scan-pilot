@@ -9,6 +9,28 @@
 
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
+## 2026-08-29 — Verified Webhook Ingestion, Durable Delivery Deduplication & Multi-Tenant Routing (Issue #54 BUILD 2)
+
+**Status:** Working tree (pre-commit)
+
+**Scope:** Implemented verified GitHub App webhook ingestion, bounded stream reading (1 MiB limit), constant-time HMAC-SHA256 signature verification over raw request bytes, single-transaction atomic delivery deduplication with dialect dispatch (PostgreSQL `ON CONFLICT` and H2 ANSI `MERGE`), multi-tenant repository route resolution using exact identity tuple `(githubRepoId, installationId, 'ACTIVE')`, and sanitized delivery persistence in PostgreSQL via Flyway V7 without storing raw payloads or secrets.
+
+### Added
+
+- Added Flyway migration `V7__add_webhook_deliveries.sql` creating `webhook_deliveries` table with unique constraint on `delivery_id`, identity columns (`github_repo_id`, `installation_id`), routing outcome columns (`status`, `reason_code`), normalized branch/SHA metadata, and performance indexes.
+- Added `WebhookDeliveryEntity` JPA entity mapping allow-listed delivery fields.
+- Added `WebhookDeliveryRepository`, `WebhookDeliveryRepositoryCustom`, and `WebhookDeliveryRepositoryImpl` implementing atomic `insertIfAbsent` using native PostgreSQL `INSERT ... ON CONFLICT (delivery_id) DO NOTHING` and H2 ANSI `MERGE INTO ... WHEN NOT MATCHED THEN INSERT`.
+- Added `BoundedStreamReader` enforcing a strict 1 MiB byte cap on request input streams to defend against memory exhaustion and unbounded chunked payloads.
+- Added `WebhookSignatureValidator` implementing constant-time HMAC-SHA256 signature verification (`MessageDigest.isEqual`).
+- Added DTOs `GitHubWebhookPayloadDto` and `WebhookDeliveryResponseDto`.
+- Added `GitHubWebhookService` executing delivery deduplication, event/action filtering, and multi-tenant route resolution within a single `@Transactional` boundary with zero dangling claims on rollback.
+- Added `GitHubWebhookController` exposing `POST /api/v1/github/webhooks` with fail-closed header checks, delivery UUID validation, stream bounding, signature verification, and isolated error handling.
+- Added automated tests: `FlywayV7MigrationTest`, `BoundedStreamReaderTest`, `WebhookSignatureValidatorTest`, `GitHubWebhookServiceTest`, `GitHubWebhookControllerTest`, and `WebhookDeliveryPersistenceTest` (including 4-thread parallel concurrency and transaction rollback tests).
+
+### Changed
+
+- Updated `GitHubAppConfigProperties` adding `webhookSecret` configuration field with `@ToString.Exclude`.
+
 ## 2026-08-29 — Verified GitHub App Installation Linking & Durable Ownership Anchor (Issue #54 Prerequisite Slice)
 
 **Status:** Committed (`92f6010`)

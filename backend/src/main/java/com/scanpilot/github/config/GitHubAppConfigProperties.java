@@ -14,4 +14,7 @@ public class GitHubAppConfigProperties {
     private String appId = "";
     private String appSlug = "scan-pilot";
     private String appPrivateKey = "";
+
+    @lombok.ToString.Exclude
+    private String webhookSecret = "";
 }
