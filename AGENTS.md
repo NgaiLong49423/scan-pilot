@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Agent Instructions
 > **File:** `AGENTS.md`
-> **Version:** v3.2.0
+> **Version:** v3.2.1
 > **Created:** 2026-08-11
 > **Last Updated:** 2026-08-30
 > **Status:** Active
@@ -161,7 +161,7 @@ All agent skills are installed in `.agents/skill/`. Agents must consult and appl
 
 - Do not hard-code or commit credentials, `.env` files, private keys, or production data.
 - Do not execute untrusted scanned repository code in the main API process.
-- Do not delete data or files, change public contracts, commit, push, merge, or open a pull request without explicit user authorization.
+- Do not delete data or files or change public contracts without explicit user authorization. In the active PR-First delivery workflow, an assigned implementer is authorized to commit, push, and open the scoped feature Pull Request targeting `dev`; promotion to `main`, public deployment, history rewrites, and destructive actions remain explicitly controlled.
 - Follow `CONTRIBUTING.md` and Conventional Commits when Git actions are authorized.
 
 ## Git Checkpoint Policy

@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.39.0
+> **Version:** v2.39.1
 > **Created:** 2026-08-11
 > **Last Updated:** 2026-08-30
 > **Status:** Active
@@ -13,7 +13,7 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 **Status:** Working tree (pre-commit)
 
-**Scope:** Enabled the PR-First Delivery Workflow with `origin/dev` integration branch and synchronized all governing specifications and agent skills (`.github/workflows/ci.yml`, `docs/DELIVERY-WORKFLOW.md`, `AGENTS.md`, `docs/MULTI-AGENT-GOVERNANCE-WORKFLOW.md`, `.agents/skill/agent-delivery-governance/SKILL.md`, `assets/codex-review-summary.md`). Feature branches are created from `origin/dev`, open PRs targeting `dev` with `Refs #N`, and run automated CI (`ci.yml`). Codex reviews the exact GitHub PR HEAD commit for `dev` merge eligibility (`APPROVED_FOR_DEV_MERGE`). Product Owner retains sole authority for `dev -> main` promotion (which triggers Cloud Run CD), production deployments, and final Issue closure.
+**Scope:** Enabled the PR-First Delivery Workflow with `origin/dev` integration branch and synchronized all governing specifications and agent skills (`.github/workflows/ci.yml`, `docs/DELIVERY-WORKFLOW.md`, `AGENTS.md`, `docs/MULTI-AGENT-GOVERNANCE-WORKFLOW.md`, `.agents/skill/agent-delivery-governance/SKILL.md`, `assets/codex-review-summary.md`). Feature branches are created from `origin/dev`, open PRs targeting `dev` with `Refs #N`, and run automated CI (`ci.yml`). Codex reviews the exact GitHub PR HEAD commit for `dev` merge eligibility (`APPROVED_FOR_DEV_MERGE`). The scoped implementer may commit, push, and open feature PRs; an authorized delivery agent may merge only a green, exactly reviewed PR HEAD into `dev`. Product Owner retains sole authority for `dev -> main` promotion (which triggers Cloud Run CD), production deployments, and final Issue closure.
 
 ### Added
 
@@ -22,8 +22,8 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 ### Changed
 
 - Updated `.github/workflows/ci.yml` to trigger CI checks on push and pull_request for both `main` and `dev` branches.
-- Updated `docs/DELIVERY-WORKFLOW.md` (v2.2.0) harmonizing branch contracts, handoff channels, review gates, and active CI policy for PR-first delivery.
-- Updated `AGENTS.md` (v3.2.0) declaring `pull-request-reviewer` mandatory and updating `agent-delivery-governance` to v2.0.0.
+- Updated `docs/DELIVERY-WORKFLOW.md` (v2.2.1) harmonizing branch contracts, handoff channels, review gates, active CI policy, and the limited authorization boundary for feature-to-`dev` Git actions.
+- Updated `AGENTS.md` (v3.2.1) declaring `pull-request-reviewer` mandatory, updating `agent-delivery-governance` to v2.0.0, and reconciling the scoped feature PR authorization boundary.
 - Updated `docs/MULTI-AGENT-GOVERNANCE-WORKFLOW.md` (v2.1.0) aligning reporting templates, peer-review flow, and operating principles with `APPROVED_FOR_DEV_MERGE`.
 - Updated `.agents/skill/agent-delivery-governance/SKILL.md` (v2.0.0) and `assets/codex-review-summary.md` (v1.1.0) establishing `APPROVED_FOR_DEV_MERGE` and PR HEAD review criteria for feature-to-dev delivery.
 

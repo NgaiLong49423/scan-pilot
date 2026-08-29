@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Delivery Workflow
 > **File:** `docs/DELIVERY-WORKFLOW.md`
-> **Version:** v2.2.0
+> **Version:** v2.2.1
 > **Created:** 2026-08-16
 > **Last Updated:** 2026-08-30
 > **Status:** Active
@@ -217,7 +217,7 @@ Checklists for QA (Agent 2) and AppSec (Agent 3) must scale to the specific chan
 
 ## Git and External-Action Boundary
 
-Issue assignment and routine status updates do not authorize Git or deployment actions. Commit, push, pull request creation, merge, history rewrite, production deployment, paid-resource creation, credential changes, and destructive actions retain their separate approval requirements in `AGENTS.md`.
+Issue assignment and routine status updates do not authorize Git or deployment actions by themselves. For an assigned work item within accepted scope, the PR-First contract in `AGENTS.md` authorizes the implementer to commit, push, and open a feature Pull Request targeting `dev`. An authorized delivery agent may merge that PR into `dev` only after the exact current HEAD has green CI and Codex returns `APPROVED_FOR_DEV_MERGE`. Promotion to `main`, production deployment, history rewrites, paid-resource creation, credential changes, and destructive actions retain their separate Product Owner approval requirements.
 
 ## Delivery Automation Policy
 
