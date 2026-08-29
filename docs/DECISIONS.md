@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Accepted Decisions
 > **File:** `docs/DECISIONS.md`
-> **Version:** v2.3.0
+> **Version:** v2.4.0
 > **Created:** 2026-08-12
-> **Last Updated:** 2026-08-20
+> **Last Updated:** 2026-08-30
 > **Status:** Active
 
 # Scan Pilot Accepted Decisions
@@ -830,7 +830,26 @@ The rule is mapped to OWASP Top 10:2025 A03 Software Supply Chain Failures as a 
 
 **Trade-off:** Full-SHA pinning requires an update workflow and may be stricter than a repository's current practice. A mutable reference is a policy risk, not proof of compromise.
 
-**Verification limit:** This decision does not prove parser correctness, workflow execution behavior, effective GitHub organization policy, or that the rule can be completed before the submission deadline.
+## DEC-062 — Constrained GitHub App Branch and Remediation Pull Request Creation for SP-CONFIG-001
+
+**Status:** Accepted
+
+The Product Owner ratifies an explicit, constrained exception to read-only GitHub App token boundaries: Scan Pilot is authorized to use GitHub App installation tokens to create a dedicated feature branch (`scanpilot/remediation-<finding-id-short>`) and open a single Pull Request targeting the default branch strictly for automated `SP-CONFIG-001` secret replacement in Spring Boot configuration files (`application*.properties`, `application*.yml`, `application*.yaml`).
+
+Security & Architectural Invariants:
+1. **No Direct Default Branch Modification:** The system must never push commits directly to the default branch (`main` or `dev`).
+2. **No Automatic Merge:** Merging pull requests is strictly human-controlled; Scan Pilot will never automatically merge remediation PRs.
+3. **No Automatic Credential Revocation:** The PR body and user interface must prominently display a mandatory revocation warning stating that replacing code secrets with environment variables does not revoke exposed credentials on the provider console.
+4. **Zero Raw Secret Egress:** Raw secret values must never be stored in database remediation records, API responses, logs, UI diffs, or GitHub PR descriptions.
+5. **Fail-Closed Verification:** Unsupported file formats, multiline values, ambiguous matches, or stale target HEAD commits must fail closed with `MANUAL_REMEDIATION_REQUIRED` or `STALE_REVISION_ERROR`.
+
+**Reason:** Providing safe, automated remediation PRs transforms Scan Pilot from a passive scanner into an active developer health platform while preserving safety through strict token isolation, deterministic parsing, and human-in-the-loop review.
+
+**Expected benefit:** Developers can remediate exposed secrets in Spring Boot configurations with one click via standardized environment variable placeholders without manual patching errors.
+
+**Trade-off:** Requires `pull_requests: write` and `contents: write` permissions for the GitHub App installation token.
+
+**Verification limit:** Live external GitHub write operations remain unverified locally; automated test suites and CI execute against mocked GitHub API seams to prevent unauthorized external network side-effects.
 
 ## Intentionally Open Decisions
 - exact optional confidence scale beyond the accepted verification statuses;
