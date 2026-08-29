@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.39.1
+> **Version:** v2.40.0
 > **Created:** 2026-08-11
 > **Last Updated:** 2026-08-30
 > **Status:** Active
@@ -8,6 +8,25 @@
 # Scan Pilot Changelog
 
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
+
+## 2026-08-30 — Secret-Safe Local Gemini PR Pre-review Runner (Issue #84)
+
+**Status:** Working tree (pre-commit)
+
+**Scope:** Implemented secret-safe local Gemini PR pre-review runner for Windows (`.agents/scripts/local-pr-reviewer/`) supporting `gemini-3.7-flash` with `thinking_level=medium`, immutable repository identity filtering (`headRepo.id == baseRepo.id`), dual-layer deduplication (local cache + remote GitHub PR comment marker), PID-liveness stale lock recovery, diff patch hunk line validation, best-effort secret redaction, neutral finding-free comments, and automated test suite.
+
+### Added
+
+- Added `.agents/scripts/local-pr-reviewer/run-pr-review.ps1` (Main CLI pre-review coordinator).
+- Added `.agents/scripts/local-pr-reviewer/bootstrap-pr-reviewer.ps1` (Task Scheduler bootstrap launcher).
+- Added `.agents/scripts/local-pr-reviewer/lib/RedactionEngine.ps1` (Best-effort secret redaction engine).
+- Added `.agents/scripts/local-pr-reviewer/lib/DiffParser.ps1` (Unified diff parser and hunk line extractor).
+- Added `.agents/scripts/local-pr-reviewer/lib/LockManager.ps1` (PID liveness file lock and stale-lock recovery).
+- Added `.agents/scripts/local-pr-reviewer/lib/CacheManager.ps1` (Atomic JSON cache with UNAVAILABLE cooldown).
+- Added `.agents/scripts/local-pr-reviewer/lib/GeminiClient.ps1` (Gemini 3.7 Flash client with thinking config).
+- Added `.agents/scripts/local-pr-reviewer/lib/OutputValidator.ps1` (Local output validation and anti-hallucination filter).
+- Added `.agents/scripts/local-pr-reviewer/lib/GitHubClient.ps1` (gh CLI wrapper for metadata, diff, and comments).
+- Added `.agents/scripts/local-pr-reviewer/tests/LocalPrReviewer.Tests.ps1` (32 automated unit and integration tests).
 
 ## 2026-08-30 — PR-First Delivery Workflow with Dev Branch Integration & Governance Harmonization (Issue #79)
 
