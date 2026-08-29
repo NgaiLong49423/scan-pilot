@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.40.0
+> **Version:** v2.41.0
 > **Created:** 2026-08-11
 > **Last Updated:** 2026-08-30
 > **Status:** Active
@@ -8,6 +8,40 @@
 # Scan Pilot Changelog
 
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
+
+## 2026-08-30 — Spring Boot Safe Remediation Pull Request MVP (Issue #80)
+
+**Status:** Committed (`8c9fca2`)
+
+**Scope:** Implemented Spring Boot safe remediation PR generation and state machine for `SP-CONFIG-001` secret leaks in configuration files (`application*.properties`, `application*.yml`, `application*.yaml`). Features Flyway V9 durable state machine (`finding_remediation_pr_links`), HMAC-SHA256 signed preview tokens with 15-minute TTL, strict 2-step confirmation, in-memory patch derivation with environment variable placeholder `${ENV_VAR_NAME}`, exact default-branch HEAD validation with `STALE_REVISION_ERROR` (409), fail-closed handling for unsupported files and ambiguous patterns (`MANUAL_REMEDIATION_REQUIRED`), server-generated branch and PR metadata, accessible modal UI with masked side-by-side diff and mandatory revocation/rotation notice banner, zero raw secret exposure, and comprehensive unit/integration test coverage.
+
+### Added
+
+- Added `backend/src/main/resources/db/migration/V9__add_finding_remediation_pr_links.sql` (Flyway V9 schema for remediation PR state machine).
+- Added `backend/src/main/java/com/scanpilot/persistence/entity/FindingRemediationPrLinkEntity.java` (JPA Entity).
+- Added `backend/src/main/java/com/scanpilot/persistence/repository/FindingRemediationPrLinkRepository.java` (Spring Data JPA repository).
+- Added `backend/src/main/java/com/scanpilot/scanner/dto/CreateFindingRemediationPrRequest.java` (Strict single-field request DTO).
+- Added `backend/src/main/java/com/scanpilot/scanner/dto/FindingRemediationPrPreviewDto.java` (Preview DTO with masked diff and token).
+- Added `backend/src/main/java/com/scanpilot/scanner/dto/FindingRemediationPrLinkDto.java` (Remediation PR link DTO).
+- Added `backend/src/main/java/com/scanpilot/scanner/remediation/SpringConfigurationPatcher.java` (Deterministic configuration patch engine).
+- Added `backend/src/main/java/com/scanpilot/scanner/remediation/FindingRemediationPrTokenService.java` (HMAC-SHA256 signed preview token service).
+- Added `backend/src/main/java/com/scanpilot/scanner/remediation/FindingRemediationPrService.java` (Remediation PR orchestration service).
+- Added `backend/src/main/java/com/scanpilot/scanner/controller/FindingRemediationPrController.java` (REST API endpoints).
+- Added `backend/src/main/java/com/scanpilot/github/service/GitHubPullRequestClient.java` (REST client seam for GitHub branch, commit, and PR APIs).
+- Added `frontend/src/components/RemediationPrModal.tsx` (Accessible remediation modal with masked side-by-side diff and mandatory revocation warning).
+- Added `frontend/src/components/RemediationPrModal.test.tsx` (Component test suite).
+- Added `backend/src/test/java/com/scanpilot/scanner/remediation/SpringConfigurationPatcherTest.java` (Patch engine unit tests).
+- Added `backend/src/test/java/com/scanpilot/scanner/remediation/FindingRemediationPrTokenServiceTest.java` (Token service tests).
+- Added `backend/src/test/java/com/scanpilot/persistence/FindingRemediationPrLinkPersistenceTest.java` (JPA persistence tests).
+- Added `backend/src/test/java/com/scanpilot/scanner/remediation/FindingRemediationPrServiceStateMachineTest.java` (Service state machine tests).
+- Added `backend/src/test/java/com/scanpilot/scanner/controller/FindingRemediationPrControllerTest.java` (MockMvc integration & auth tests).
+
+### Changed
+
+- Updated `docs/DECISIONS.md` (`DEC-062` added for constrained GitHub App branch and remediation PR creation).
+- Updated `frontend/src/types/index.ts` (Added remediation DTOs and Finding model fields).
+- Updated `frontend/src/services/api.ts` (Added remediation preview, create, and fetch link methods).
+- Updated `frontend/src/components/FindingCard.tsx` (Integrated Remediation PR button and modal).
 
 ## 2026-08-30 — Secret-Safe Local Gemini PR Pre-review Runner (Issue #84)
 

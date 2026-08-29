@@ -13,6 +13,9 @@ spring:
     properties:
       hibernate:
         format_sql: false
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
   flyway:
     enabled: true
     locations: classpath:db/migration

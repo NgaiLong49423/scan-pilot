@@ -11,9 +11,10 @@ import {
   ExternalLink,
   GitPullRequest
 } from 'lucide-react';
-import { Finding, FindingIssueLinkDto } from '../types';
+import { Finding, FindingIssueLinkDto, FindingRemediationPrLinkDto } from '../types';
 import { RemediationDiff } from './RemediationDiff';
 import { CreateIssueModal } from './CreateIssueModal';
+import { RemediationPrModal } from './RemediationPrModal';
 
 interface FindingCardProps {
   finding: Finding;
@@ -23,7 +24,12 @@ interface FindingCardProps {
 export const FindingCard: React.FC<FindingCardProps> = ({ finding, onApplyFix }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isRemediationPrModalOpen, setIsRemediationPrModalOpen] = useState(false);
   const [currentFinding, setCurrentFinding] = useState<Finding>(finding);
+
+  const isRemediationEligible =
+    currentFinding.ruleId === 'SP-CONFIG-001' &&
+    /(^|\/)application(-[a-zA-Z0-9_.-]+)?\.(properties|yml|yaml)$/i.test(currentFinding.filePath);
 
   const getSeverityBadge = () => {
     switch (currentFinding.severity) {
@@ -44,6 +50,15 @@ export const FindingCard: React.FC<FindingCardProps> = ({ finding, onApplyFix })
       githubIssueNumber: issueLink.githubIssueNumber,
       githubIssueUrl: issueLink.githubIssueUrl,
       issueLinkState: issueLink.state,
+    }));
+  };
+
+  const handlePrCreated = (_findingId: string, prLink: FindingRemediationPrLinkDto) => {
+    setCurrentFinding((prev) => ({
+      ...prev,
+      remediationPrNumber: prLink.githubPrNumber,
+      remediationPrUrl: prLink.githubPrUrl,
+      remediationPrState: prLink.state,
     }));
   };
 
@@ -82,7 +97,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({ finding, onApplyFix })
         </div>
       </div>
 
-      {/* Path, Secret Masked Badge & Issue Link Action */}
+      {/* Path, Secret Masked Badge & Action Buttons */}
       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
         <div className="flex items-center gap-1.5 text-[#8b949e] font-mono bg-[#0d1117] px-2.5 py-1 rounded-lg border border-[#30363d]">
           <FileCode className="w-3.5 h-3.5 text-[#58a6ff]" />
@@ -119,6 +134,29 @@ export const FindingCard: React.FC<FindingCardProps> = ({ finding, onApplyFix })
           </button>
         )}
 
+        {/* Remediation PR Link / Action Button */}
+        {currentFinding.remediationPrUrl ? (
+          <a
+            href={currentFinding.remediationPrUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-[#3fb950] bg-[#238636]/15 hover:bg-[#238636]/25 border border-[#238636]/30 transition-colors focus-visible:ring-2 focus-visible:ring-[#3fb950] focus-visible:outline-none"
+          >
+            <GitPullRequest className="w-3.5 h-3.5 text-[#3fb950]" />
+            <span>PR #{currentFinding.remediationPrNumber || ''}</span>
+            <ExternalLink className="w-3 h-3 ml-0.5" />
+          </a>
+        ) : isRemediationEligible ? (
+          <button
+            type="button"
+            onClick={() => setIsRemediationPrModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-[#3fb950] bg-[#238636]/15 hover:bg-[#238636]/25 border border-[#238636]/30 transition-colors focus-visible:ring-2 focus-visible:ring-[#3fb950] focus-visible:outline-none"
+          >
+            <GitPullRequest className="w-3.5 h-3.5 text-[#3fb950]" />
+            <span>Remediate via PR</span>
+          </button>
+        ) : null}
+
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
@@ -147,6 +185,14 @@ export const FindingCard: React.FC<FindingCardProps> = ({ finding, onApplyFix })
         finding={currentFinding}
         onClose={() => setIsModalOpen(false)}
         onIssueCreated={handleIssueCreated}
+      />
+
+      {/* Remediation PR Modal */}
+      <RemediationPrModal
+        isOpen={isRemediationPrModalOpen}
+        finding={currentFinding}
+        onClose={() => setIsRemediationPrModalOpen(false)}
+        onPrCreated={handlePrCreated}
       />
     </div>
   );
