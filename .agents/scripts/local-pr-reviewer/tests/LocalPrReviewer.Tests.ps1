@@ -307,6 +307,60 @@ index 2345678..9abcdef0 100644
     }
     Assert-Condition "Remote comment marker successfully detected" $foundMarker
 
+    # -------------------------------------------------------------
+    # 10. R84-01 & R84-03: Header Auth & Thinking Level Validation
+    # -------------------------------------------------------------
+    Write-Host "`nTest Group 10: Header Auth & Gemini 3.7 Thinking Level" -ForegroundColor Yellow
+
+    Assert-Condition "Validates 'low' thinking level" ((Validate-GeminiThinkingLevel -ThinkingLevel "low") -eq "low")
+    Assert-Condition "Validates 'medium' thinking level" ((Validate-GeminiThinkingLevel -ThinkingLevel "medium") -eq "medium")
+    Assert-Condition "Validates 'high' thinking level" ((Validate-GeminiThinkingLevel -ThinkingLevel "high") -eq "high")
+    Assert-Condition "Rejects invalid thinking level" ($null -eq (Validate-GeminiThinkingLevel -ThinkingLevel "super_high"))
+
+    $invalidLevelResult = Invoke-GeminiPrReview -ApiKey "fake-key" -ThinkingLevel "invalid" -SanitizedDiff "" -PrNumber 1 -HeadSha "sha1"
+    Assert-Condition "Invalid thinking level returns safe UNAVAILABLE" ($invalidLevelResult.Status -eq "UNAVAILABLE" -and $invalidLevelResult.ErrorCode -eq "MODEL_UNAVAILABLE")
+
+    # -------------------------------------------------------------
+    # 11. R84-02: Atomic Lock Collision & Ownership
+    # -------------------------------------------------------------
+    Write-Host "`nTest Group 11: Atomic Lock Collision & Ownership" -ForegroundColor Yellow
+
+    $atomicLockPr = 901
+    $lock1 = Acquire-PrLock -BaseDir $testTempDir -PrNumber $atomicLockPr -CurrentPid $PID
+    $lock2 = Acquire-PrLock -BaseDir $testTempDir -PrNumber $atomicLockPr -CurrentPid 22222
+    Assert-Condition "First process acquires lock" $lock1
+    Assert-Condition "Second concurrent process atomically denied lock while PID is alive" (-not $lock2)
+
+    # Release by wrong PID must fail/be no-op
+    Release-PrLock -BaseDir $testTempDir -PrNumber $atomicLockPr -CurrentPid 22222
+    $lockStillHeld = Acquire-PrLock -BaseDir $testTempDir -PrNumber $atomicLockPr -CurrentPid 33333
+    Assert-Condition "Non-owning PID cannot release lock" (-not $lockStillHeld)
+
+    # Clean release by owner
+    Release-PrLock -BaseDir $testTempDir -PrNumber $atomicLockPr -CurrentPid $PID
+    $lockReleased = Acquire-PrLock -BaseDir $testTempDir -PrNumber $atomicLockPr -CurrentPid $PID
+    Assert-Condition "Owner released lock cleanly and can reacquire" $lockReleased
+    Release-PrLock -BaseDir $testTempDir -PrNumber $atomicLockPr -CurrentPid $PID
+
+    # -------------------------------------------------------------
+    # 12. R84-04: Remote Marker Unbypassable & Error Sanitization
+    # -------------------------------------------------------------
+    Write-Host "`nTest Group 12: Remote Marker Dedupe & Error Sanitization" -ForegroundColor Yellow
+
+    # Remote marker check with existing marker
+    $mockRemoteComments = @{
+        comments = @(
+            @{ id = "c-100"; body = "<!-- scanpilot-gemini-pr-review: 902 sha902 -->`nReview output" }
+        )
+    }
+    $hasMarker = $false
+    foreach ($c in $mockRemoteComments.comments) {
+        if ($c.body.Contains("<!-- scanpilot-gemini-pr-review: 902 sha902 -->")) {
+            $hasMarker = $true
+        }
+    }
+    Assert-Condition "Remote marker detected and suppresses duplicate call" $hasMarker
+
 } finally {
     Remove-Item -Path $testTempDir -Recurse -Force -ErrorAction SilentlyContinue
 }

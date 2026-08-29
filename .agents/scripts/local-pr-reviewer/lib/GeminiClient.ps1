@@ -1,15 +1,15 @@
 # GeminiClient.ps1
 
-function Get-GeminiThinkingBudget {
+function Validate-GeminiThinkingLevel {
     param (
         [string]$ThinkingLevel = "medium"
     )
 
-    switch ($ThinkingLevel.ToLower()) {
-        "low" { return 1024 }
-        "high" { return 4096 }
-        default { return 2048 }
+    $validLevels = @("low", "medium", "high")
+    if ($validLevels -contains $ThinkingLevel.ToLower()) {
+        return $ThinkingLevel.ToLower()
     }
+    return $null
 }
 
 function Test-GeminiModelAvailability {
@@ -26,10 +26,13 @@ function Test-GeminiModelAvailability {
         }
     }
 
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/$Model`?key=$ApiKey"
+    $url = "https://generativelanguage.googleapis.com/v1beta/models/$Model"
+    $headers = @{
+        "x-goog-api-key" = $ApiKey
+    }
 
     try {
-        $response = Invoke-RestMethod -Uri $url -Method Get -TimeoutSec 10 -ErrorAction Stop
+        $response = Invoke-RestMethod -Uri $url -Headers $headers -Method Get -TimeoutSec 10 -ErrorAction Stop
         if ($null -ne $response -and $response.name) {
             return @{
                 Success = $true
@@ -44,7 +47,10 @@ function Test-GeminiModelAvailability {
             }
         }
     } catch {
-        $statusCode = $_.Exception.Response.StatusCode.value__
+        $statusCode = 0
+        if ($null -ne $_.Exception.Response) {
+            $statusCode = [int]$_.Exception.Response.StatusCode
+        }
         if ($statusCode -eq 429) {
             return @{
                 Success = $false
@@ -81,7 +87,16 @@ function Invoke-GeminiPrReview {
         }
     }
 
-    $thinkingBudget = Get-GeminiThinkingBudget -ThinkingLevel $ThinkingLevel
+    $validatedLevel = Validate-GeminiThinkingLevel -ThinkingLevel $ThinkingLevel
+    if ($null -eq $validatedLevel) {
+        return @{
+            Status = "UNAVAILABLE"
+            ErrorCode = "MODEL_UNAVAILABLE"
+            Summary = "Invalid thinking_level configured: '$ThinkingLevel'. Must be low, medium, or high."
+            Findings = @()
+            RawJson = $null
+        }
+    }
 
     $systemInstruction = @"
 You are an expert security and code quality pre-reviewer for the Scan Pilot project.
@@ -136,12 +151,15 @@ $SanitizedDiff
         generationConfig = @{
             response_mime_type = "application/json"
             thinking_config = @{
-                thinking_budget = $thinkingBudget
+                thinking_level = $validatedLevel
             }
         }
     } | ConvertTo-Json -Depth 10
 
-    $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/$Model`:generateContent?key=$ApiKey"
+    $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/$Model`:generateContent"
+    $headers = @{
+        "x-goog-api-key" = $ApiKey
+    }
 
     $maxRetries = 2
     $retryCount = 0
@@ -149,7 +167,7 @@ $SanitizedDiff
 
     while ($retryCount -le $maxRetries) {
         try {
-            $response = Invoke-RestMethod -Uri $endpoint -Method Post -Body $payload -ContentType "application/json" -TimeoutSec 45 -ErrorAction Stop
+            $response = Invoke-RestMethod -Uri $endpoint -Headers $headers -Method Post -Body $payload -ContentType "application/json" -TimeoutSec 45 -ErrorAction Stop
             
             if ($null -ne $response -and $response.candidates -and $response.candidates.Count -gt 0) {
                 $candidate = $response.candidates[0]

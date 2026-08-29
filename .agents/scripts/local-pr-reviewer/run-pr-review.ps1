@@ -11,7 +11,7 @@ param (
     [string]$BaseDir = (Resolve-Path "$PSScriptRoot\..\..\..").Path,
     [int]$PrNumber = 0,
     [switch]$DryRun,
-    [switch]$Force
+    [switch]$BypassCooldown
 )
 
 $ErrorActionPreference = "Stop"
@@ -78,21 +78,14 @@ foreach ($pr in $prs) {
     }
 
     try {
-        # 4. Check Dual-Layer Deduplication
-        # Layer 1: Local Cache
-        if (-not $Force) {
-            $cacheCheck = Get-CachedPrReview -BaseDir $BaseDir -PrNumber $num -HeadSha $headSha
-            if ($cacheCheck.IsCached) {
-                if ($cacheCheck.InCooldown) {
-                    Write-Host "PR #$num HEAD $headSha is in UNAVAILABLE cooldown until $($cacheCheck.Entry.errorCooldownUntil). Skipping." -ForegroundColor Yellow
-                } else {
-                    Write-Host "PR #$num HEAD $headSha already reviewed locally (Outcome: $($cacheCheck.Entry.outcome)). Skipping." -ForegroundColor Green
-                }
-                continue
-            }
+        # 4. Check Local Cooldown (if any)
+        $cacheCheck = Get-CachedPrReview -BaseDir $BaseDir -PrNumber $num -HeadSha $headSha
+        if ($cacheCheck.IsCached -and $cacheCheck.InCooldown -and -not $BypassCooldown) {
+            Write-Host "PR #$num HEAD $headSha is in UNAVAILABLE cooldown until $($cacheCheck.Entry.errorCooldownUntil). Skipping." -ForegroundColor Yellow
+            continue
         }
 
-        # Layer 2: Remote PR Comment Marker Check (Source-of-Truth)
+        # 5. Remote PR Comment Marker Check (Mandatory Gate — Cannot be Bypassed)
         Update-PrLockLease -BaseDir $BaseDir -PrNumber $num
         $remoteCheck = Check-RemotePrMarker -PrNumber $num -HeadSha $headSha
         if (-not $remoteCheck.Success) {
@@ -101,13 +94,13 @@ foreach ($pr in $prs) {
             continue
         }
 
-        if ($remoteCheck.HasMarker -and -not $Force) {
+        if ($remoteCheck.HasMarker) {
             Write-Host "PR #$num already has review comment on GitHub (CommentId: $($remoteCheck.CommentId)). Synchronizing cache." -ForegroundColor Green
             Save-CachedPrReview -BaseDir $BaseDir -PrNumber $num -HeadSha $headSha -Outcome "NO_BLOCKER" -CommentId $remoteCheck.CommentId
             continue
         }
 
-        # 5. Extract and Parse PR Diff
+        # 6. Extract and Parse PR Diff
         Update-PrLockLease -BaseDir $BaseDir -PrNumber $num
         Write-Host "Fetching diff for PR #$num..."
         $rawDiff = Get-PrDiffContent -PrNumber $num
@@ -120,7 +113,7 @@ foreach ($pr in $prs) {
         $parsedDiff = Parse-UnifiedDiff -RawDiff $rawDiff
         Write-Host "Diff parsed: $($parsedDiff.Files.Count) changed file(s), $($parsedDiff.TotalChars) chars (Truncated: $($parsedDiff.IsTruncated))."
 
-        # 6. Call Gemini API
+        # 7. Call Gemini API
         Update-PrLockLease -BaseDir $BaseDir -PrNumber $num
         Write-Host "Calling Gemini API ($model, thinking: $thinkingLevel)..."
         $geminiResult = Invoke-GeminiPrReview `
@@ -137,11 +130,11 @@ foreach ($pr in $prs) {
             continue
         }
 
-        # 7. Local Output Validation (Changed Hunk Lines Match & Sanitization)
+        # 8. Local Output Validation (Changed Hunk Lines Match & Sanitization)
         $validated = Validate-GeminiResponse -RawJson $geminiResult.RawJson -HunkLines $parsedDiff.HunkLines
         Write-Host "Validation completed. Status: $($validated.Status), Valid Findings: $($validated.Findings.Count)" -ForegroundColor Cyan
 
-        # 8. Format Comment Body
+        # 9. Format Comment Body
         $commentBody = Format-PrReviewCommentBody `
             -PrNumber $num `
             -HeadSha $headSha `
@@ -151,7 +144,7 @@ foreach ($pr in $prs) {
             -Summary $validated.Summary `
             -Findings $validated.Findings
 
-        # 9. Publish Comment
+        # 10. Publish Comment
         if ($DryRun) {
             Write-Host "[DRY-RUN] Comment would be posted to PR #$num:`n$commentBody" -ForegroundColor Gray
             Save-CachedPrReview -BaseDir $BaseDir -PrNumber $num -HeadSha $headSha -Outcome $validated.Status -CommentId "dry-run"
@@ -165,7 +158,7 @@ foreach ($pr in $prs) {
                 Save-CachedPrReview -BaseDir $BaseDir -PrNumber $num -HeadSha $headSha -Outcome $validated.Status
                 $reviewedCount++
             } else {
-                Write-Warning "Failed to post comment to PR #$num. Output: $($postResult.Output)"
+                Write-Warning "Failed to post comment to PR #$num (Error code: PR_COMMENT_FAILED)."
                 Save-CachedPrReview -BaseDir $BaseDir -PrNumber $num -HeadSha $headSha -Outcome "UNAVAILABLE" -CooldownMinutes 15
             }
         }

@@ -186,18 +186,18 @@ function Publish-PrReviewComment {
         if ($LASTEXITCODE -eq 0) {
             return @{
                 Success = $true
-                Output = [string]$output
+                ErrorCode = $null
             }
         } else {
             return @{
                 Success = $false
-                Output = [string]$output
+                ErrorCode = "PR_COMMENT_FAILED"
             }
         }
     } catch {
         return @{
             Success = $false
-            Output = $_.Exception.Message
+            ErrorCode = "PR_COMMENT_FAILED"
         }
     }
 }
