@@ -11,7 +11,7 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 ## 2026-08-29 — Verified Webhook Ingestion, Durable Delivery Deduplication & Multi-Tenant Routing (Issue #54 BUILD 2)
 
-**Status:** Working tree (pre-commit)
+**Status:** Committed (`9e4a42b`)
 
 **Scope:** Implemented verified GitHub App webhook ingestion, bounded stream reading (1 MiB limit), constant-time HMAC-SHA256 signature verification over raw request bytes, single-transaction atomic delivery deduplication with dialect dispatch (PostgreSQL `ON CONFLICT` and H2 ANSI `MERGE`), multi-tenant repository route resolution using exact identity tuple `(githubRepoId, installationId, 'ACTIVE')`, and sanitized delivery persistence in PostgreSQL via Flyway V7 without storing raw payloads or secrets.
 
