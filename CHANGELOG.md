@@ -11,7 +11,7 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 ## 2026-08-30 — Spring Boot Safe Remediation Pull Request MVP (Issue #80)
 
-**Status:** Committed (`8c9fca2`)
+**Status:** Committed (`864e558`)
 
 **Scope:** Implemented Spring Boot safe remediation PR generation and state machine for `SP-CONFIG-001` secret leaks in configuration files (`application*.properties`, `application*.yml`, `application*.yaml`). Features Flyway V9 durable state machine (`finding_remediation_pr_links`), HMAC-SHA256 signed preview tokens with 15-minute TTL, strict 2-step confirmation, in-memory patch derivation with environment variable placeholder `${ENV_VAR_NAME}`, exact default-branch HEAD validation with `STALE_REVISION_ERROR` (409), fail-closed handling for unsupported files and ambiguous patterns (`MANUAL_REMEDIATION_REQUIRED`), server-generated branch and PR metadata, accessible modal UI with masked side-by-side diff and mandatory revocation/rotation notice banner, zero raw secret exposure, and comprehensive unit/integration test coverage.
 
@@ -35,6 +35,7 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 - Added `backend/src/test/java/com/scanpilot/persistence/FindingRemediationPrLinkPersistenceTest.java` (JPA persistence tests).
 - Added `backend/src/test/java/com/scanpilot/scanner/remediation/FindingRemediationPrServiceStateMachineTest.java` (Service state machine tests).
 - Added `backend/src/test/java/com/scanpilot/scanner/controller/FindingRemediationPrControllerTest.java` (MockMvc integration & auth tests).
+- Added `backend/src/test/java/com/scanpilot/github/service/GitHubPullRequestClientTest.java` (Fail-closed default branch and head SHA tests).
 
 ### Changed
 
