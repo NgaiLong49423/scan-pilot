@@ -11,7 +11,7 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 ## 2026-08-30 — PR-First Delivery Workflow with Dev Branch Integration & Governance Harmonization (Issue #79)
 
-**Status:** Working tree (pre-commit)
+**Status:** Committed (`bb8c972`)
 
 **Scope:** Enabled the PR-First Delivery Workflow with `origin/dev` integration branch and synchronized all governing specifications and agent skills (`.github/workflows/ci.yml`, `docs/DELIVERY-WORKFLOW.md`, `AGENTS.md`, `docs/MULTI-AGENT-GOVERNANCE-WORKFLOW.md`, `.agents/skill/agent-delivery-governance/SKILL.md`, `assets/codex-review-summary.md`). Feature branches are created from `origin/dev`, open PRs targeting `dev` with `Refs #N`, and run automated CI (`ci.yml`). Codex reviews the exact GitHub PR HEAD commit for `dev` merge eligibility (`APPROVED_FOR_DEV_MERGE`). The scoped implementer may commit, push, and open feature PRs; an authorized delivery agent may merge only a green, exactly reviewed PR HEAD into `dev`. Product Owner retains sole authority for `dev -> main` promotion (which triggers Cloud Run CD), production deployments, and final Issue closure.
 
