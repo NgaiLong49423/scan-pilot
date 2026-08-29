@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Delivery Workflow
 > **File:** `docs/DELIVERY-WORKFLOW.md`
-> **Version:** v2.1.0
+> **Version:** v2.2.1
 > **Created:** 2026-08-16
-> **Last Updated:** 2026-08-22
+> **Last Updated:** 2026-08-30
 > **Status:** Active
 
 # Scan Pilot Delivery Workflow
@@ -17,16 +17,16 @@ When the `agent-delivery-governance` skill is active for this project, use this 
 
 | Role | Responsibility |
 |---|---|
-| Agent 4 — Delivery Gatekeeper / Coordinator | agent coordinator; named in Issue before `BUILD`; names Agent 1, 2, 3 in its execution plan; freezes the local review target; verifies Coder + QA + AppSec reports against the unchanged local diff; outputs `READY_FOR_TECH_LEAD_REVIEW` and reports to Codex |
-| Agent 1 — Coder | primary implementer (named by Agent 4); writes scoped code/tests and a local handoff report; does not commit, push, or create a PR before Product Owner authorization |
-| Agent 2 — QA Reviewer | independent reviewer (named by Agent 4); audits the frozen local diff (`APPROVED` / `REQUEST_CHANGES` in `.agent-work/qa-reviews/qa-<issue>.md`) |
-| Agent 3 — AppSec Auditor | independent reviewer (named by Agent 4); audits the same frozen local diff (`APPROVED` / `BLOCKED` in `.agent-work/security-audits/sec-<issue>.md`) |
-| Codex — Technical Manager / Tech Lead | independent reviewer outside Agent 4; reviews the local diff/package, performs RCA for workflow failures, and outputs `APPROVED_FOR_PO_ACCEPTANCE`, `CHANGES_NEEDED`, or `BLOCKED` |
-| Product Owner (User) | product scope, UI/UX, cost, permissions, final acceptance decision (`PO ACCEPTED`), and sole merge authority |
+| Agent 4 — Delivery Gatekeeper / Coordinator | agent coordinator; named in Issue before `BUILD`; names Agent 1, 2, 3 in its execution plan; verifies scoped code, QA, and AppSec evidence on the PR branch; ensures green CI on the PR targeting `dev`; outputs `READY_FOR_CODEX_REVIEW` |
+| Agent 1 — Coder | primary implementer (named by Agent 4); creates scoped branch from `origin/dev`, writes scoped code/tests, commits, pushes to origin, and opens a Pull Request targeting `dev` with `Refs #N` |
+| Agent 2 — QA Reviewer | independent reviewer (named by Agent 4); audits the PR diff and automated test evidence (`APPROVED` / `REQUEST_CHANGES` in `.agent-work/qa-reviews/qa-<issue>.md`) |
+| Agent 3 — AppSec Auditor | independent reviewer (named by Agent 4); audits the same PR diff and security constraints (`APPROVED` / `BLOCKED` in `.agent-work/security-audits/sec-<issue>.md`) |
+| Codex — Technical Manager / Tech Lead | independent reviewer outside Agent 4; reviews the exact PR HEAD commit on GitHub, performs RCA for workflow failures, and outputs `APPROVED_FOR_DEV_MERGE`, `CHANGES_NEEDED`, or `BLOCKED` |
+| Product Owner (User) | product scope, UI/UX, cost, permissions, sole authority to merge `dev` into `main` (triggering production CD), and final Issue closure |
 
 Before implementation (`BUILD`) begins, the work item's implementation brief / contract must explicitly name Agent 4 (Delivery Gatekeeper / Coordinator). In Agent 4's execution plan, Agent 4 must explicitly name Agent 1 (Coder), Agent 2 (independent QA Reviewer), and Agent 3 (independent AppSec Auditor). Codex is recorded separately as Technical Lead / Technical Manager (not Agent 4, and not a subagent of Agent 4).
 
-The `FULL_TRACKED` workflow is active. Every Git-tracked implementation uses Issue → local branch/worktree → multi-agent local review → Codex Tech Lead review → Product Owner decision → separately authorized commit → separately authorized push/PR/merge.
+The `FULL_TRACKED` PR-First delivery workflow is active. Every Git-tracked feature implementation uses Issue → feature branch from `origin/dev` → commit and push → Pull Request targeting `dev` → automated CI checks (`ci.yml`) → multi-agent review → Codex Tech Lead review (`APPROVED_FOR_DEV_MERGE`) → merge into `dev` → Product Owner promotion from `dev` to `main`.
 
 ## Operational Sources of Truth
 
@@ -74,36 +74,39 @@ The instruction does not authorize creating unrelated Issues, closing the Issue,
 
 ## Implementation and Branch Contract
 
-- Keep `main` stable.
-- Prefer one branch per coherent checkpoint or large workstream rather than one branch for every small child task.
-- Use the project-defined branch convention. Scan Pilot currently uses `codex/<issue-number>-<short-kebab-name>`; the reusable skill does not prescribe a prefix.
+- Keep `main` and `dev` stable.
+- The repository uses a PR-First delivery model:
+  1. `origin/dev` is the shared integration branch branched from `origin/main`.
+  2. Feature branches use the convention `codex/<issue-number>-<short-kebab-name>` and are branched from `origin/dev`.
+  3. Feature branches open Pull Requests targeting `dev`.
+  4. GitHub Actions CI (`.github/workflows/ci.yml`) runs automated checks on PRs targeting `dev` and updates to `dev`.
+  5. Codex reviews the exact PR HEAD commit targeting `dev`.
+  6. Upon approval and green CI, the PR is merged into `dev`.
+  7. Only the Product Owner has the authority to open a Pull Request and merge `dev` into `main`.
+  8. Merging `dev` into `main` triggers Continuous Deployment (`.github/workflows/deploy-cloud-run.yml`) to Google Cloud Run.
 - Do not combine unrelated Issues merely to reduce branch or commit count.
-- Reference the active Issue in progress reports and checkpoint proposals.
-
-Before Product Owner acceptance, the reviewable artifact is a frozen uncommitted local diff, not a commit or pull request. The Coder and Agent 4 must not create a commit, push, or PR merely to obtain a SHA. After Product Owner explicitly authorizes a commit, push and pull-request creation remain separate permissions. The eventual PR uses `Refs #N` until its merge will satisfy every acceptance criterion, then uses `Closes #N` only with Product Owner merge authority; its head must equal the Product Owner-approved commit or the review cycle restarts.
+- Reference the active Issue in progress reports and pull requests using `Refs #N` (or `Closes #N` when authorized).
 
 ## Handoff Channel Contract
 
 | Channel | Required content |
 |---|---|
 | Issue | requirements, acceptance criteria, scope/exclusions, source links, and Product Owner decisions |
-| `.agent-work/reports/handoff-<issue>.md` | Coder handoff: `uncommitted local worktree`, base commit for context, changed files, test evidence, verification, limits |
-| `.agent-work/qa-reviews/qa-<issue>.md` | QA review of the frozen local diff (`APPROVED` / `REQUEST_CHANGES`) |
-| `.agent-work/security-audits/sec-<issue>.md` | AppSec audit of the same frozen local diff (`APPROVED` / `BLOCKED`) |
-| `.agent-work/acceptance/acceptance-<issue>.md` | Agent 4 local-diff consistency verification (`READY_FOR_TECH_LEAD_REVIEW`) |
-| `.agent-work/acceptance/tech-lead-<issue>.md` | Codex technical review (`APPROVED_FOR_PO_ACCEPTANCE` / `CHANGES_NEEDED` / `BLOCKED`) |
+| `.agent-work/reports/handoff-<issue>.md` | Coder handoff: feature branch, PR URL, exact HEAD commit, changed files, test evidence, verification, limits |
+| `.agent-work/qa-reviews/qa-<issue>.md` | QA review of the PR diff and test suite (`APPROVED` / `REQUEST_CHANGES`) |
+| `.agent-work/security-audits/sec-<issue>.md` | AppSec audit of the PR diff and security constraints (`APPROVED` / `BLOCKED`) |
+| `.agent-work/acceptance/acceptance-<issue>.md` | Agent 4 PR and CI verification (`READY_FOR_CODEX_REVIEW`) |
+| `.agent-work/acceptance/tech-lead-<issue>.md` | Codex technical review (`APPROVED_FOR_DEV_MERGE` / `CHANGES_NEEDED` / `BLOCKED`) |
 | `.agent-work/diagnostics/rca-<issue>.md` | Codex root-cause analysis and prevention/re-dispatch plan when a workflow or contract failure is found |
-| Branch | Coder implementation according to the project branch convention |
-| Pull request | created only after separately authorized commit and push; exact approved commit, `Refs #N`, compact secret-safe summary and gate status references |
+| Branch | Coder implementation on `codex/<issue-number>-<short-kebab-name>` branched from `origin/dev` |
+| Pull request | created targeting `dev` with `Refs #N`, exact approved HEAD commit, compact secret-safe summary, and CI status link |
 | Project #13 | status, priority, dates, workstream, and progress only |
 
-Do not duplicate agent discussion on GitHub. Before a commit exists, local reports establish the review evidence; after an authorized PR exists, its summary and exact approved head commit establish the minimum public handoff.
+Do not duplicate agent discussion on GitHub. The PR summary, exact HEAD commit, green CI run, and Codex review comments establish the public handoff evidence.
 
 ## Review and Completion Gate
 
-Before the Product Owner decision, the Coder provides a local handoff report and Agent 4 freezes the local diff. Coder MUST NOT self-approve as QA/AppSec or commit, push, or open a PR without Product Owner authorization.
-
-The review workflow follows the Nested Coordination Model (Mô hình Phối hợp Lồng nhau):
+The review workflow follows the Nested Coordination Model (Mô hình Phối hợp Lồng nhau) under the PR-First delivery model:
 
 ```text
 Agent 4 (Coordinator / Delivery Gatekeeper)
@@ -111,22 +114,23 @@ Agent 4 (Coordinator / Delivery Gatekeeper)
 ├── Agent 2 (QA Reviewer)
 └── Agent 3 (AppSec Auditor)
      ↓
-Codex (Tech Lead)
+Codex (Tech Lead / Technical Manager)
+     ↓ [APPROVED_FOR_DEV_MERGE]
+Merge to dev
      ↓
-Product Owner (User)
+Product Owner (Promotion: dev -> main)
 ```
 
 1. **Pre-BUILD Assignment & Execution Plan:** Issue contract names Agent 4 (Delivery Gatekeeper / Coordinator). Agent 4's execution plan explicitly names Agent 1 (Coder), Agent 2 (QA Reviewer), and Agent 3 (AppSec Auditor) before `BUILD` starts.
-2. **Gate 1 — Local Coder Handoff (Agent 1):** Implements code/tests locally and hands off an uncommitted worktree diff. Agent 4 records the worktree path, base commit for context only, and changed-file list, then freezes edits.
-3. **Gate 2 — Quality Gate (Agent 2):** Audits that frozen local diff and produces strictly `APPROVED` or `REQUEST_CHANGES`.
-4. **Gate 3 — Security Gate (Agent 3):** Audits the same frozen local diff and produces strictly `APPROVED` or `BLOCKED`.
-5. **Gate 4 — Delivery Coordination (Agent 4):** Confirms the local review target did not change and that Coder/QA/AppSec evidence agrees; produces `READY_FOR_TECH_LEAD_REVIEW`.
-6. **Gate 5 — Technical Lead (Codex):** Independently reviews the same local diff and package. On a workflow, contract, or evidence failure, performs RCA and may correct accepted delivery artifacts. The RCA is the corrective-change handoff; Agent 4 then obtains fresh independent QA/AppSec evidence on that local diff before re-dispatching Codex. Codex does not self-approve its own correction. Produces `APPROVED_FOR_PO_ACCEPTANCE`, `CHANGES_NEEDED`, or `BLOCKED`.
-7. **Gate 6 — Product Owner:** Records `PO ACCEPTED` or `PO RETURNED`. `PO ACCEPTED` may explicitly authorize the local commit only; push, PR creation, merge, Issue closure, and deployment remain separate decisions.
+2. **Gate 1 — Feature Implementation & Scoped Commit (Agent 1):** Creates feature branch from `origin/dev`, writes scoped code/tests, commits, pushes to origin, and opens a Pull Request targeting `dev` with `Refs #N`.
+3. **Gate 2 — Automated CI Verification:** GitHub Actions CI (`.github/workflows/ci.yml`) runs automated checks on the PR targeting `dev`. A green CI run is a mandatory prerequisite for technical review.
+4. **Gate 3 — Independent QA & AppSec Review (Agents 2 & 3):** Agent 2 audits code quality/tests (`APPROVED` / `REQUEST_CHANGES`) and Agent 3 audits security constraints/secrets (`APPROVED` / `BLOCKED`).
+5. **Gate 4 — Delivery Coordination (Agent 4):** Confirms that CI is green, changed files match the authorized scope, and QA/AppSec evidence agrees; produces `READY_FOR_CODEX_REVIEW`.
+6. **Gate 5 — Technical Manager Review (Codex):** Independently reviews the exact PR HEAD commit on GitHub. On contract, scope, or evidence failure, performs RCA and returns `CHANGES_NEEDED`. When all acceptance criteria and quality gates are satisfied, outputs `APPROVED_FOR_DEV_MERGE`.
+7. **Gate 6 — Integration Merge (`dev`):** The approved PR is merged into `dev`. Merging to `dev` does NOT trigger production deployment.
+8. **Gate 7 — Production Promotion & Final Acceptance (Product Owner):** Only the Product Owner has the authority to open a Pull Request and merge `dev` into `main`. Merging `dev` into `main` triggers Continuous Deployment (`.github/workflows/deploy-cloud-run.yml`) to Google Cloud Run. The Product Owner records final acceptance and closes completed Issues with `Closes #N`.
 
-Remediation loop: If QA returns `REQUEST_CHANGES`, AppSec returns `BLOCKED`, or Codex returns `CHANGES_NEEDED`/`BLOCKED`, Agent 4 returns work to Coder. Any changed local diff invalidates prior reviews and requires fresh QA, AppSec, Gatekeeper, and Tech Lead evidence. If the Product Owner does not authorize commit, the accepted local diff remains uncommitted.
-
-Product Owner acceptance: `Review` remains the active state while Gatekeeper review, Tech Lead sign-off, and Product Owner acceptance are pending. The Product Owner records `PO ACCEPTED` or `PO RETURNED` in the Issue and provides explicit merge authorization. Codex Tech Lead recommendations do NOT replace Product Owner acceptance or merge permission. Only explicit Product Owner merge authority permits PR merge and Issue closure.
+Remediation loop: If QA returns `REQUEST_CHANGES`, AppSec returns `BLOCKED`, or Codex returns `CHANGES_NEEDED`/`BLOCKED`, Agent 4 routes the remediation card to Coder. Coder applies bounded fixes, pushes a new HEAD commit to the PR branch, and the review cycle re-runs on the exact new HEAD commit.
 
 ## Target, Proof, and Remediation Controls
 
@@ -135,10 +139,10 @@ Product Owner acceptance: `Review` remains the active state while Gatekeeper rev
 Before Agent 1 edits code, Agent 4 records this compact manifest in `.agent-work/`:
 
 ```text
-Base ref and resolved commit: <origin/main SHA>
-Local worktree: <path retained locally only>
-Review mode: frozen local diff before commit
-Production artifact: <for example, frontend/src>
+Base ref and resolved commit: origin/dev (<commit SHA>)
+Target branch: dev
+Review mode: PR HEAD commit on GitHub with automated CI
+Production artifact: <for example, frontend/src or backend/src>
 Allowed paths: <paths>
 Prohibited paths: <frozen prototype/evidence and unrelated paths>
 Manual deployment handoff: <when applicable>
@@ -158,7 +162,7 @@ The matrix selects the smallest useful proof. A live-service check is labelled i
 
 ### Risk-Based Verification
 
-Complete a coherent code slice, run its narrow relevant check, and repair the cause before expanding verification. Run the full applicable backend/frontend verification once on the frozen local diff before handoff. Do not rerun an unchanged passing suite unless source changed, a prior check failed, or the remediation explicitly requires it. Bruno is used only for affected REST/integration flows and never replaces compilation, automated tests, lint, or production build evidence.
+Complete a coherent code slice, run its narrow relevant check, and repair the cause before expanding verification. Run the full applicable backend/frontend verification once before PR push/handoff to ensure clean CI execution. Do not rerun an unchanged passing suite unless source changed, a prior check failed, or the remediation explicitly requires it. Bruno is used only for affected REST/integration flows and never replaces compilation, automated tests, lint, or production build evidence.
 
 ### Directed Remediation Contract
 
@@ -213,7 +217,7 @@ Checklists for QA (Agent 2) and AppSec (Agent 3) must scale to the specific chan
 
 ## Git and External-Action Boundary
 
-Issue assignment and routine status updates do not authorize Git or deployment actions. Commit, push, pull request creation, merge, history rewrite, production deployment, paid-resource creation, credential changes, and destructive actions retain their separate approval requirements in `AGENTS.md`.
+Issue assignment and routine status updates do not authorize Git or deployment actions by themselves. For an assigned work item within accepted scope, the PR-First contract in `AGENTS.md` authorizes the implementer to commit, push, and open a feature Pull Request targeting `dev`. An authorized delivery agent may merge that PR into `dev` only after the exact current HEAD has green CI and Codex returns `APPROVED_FOR_DEV_MERGE`. Promotion to `main`, production deployment, history rewrites, paid-resource creation, credential changes, and destructive actions retain their separate Product Owner approval requirements.
 
 ## Delivery Automation Policy
 
@@ -221,21 +225,23 @@ Delivery automation is staged so repeatable checks reduce manual review effort w
 
 ### Current State
 
-No GitHub Actions CI/CD workflow is configured yet. Until a CI workflow is implemented and verified, the implementer must provide applicable local test/build evidence and Codex must review it manually.
+GitHub Actions Continuous Integration (`.github/workflows/ci.yml`) is active for all pull requests targeting `dev` and `main`, as well as direct pushes to `dev` and `main`. Continuous Deployment (`.github/workflows/deploy-cloud-run.yml`) is configured for pushes to `main` only.
 
-### Continuous Integration First
+### Continuous Integration
 
-A separately authorized CI Issue must introduce the smallest relevant automated checks for both production workspaces. The initial target is frontend dependency installation, lint, and production build plus backend Java 21 Maven verification. It should run for pull requests targeting `main` and for updates to `main`.
+The CI workflow executes automated checks across both production workspaces:
+- **Frontend (Node.js 20):** `npm ci`, `npm run lint`, `npm run test`, `npm run build`.
+- **Backend (Java 21 / Maven):** `mvn -B clean verify`, container smoke test (`git --version`, `gitleaks version`).
 
-Once that workflow has produced reliable green evidence on real pull requests, a later authorized repository-settings task may make its named checks required for `main`. Do not make a check required before it has run successfully, because a missing or skipped required check can block all pull requests.
+A green CI run is a mandatory prerequisite before Codex technical review and merge into `dev`.
 
-### Continuous Delivery Is Deferred
+### Continuous Delivery
 
-CI success is not deployment authorization. Cloud Run deployment, credentials, database migration, release validation, cost controls, and public availability remain a separate deployment/release Issue. A production deploy requires explicit Product Owner authorization for that release, even if all CI checks pass.
+CD is triggered automatically only when the Product Owner merges `dev` into `main`. Merging feature PRs into `dev` never triggers CD or modifies the production Cloud Run deployment.
 
 ### Review Boundary
 
-Automated checks provide repeatable build and test evidence only. Codex still reviews scope, security, architecture, documentation, known limitations, and the Issue acceptance criteria. The Product Owner still controls final acceptance, merge, and public deployment.
+Automated checks provide repeatable build and test evidence only. Codex still reviews scope, security, architecture, documentation, known limitations, and the Issue acceptance criteria. The Product Owner still controls final acceptance, merge to `main`, and public deployment.
 
 ## GitHub Project Automation
 
