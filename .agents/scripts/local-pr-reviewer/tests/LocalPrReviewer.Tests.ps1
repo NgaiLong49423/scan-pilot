@@ -91,6 +91,15 @@ index 2345678..9abcdef0 100644
     Assert-Condition "Did not include unchanged line 10" (-not $parsed.HunkLines["src/main/App.java"].Contains(10))
     Assert-Condition "Extracted line 5 for AppTest.java" ($parsed.HunkLines["src/test/AppTest.java"].Contains(5))
 
+    # Native gh output is line-oriented. Verify the client rejoins it before
+    # handing it to the parser, otherwise PowerShell coerces Object[] to text.
+    $mockDiffScript = Join-Path $testTempDir "mock-gh-diff.bat"
+    @("@echo off") + (($sampleDiff -split "`r?`n") | ForEach-Object { "echo($_" }) |
+        Set-Content -Path $mockDiffScript -Encoding ascii
+    $fetchedDiff = Get-PrDiffContent -PrNumber 86 -Repo "NgaiLong49423/scan-pilot" -GhCommand $mockDiffScript
+    $fetchedParsed = Parse-UnifiedDiff -RawDiff $fetchedDiff
+    Assert-Condition "Line-oriented gh diff is preserved as a unified diff string" ($fetchedParsed.Files.Count -eq 2 -and $fetchedParsed.HunkLines["src/main/App.java"].Contains(11))
+
     # -------------------------------------------------------------
     # 3. Output Validator & Hallucination/Injection Filtering
     # -------------------------------------------------------------
@@ -281,7 +290,7 @@ index 2345678..9abcdef0 100644
     "baseRefName": "dev",
     "headRefOid": "sha1",
     "headRepository": { "id": "repo-100" },
-    "baseRepository": { "id": "repo-100" }
+    "isCrossRepository": false
   },
   {
     "number": 2,
@@ -290,7 +299,7 @@ index 2345678..9abcdef0 100644
     "baseRefName": "dev",
     "headRefOid": "sha2",
     "headRepository": { "id": "repo-100" },
-    "baseRepository": { "id": "repo-100" }
+    "isCrossRepository": false
   },
   {
     "number": 3,
@@ -299,16 +308,16 @@ index 2345678..9abcdef0 100644
     "baseRefName": "main",
     "headRefOid": "sha3",
     "headRepository": { "id": "repo-100" },
-    "baseRepository": { "id": "repo-100" }
+    "isCrossRepository": false
   },
   {
     "number": 4,
-    "title": "Fork PR (Different Repo ID)",
+    "title": "Fork PR",
     "isDraft": false,
     "baseRefName": "dev",
     "headRefOid": "sha4",
     "headRepository": { "id": "fork-repo-999" },
-    "baseRepository": { "id": "repo-100" }
+    "isCrossRepository": true
   },
   {
     "number": 5,
@@ -317,18 +326,18 @@ index 2345678..9abcdef0 100644
     "baseRefName": "dev",
     "headRefOid": "sha5",
     "headRepository": { "id": "repo-100" },
-    "baseRepository": { "id": "repo-100" }
+    "isCrossRepository": false
   }
 ]
 '@
     $mockListScript = Join-Path $testTempDir "mock-gh-list.bat"
-    "@echo off`necho $mockPrsJson" | Set-Content -Path $mockListScript -Encoding ascii
+    $mockPrsCompactJson = ($mockPrsJson | ConvertFrom-Json | ConvertTo-Json -Compress)
+    "@echo off`necho $mockPrsCompactJson" | Set-Content -Path $mockListScript -Encoding ascii
 
-    $filteredPrs = ($mockPrsJson | ConvertFrom-Json) | Where-Object {
-        $_.isDraft -eq $false -and $_.baseRefName -eq "dev" -and $_.headRepository.id -eq $_.baseRepository.id
-    }
-    Assert-Condition "Only valid same-repo non-draft dev PR is selected" ($filteredPrs.Count -eq 2 -and ($filteredPrs | Where-Object { $_.number -eq 5 }))
-    Assert-Condition "Fork PR with different ID is excluded" (-not ($filteredPrs | Where-Object { $_.number -eq 4 }))
+    $eligiblePrResult = Get-EligibleDevPullRequests -Repo "NgaiLong49423/scan-pilot" -GhCommand $mockListScript
+    $filteredPrs = $eligiblePrResult.PullRequests
+    Assert-Condition "Only valid same-repo non-draft dev PR is selected" ($eligiblePrResult.Success -and $filteredPrs.Count -eq 2 -and ($filteredPrs | Where-Object { $_.number -eq 5 }))
+    Assert-Condition "Fork PR is excluded" (-not ($filteredPrs | Where-Object { $_.number -eq 4 }))
     Assert-Condition "Draft PR is excluded" (-not ($filteredPrs | Where-Object { $_.number -eq 2 }))
     Assert-Condition "Main-target PR is excluded" (-not ($filteredPrs | Where-Object { $_.number -eq 3 }))
 
@@ -421,6 +430,8 @@ index 2345678..9abcdef0 100644
     $queryWithPinnedRepo = Get-EligibleDevPullRequests -Repo "NgaiLong49423/scan-pilot" -GhCommand $mockGhCapturePath
     $capturedArgs = if (Test-Path $argLogPath) { Get-Content $argLogPath -Raw } else { "" }
     Assert-Condition "gh pr list pinned to NgaiLong49423/scan-pilot" ($capturedArgs.Contains("--repo NgaiLong49423/scan-pilot"))
+    Assert-Condition "gh pr list uses supported isCrossRepository field" ($capturedArgs.Contains("isCrossRepository"))
+    Assert-Condition "gh pr list does not request unsupported baseRepository field" (-not $capturedArgs.Contains("baseRepository"))
 
     # Test 13b: Query failure returns UNAVAILABLE (not false NO_PRS)
     $mockGhFailPath = Join-Path $testTempDir "mock-gh-fail.bat"
