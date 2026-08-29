@@ -11,7 +11,7 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 ## 2026-08-29 — Verified GitHub App Installation Linking & Durable Ownership Anchor (Issue #54 Prerequisite Slice)
 
-**Status:** Committed (`cf8bb52`)
+**Status:** Committed (`92f6010`)
 
 **Scope:** Implemented prerequisite verified GitHub App installation linking and two-level server-side repository authorization (BUILD 1 slice of Issue #54) enforcing fail-closed zero-trust boundaries without accepting client-controlled installation identifiers.
 
