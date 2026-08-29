@@ -76,4 +76,17 @@ public class ScanJobEntity {
     @Column(name = "next_event_sequence", nullable = false, updatable = false)
     @Builder.Default
     private long nextEventSequence = 0L;
+
+    @Column(name = "webhook_delivery_id")
+    private UUID webhookDeliveryId;
+
+    @Column(name = "trigger_type", length = 64, nullable = false)
+    @Builder.Default
+    private String triggerType = "MANUAL";
+
+    @Column(name = "expected_commit_sha", length = 64)
+    private String expectedCommitSha;
+
+    @Column(name = "pr_number")
+    private Integer prNumber;
 }

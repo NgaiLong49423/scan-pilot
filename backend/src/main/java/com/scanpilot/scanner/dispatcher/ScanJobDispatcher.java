@@ -43,18 +43,26 @@ public class ScanJobDispatcher {
     private final RepositoryRepository repositoryRepository;
     private final ScanWorkerInstance scanWorkerInstance;
     private final TelemetryPayloadSerializer telemetryPayloadSerializer;
+    private final ScanJobStateTransitionService scanJobStateTransitionService;
+    private final org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     @Qualifier("scanTaskExecutor")
     private final ThreadPoolTaskExecutor scanTaskExecutor;
 
+    private org.springframework.transaction.support.TransactionTemplate requiresNewTxTemplate;
+
+    private org.springframework.transaction.support.TransactionTemplate getRequiresNewTxTemplate() {
+        if (this.requiresNewTxTemplate == null) {
+            org.springframework.transaction.support.TransactionTemplate tt = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+            tt.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            this.requiresNewTxTemplate = tt;
+        }
+        return this.requiresNewTxTemplate;
+    }
+
     /**
-     * Dispatches a scan job for the given repository and branch.
+     * Dispatches a manual scan job for the given repository and branch.
      * Prevents duplicate concurrent scans on the same repository via DB-level pessimistic locking.
-     * Enqueues the scan job in DB and registers post-commit asynchronous execution on bounded worker pool.
-     *
-     * @param repo       the target repository entity
-     * @param branchName the target branch name
-     * @return the newly queued ScanJobEntity or the already active ScanJobEntity
      */
     @Transactional
     public ScanJobEntity dispatch(RepositoryEntity repo, String branchName) {
@@ -84,6 +92,7 @@ public class ScanJobDispatcher {
                 .scanMode("SNAPSHOT_AND_HISTORY")
                 .status("QUEUED")
                 .stage("QUEUED")
+                .triggerType("MANUAL")
                 .workerInstanceId(scanWorkerInstance.getInstanceId())
                 .createdAt(now)
                 .updatedAt(now)
@@ -93,27 +102,75 @@ public class ScanJobDispatcher {
                 .build();
 
         ScanJobEntity savedJob = scanJobRepository.saveAndFlush(scanJob);
-        UUID jobId = savedJob.getId();
         UUID repoId = repo.getId();
 
         // Emit QUEUED stage started milestone event within dispatch transaction (AC-02, maxLimit = 95)
-        emitEvent(jobId, "QUEUED", "STAGE_TRANSITION", "STAGE_STARTED", new ScanEventPayload.StageStartedPayload("QUEUED"), 95L);
+        emitEvent(savedJob.getId(), "QUEUED", "STAGE_TRANSITION", "STAGE_STARTED", new ScanEventPayload.StageStartedPayload("QUEUED"), 95L);
 
-        // 4. Submit task to bounded executor strictly AFTER database transaction commits
+        // 4. Trigger queue processor strictly AFTER database transaction commits
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    submitTaskToExecutor(jobId, repoId);
+                    tryProcessNextJobForRepository(repoId);
                 }
             });
         } else {
-            submitTaskToExecutor(jobId, repoId);
+            tryProcessNextJobForRepository(repoId);
         }
 
         log.info("Dispatched scan job {} for repository {} on branch {} (status=QUEUED, stage=QUEUED, workerInstanceId={})",
                 savedJob.getId(), repo.getId(), branch, scanWorkerInstance.getInstanceId());
         return savedJob;
+    }
+
+    /**
+     * Attempts to claim and execute the next QUEUED job for the repository in FIFO order.
+     * Guaranteed at most one RUNNING job per repository at any time.
+     */
+    public void tryProcessNextJobForRepository(UUID repoId) {
+        if (repoId == null) {
+            return;
+        }
+
+        getRequiresNewTxTemplate().executeWithoutResult(status -> {
+            // Pessimistic lock at DB level on repository row
+            repositoryRepository.findByIdForUpdate(repoId);
+
+            // Check if there is already a RUNNING job for this repository
+            List<ScanJobEntity> runningJobs = scanJobRepository.findByRepositoryIdAndStatus(repoId, "RUNNING");
+            if (!runningJobs.isEmpty()) {
+                return; // Active job is currently running; its finally block will drain the next job
+            }
+
+            // Find oldest QUEUED job for this repository
+            Optional<ScanJobEntity> nextQueuedJobOpt = scanJobRepository.findFirstByRepositoryIdAndStatusOrderByCreatedAtAsc(repoId, "QUEUED");
+            if (nextQueuedJobOpt.isEmpty()) {
+                return;
+            }
+
+            ScanJobEntity nextJob = nextQueuedJobOpt.get();
+            UUID jobId = nextJob.getId();
+
+            // Transition QUEUED -> RUNNING via independent transaction coordinator
+            boolean claimed = scanJobStateTransitionService.transitionQueuedToRunning(jobId, scanWorkerInstance.getInstanceId());
+            if (!claimed) {
+                return;
+            }
+
+            emitEvent(jobId, "RUNNING", "STAGE_TRANSITION", "STAGE_STARTED", new ScanEventPayload.StageStartedPayload("RUNNING"), 95L);
+
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        submitTaskToExecutor(jobId, repoId);
+                    }
+                });
+            } else {
+                submitTaskToExecutor(jobId, repoId);
+            }
+        });
     }
 
     private void submitTaskToExecutor(UUID jobId, UUID repoId) {
@@ -124,13 +181,17 @@ public class ScanJobDispatcher {
                 } catch (Exception e) {
                     log.error("Unhandled exception during async scan job execution for jobId={}: errorType={} message={}",
                             jobId, e.getClass().getSimpleName(), scanPipelineService.sanitizeErrorMessage(e.getMessage()));
+                } finally {
+                    // Self-contained queue drain: ScanPipelineService does not call ScanJobDispatcher
+                    tryProcessNextJobForRepository(repoId);
                 }
             });
         } catch (RejectedExecutionException e) {
             log.warn("Scan executor capacity exceeded after commit for jobId={} repositoryId={}: errorType={}",
                     jobId, repoId, e.getClass().getSimpleName());
             emitEvent(jobId, "FAILED", "SCAN_FAILED", "JOB_FAILED", new ScanEventPayload.JobFailedPayload("DISPATCH_CAPACITY_EXCEEDED"), 100L);
-            scanJobRepository.updateJobStatusAndError(jobId, "FAILED", "FAILED", CAPACITY_EXCEEDED_MESSAGE, Instant.now());
+            scanJobStateTransitionService.markJobFailed(jobId, CAPACITY_EXCEEDED_MESSAGE);
+            // NON-RECURSIVE: do not call tryProcessNextJobForRepository here; reconciler recovers later
         }
     }
 
@@ -144,19 +205,21 @@ public class ScanJobDispatcher {
                 log.debug("Event {} ({}) suppressed due to invalid/oversized payload", eventType, messageCode);
                 return;
             }
-            Optional<Long> allocatedSeq = scanEventRepository.insertEventAtomicCTE(
-                    jobId,
-                    maxLimit,
-                    UUID.randomUUID(),
-                    stage,
-                    eventType,
-                    messageCode,
-                    payloadJson,
-                    Instant.now()
-            );
-            if (allocatedSeq.isEmpty()) {
-                log.debug("Event {} ({}) dropped/suppressed", eventType, messageCode);
-            }
+            getRequiresNewTxTemplate().executeWithoutResult(status -> {
+                Optional<Long> allocatedSeq = scanEventRepository.insertEventAtomicCTE(
+                        jobId,
+                        maxLimit,
+                        UUID.randomUUID(),
+                        stage,
+                        eventType,
+                        messageCode,
+                        payloadJson,
+                        Instant.now()
+                );
+                if (allocatedSeq.isEmpty()) {
+                    log.debug("Event {} ({}) dropped/suppressed", eventType, messageCode);
+                }
+            });
         } catch (Exception e) {
             log.warn("Event persistence error for eventType={}", eventType);
         }

@@ -9,6 +9,31 @@
 
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
+## 2026-08-29 — Authorized Webhook-to-Async-Scan Dispatch, Queue-Safe FIFO Reconciliation & Exact-SHA Verification (Issue #54 BUILD 3)
+
+**Status:** Working tree (pre-commit)
+
+**Scope:** Implemented authorized asynchronous scan dispatch triggered by validated webhook deliveries (BUILD 3 of Issue #54), including Flyway V8 schema migration with portable ANSI unique constraint on `scan_jobs(webhook_delivery_id)`, per-repository FIFO queue processing with at most 1 active `RUNNING` job per repository, queue capacity limit (10 queued jobs per repository), independent transaction state transitions (`ScanJobStateTransitionService`), non-recursive executor rejection handling, queue-safe heartbeat reconciliation (protecting queued jobs from stale timeouts and automatically recovering stranded queues on startup and schedule), 4-step exact-commit git clone/fetch/detached checkout (`clone --no-checkout`, `fetch origin <sha>`, `checkout --detach <sha>`, `rev-parse HEAD` verification), and exclusive GitHub App installation token authentication (`createInstallationAccessToken`).
+
+### Added
+
+- Added Flyway migration `V8__add_webhook_scan_dispatch_links.sql` adding `webhook_delivery_id`, `trigger_type`, `expected_commit_sha`, `pr_number` columns and portable standard `UNIQUE(webhook_delivery_id)` constraint on `scan_jobs`.
+- Added `ScanTriggerType` enum (`MANUAL`, `WEBHOOK_PUSH`, `WEBHOOK_PULL_REQUEST`, `WEBHOOK_MERGE`).
+- Added `ScanJobStateTransitionService` providing independent transaction boundaries (`TransactionTemplate`) for safe status transitions and failure handling without self-invocation.
+- Added automated tests: `FlywayV8MigrationTest`, `GitCloneServiceTest`, `ScanPipelineExactShaCheckoutTest`, and `ScanPipelineInstallationTokenAuthTest`.
+
+### Changed
+
+- Updated `ScanJobEntity` with `webhookDeliveryId`, `triggerType`, `expectedCommitSha`, `prNumber`.
+- Updated `ScanJobRepository` adding `findByWebhookDeliveryId`, `countByRepositoryIdAndStatus`, `findFirstByRepositoryIdAndStatusOrderByCreatedAtAsc`, `findRepositoriesWithQueuedJobsAndNoRunningJobs`, and updated `reconcileStaleJobsAtomic` to only mark stale `RUNNING` jobs as `FAILED` (preserving `QUEUED` jobs).
+- Updated `ScanExecutorConfig` adding `MAX_QUEUED_JOBS_PER_REPOSITORY = 10`.
+- Updated `ScanJobDispatcher` implementing per-repository FIFO queue drain in worker `finally` block, state transition coordination, and non-recursive executor rejection handling.
+- Updated `ScanJobRestartReconciler` to reconcile only expired `RUNNING` jobs and discover/kick stranded `QUEUED` jobs for idle repositories.
+- Updated `GitCloneService` with 4-step exact-SHA command sequence, detached checkout, and strict `git rev-parse HEAD` equality verification.
+- Updated `ScanPipelineService` to fetch repositories using verified GitHub App installation tokens for webhook triggers, enforce exact-SHA checkout, fail closed with zero fake SHA or checkpoint on checkout error, and forbid ZIP fallback on webhook scans.
+- Updated `GitHubWebhookService` to enforce per-repository queue capacity limits, provision `ScanJobEntity` linked to accepted deliveries, and trigger post-commit asynchronous queue processing.
+- Updated automated tests: `ScanJobDispatcherTest`, `ScanJobRestartReconcilerTest`, `GitHubWebhookServiceTest`, `GitHubWebhookControllerTest`.
+
 ## 2026-08-29 — Verified Webhook Ingestion, Durable Delivery Deduplication & Multi-Tenant Routing (Issue #54 BUILD 2)
 
 **Status:** Committed (`9e4a42b`)

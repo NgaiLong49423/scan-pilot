@@ -94,6 +94,7 @@ public class ScanPipelineService {
     private final CoverageItemRepository coverageItemRepository;
     private final com.scanpilot.persistence.repository.RepositoryRepository repositoryRepository;
     private final com.scanpilot.persistence.repository.UserSessionRepository userSessionRepository;
+    private final com.scanpilot.github.service.GitHubAppAuthService gitHubAppAuthService;
     private final TelemetryPayloadSerializer telemetryPayloadSerializer;
 
     /**
@@ -144,7 +145,7 @@ public class ScanPipelineService {
             emitEvent(scanJob.getId(), "FETCHING_SNAPSHOT", "STAGE_TRANSITION", "STAGE_STARTED", new ScanEventPayload.StageStartedPayload("FETCHING_SNAPSHOT"), 95L);
             workspace = gitWorkspaceManager.createWorkspace(repositoryId);
             Path workspacePath = workspace.workspacePath();
-            SnapshotTransferMetrics snapshotMetrics = fetchRemoteRepositorySnapshot(repositoryId, branch, workspacePath, jobDeadline);
+            SnapshotTransferMetrics snapshotMetrics = fetchRemoteRepositorySnapshot(repositoryId, branch, scanJob.getTriggerType(), scanJob.getExpectedCommitSha(), workspacePath, jobDeadline);
             String mode = snapshotMetrics != null && snapshotMetrics.mode() != null ? snapshotMetrics.mode() : "GIT_CLONE";
             Long archiveBytes = snapshotMetrics != null ? snapshotMetrics.archiveBytes() : null;
             long wsBytes = snapshotMetrics != null ? snapshotMetrics.workspaceBytes() : 0L;
@@ -222,7 +223,13 @@ public class ScanPipelineService {
             emitEvent(scanJob.getId(), "RECORDING_EVIDENCE", "STAGE_TRANSITION", "STAGE_STARTED", new ScanEventPayload.StageStartedPayload("RECORDING_EVIDENCE"), 95L);
 
             String commitSha = resolveCommitSha(workspacePath);
-            if (commitSha == null) {
+            if (scanJob.getExpectedCommitSha() != null && !scanJob.getExpectedCommitSha().isBlank()) {
+                if (commitSha == null || !commitSha.equalsIgnoreCase(scanJob.getExpectedCommitSha())) {
+                    throw new IllegalStateException("COMMIT_CHECKOUT_FAILED: Verified workspace HEAD SHA does not match expected commit");
+                }
+            } else if (scanJob.getTriggerType() != null && !"MANUAL".equals(scanJob.getTriggerType())) {
+                throw new IllegalStateException("COMMIT_CHECKOUT_FAILED: Failed to resolve verified commit SHA for webhook scan job");
+            } else if (commitSha == null) {
                 commitSha = "HEAD-" + UUID.randomUUID().toString().substring(0, 8);
             }
 
@@ -907,10 +914,14 @@ public class ScanPipelineService {
     }
 
     SnapshotTransferMetrics fetchRemoteRepositorySnapshot(UUID repositoryId, String branch, Path workspacePath) {
-        return fetchRemoteRepositorySnapshot(repositoryId, branch, workspacePath, null);
+        return fetchRemoteRepositorySnapshot(repositoryId, branch, "MANUAL", null, workspacePath, null);
     }
 
     SnapshotTransferMetrics fetchRemoteRepositorySnapshot(UUID repositoryId, String branch, Path workspacePath, Instant jobDeadline) {
+        return fetchRemoteRepositorySnapshot(repositoryId, branch, "MANUAL", null, workspacePath, jobDeadline);
+    }
+
+    SnapshotTransferMetrics fetchRemoteRepositorySnapshot(UUID repositoryId, String branch, String triggerType, String expectedCommitSha, Path workspacePath, Instant jobDeadline) {
         if (repositoryRepository == null || repositoryId == null) {
             throw new IllegalStateException("Repository repository or repository ID is not available");
         }
@@ -927,23 +938,45 @@ public class ScanPipelineService {
             throw new IllegalStateException("Repository full name could not be determined for repository: " + repositoryId);
         }
 
-        log.info("Fetching remote repository {} on branch {}", fullName, branch);
+        boolean isWebhookTrigger = (triggerType != null && !"MANUAL".equals(triggerType));
         String token = null;
-        if (repo.getUserId() != null && userSessionRepository != null) {
-            List<com.scanpilot.persistence.entity.UserSessionEntity> sessions = userSessionRepository.findByUserId(repo.getUserId());
-            if (!sessions.isEmpty()) {
-                token = sessions.get(0).getAccessToken();
+
+        if (isWebhookTrigger) {
+            if (repo.getInstallationId() == null) {
+                log.warn("Webhook scan dispatch rejected: repository {} has no linked installation", fullName);
+                throw new IllegalStateException("INSTALLATION_TOKEN_UNAVAILABLE: Repository " + fullName + " has no linked GitHub App installation");
+            }
+            if (gitHubAppAuthService == null) {
+                throw new IllegalStateException("INSTALLATION_TOKEN_UNAVAILABLE: GitHubAppAuthService is not configured");
+            }
+            token = gitHubAppAuthService.createInstallationAccessToken(repo.getInstallationId());
+        } else {
+            if (repo.getUserId() != null && userSessionRepository != null) {
+                List<com.scanpilot.persistence.entity.UserSessionEntity> sessions = userSessionRepository.findByUserId(repo.getUserId());
+                if (!sessions.isEmpty()) {
+                    token = sessions.get(0).getAccessToken();
+                }
             }
         }
 
+        log.info("Fetching remote repository {} on branch {} (triggerType={}, exactSha={})", fullName, branch, triggerType, expectedCommitSha);
+
         if (gitCloneService != null) {
-            gitCloneService.cloneRepository(fullName, branch, token, workspacePath, jobDeadline);
+            if (expectedCommitSha != null && !expectedCommitSha.isBlank()) {
+                gitCloneService.cloneRepository(fullName, branch, expectedCommitSha, token, workspacePath, jobDeadline);
+            } else {
+                gitCloneService.cloneRepository(fullName, branch, token, workspacePath, jobDeadline);
+            }
             long wsSize = computeDirectorySize(workspacePath);
             int entryCount = countEntries(workspacePath);
             log.info("Successfully cloned repository {} on branch {} via GitCloneService (workspaceBytes={}, entries={})",
                     fullName, branch, wsSize, entryCount);
             // Represent Git clone transfer evidence truthfully: mode=GIT_CLONE, archiveBytes=null
             return SnapshotTransferMetrics.forGitClone(wsSize, entryCount);
+        }
+
+        if (isWebhookTrigger) {
+            throw new IllegalStateException("COMMIT_CHECKOUT_FAILED: GitCloneService is required for webhook scan triggers");
         }
 
         if (streamedSnapshotFetcher != null) {

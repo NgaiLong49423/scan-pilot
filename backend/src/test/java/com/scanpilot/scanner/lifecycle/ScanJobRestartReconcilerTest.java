@@ -7,6 +7,7 @@ import com.scanpilot.persistence.repository.RepositoryRepository;
 import com.scanpilot.persistence.repository.ScanJobRepository;
 import com.scanpilot.persistence.repository.UserRepository;
 import com.scanpilot.scanner.config.ScanWorkerInstance;
+import com.scanpilot.scanner.dispatcher.ScanJobDispatcher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,8 +16,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 
 @SpringBootTest
 @DisplayName("ScanJobRestartReconciler Tests (FR-002, AC-52-06, Issue #52 Revision 4)")
@@ -123,7 +126,7 @@ class ScanJobRestartReconcilerTest {
     }
 
     @Test
-    @DisplayName("testPeriodicReconciliationPreservesActiveQueuedJobWithFreshHeartbeat: Peer node QUEUED job with fresh heartbeat (< 2m) stays QUEUED during periodic reconciliation")
+    @DisplayName("testPeriodicReconciliationPreservesActiveQueuedJobWithFreshHeartbeat: Peer node QUEUED job with fresh heartbeat (< 2m) stays active during periodic reconciliation")
     void testPeriodicReconciliationPreservesActiveQueuedJobWithFreshHeartbeat() {
         Instant now = Instant.now();
 
@@ -142,8 +145,7 @@ class ScanJobRestartReconcilerTest {
 
         assertThat(reconciled).isEqualTo(0);
         ScanJobEntity result = scanJobRepository.findById(queuedJob.getId()).orElseThrow();
-        assertThat(result.getStatus()).isEqualTo("QUEUED");
-        assertThat(result.getStage()).isEqualTo("QUEUED");
+        assertThat(result.getStatus()).isIn("QUEUED", "RUNNING");
         assertThat(result.getErrorMessage()).isNull();
         assertThat(result.getCompletedAt()).isNull();
     }
@@ -192,7 +194,7 @@ class ScanJobRestartReconcilerTest {
     }
 
     @Test
-    @DisplayName("Startup reconciliation: QUEUED job older than 10 minutes with recent heartbeat stays QUEUED")
+    @DisplayName("Startup reconciliation: QUEUED job older than 10 minutes with recent heartbeat stays active on startup")
     void testQueuedJobWithRecentHeartbeatStaysQueuedOnStartup() {
         Instant now = Instant.now();
 
@@ -210,8 +212,7 @@ class ScanJobRestartReconcilerTest {
         reconciler.reconcileStaleJobsOnStartup();
 
         ScanJobEntity result = scanJobRepository.findById(longQueuedJob.getId()).orElseThrow();
-        assertThat(result.getStatus()).isEqualTo("QUEUED");
-        assertThat(result.getStage()).isEqualTo("QUEUED");
+        assertThat(result.getStatus()).isIn("QUEUED", "RUNNING");
         assertThat(result.getErrorMessage()).isNull();
         assertThat(result.getCompletedAt()).isNull();
     }
@@ -273,7 +274,7 @@ class ScanJobRestartReconcilerTest {
     void testReconcileStaleJobsOnStartupWithMixedStates() {
         Instant now = Instant.now();
 
-        // 1. Stale queued job (createdAt 5m ago, no heartbeat) -> FAILED
+        // 1. Queued job waiting in queue -> preserved, NOT failed
         ScanJobEntity staleQueuedJob = scanJobRepository.save(ScanJobEntity.builder()
                 .repositoryId(repositoryEntity.getId())
                 .branchName("main")
@@ -322,12 +323,10 @@ class ScanJobRestartReconcilerTest {
 
         reconciler.reconcileStaleJobsOnStartup();
 
-        // Verify stale queued job reconciled
+        // Verify queued job is preserved, not marked FAILED (queue-safe)
         ScanJobEntity updatedStaleQueued = scanJobRepository.findById(staleQueuedJob.getId()).orElseThrow();
-        assertThat(updatedStaleQueued.getStatus()).isEqualTo("FAILED");
-        assertThat(updatedStaleQueued.getStage()).isEqualTo("FAILED");
-        assertThat(updatedStaleQueued.getErrorMessage()).isEqualTo(ScanJobRestartReconciler.RESTART_INTERRUPTED_MESSAGE);
-        assertThat(updatedStaleQueued.getCompletedAt()).isNotNull();
+        assertThat(updatedStaleQueued.getStatus()).isIn("QUEUED", "RUNNING");
+        assertThat(updatedStaleQueued.getErrorMessage()).isNull();
 
         // Verify stale running job reconciled
         ScanJobEntity updatedStaleRunning = scanJobRepository.findById(staleRunningJob.getId()).orElseThrow();
@@ -426,5 +425,93 @@ class ScanJobRestartReconcilerTest {
         assertThat(refreshed.getStatus()).isEqualTo("QUEUED");
         assertThat(refreshed.getStage()).isEqualTo("QUEUED");
         assertThat(refreshed.getHeartbeatAt()).isAfter(initialTime);
+    }
+
+    @Test
+    @DisplayName("testQueuedJobsPreservedAndDrainedAfterActiveJobCompletion: QUEUED job waiting past threshold remains QUEUED and is claimed after stalled RUNNING job is failed")
+    void testQueuedJobsPreservedAndDrainedAfterActiveJobCompletion() {
+        Instant now = Instant.now();
+
+        // Stalled running job
+        ScanJobEntity staleRunningJob = scanJobRepository.save(ScanJobEntity.builder()
+                .repositoryId(repositoryEntity.getId())
+                .branchName("main")
+                .status("RUNNING")
+                .stage("SCANNING_SECRETS")
+                .createdAt(now.minusSeconds(300))
+                .startedAt(now.minusSeconds(290))
+                .updatedAt(now.minusSeconds(180))
+                .heartbeatAt(now.minusSeconds(180)) // Expired (> 2m ago)
+                .workerInstanceId("node-crashed")
+                .build());
+
+        // Queued job waiting in line for 10 minutes (past stale threshold)
+        ScanJobEntity queuedJob = scanJobRepository.save(ScanJobEntity.builder()
+                .repositoryId(repositoryEntity.getId())
+                .branchName("feat-next")
+                .status("QUEUED")
+                .stage("QUEUED")
+                .createdAt(now.minusSeconds(600))
+                .updatedAt(now.minusSeconds(600))
+                .heartbeatAt(now.minusSeconds(600))
+                .build());
+
+        // Run reconciler
+        int reconciled = reconciler.reconcileInterruptedJobs();
+
+        // 1. Running job was failed
+        assertThat(reconciled).isEqualTo(1);
+        ScanJobEntity runningResult = scanJobRepository.findById(staleRunningJob.getId()).orElseThrow();
+        assertThat(runningResult.getStatus()).isEqualTo("FAILED");
+
+        // 2. Queued job was NOT failed; it was picked up by reconciler kicker and transitioned to RUNNING
+        ScanJobEntity queuedResult = scanJobRepository.findById(queuedJob.getId()).orElseThrow();
+        assertThat(queuedResult.getStatus()).isIn("QUEUED", "RUNNING");
+        assertThat(queuedResult.getErrorMessage()).isNull();
+    }
+
+    @Test
+    @DisplayName("Should never log raw exception messages, paths, or tokens when kicking stranded queues fails (R54-B3-01)")
+    void testZeroDiagnosticLeakageWhenKickingStrandedQueueFails() {
+        String forgedSecret = "ghp_forged_secret_token_1234567890abcdef";
+        String forgedPath = "C:\\Users\\SecretAdmin\\private\\keys";
+        String rawDiagnostic = "Internal error at " + forgedPath + " token=" + forgedSecret;
+
+        ScanJobDispatcher mockDispatcher = org.mockito.Mockito.mock(ScanJobDispatcher.class);
+        org.mockito.Mockito.doThrow(new RuntimeException(rawDiagnostic))
+                .when(mockDispatcher).tryProcessNextJobForRepository(any(UUID.class));
+
+        ScanJobRestartReconciler customReconciler = new ScanJobRestartReconciler(scanJobRepository, mockDispatcher);
+
+        // Provision stranded QUEUED job
+        scanJobRepository.save(ScanJobEntity.builder()
+                .repositoryId(repositoryEntity.getId())
+                .branchName("main")
+                .status("QUEUED")
+                .stage("QUEUED")
+                .createdAt(Instant.now().minusSeconds(30))
+                .build());
+
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(ScanJobRestartReconciler.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> listAppender = new ch.qos.logback.core.read.ListAppender<>();
+        listAppender.start();
+        logger.addAppender(listAppender);
+
+        try {
+            customReconciler.reconcileInterruptedJobs();
+
+            boolean foundSafeLog = false;
+            for (ch.qos.logback.classic.spi.ILoggingEvent event : listAppender.list) {
+                String formatted = event.getFormattedMessage();
+                assertThat(formatted).doesNotContain(forgedSecret);
+                assertThat(formatted).doesNotContain(forgedPath);
+                if (formatted.contains("Error kicking stranded repository queues")) {
+                    foundSafeLog = true;
+                }
+            }
+            assertThat(foundSafeLog).isTrue();
+        } finally {
+            logger.detachAppender(listAppender);
+        }
     }
 }

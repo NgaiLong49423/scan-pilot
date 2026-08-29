@@ -348,7 +348,7 @@ class ScanPipelineServiceTest {
                     .build());
 
             org.mockito.Mockito.doThrow(new RuntimeException("GitHub error with token " + secretToken + ", Bearer secret_token_xyz, and " + passwordMarker))
-                    .when(scanPipelineService).fetchRemoteRepositorySnapshot(any(), any(), any(), any());
+                    .when(scanPipelineService).fetchRemoteRepositorySnapshot(any(), any(), any(), any(), any(), any());
 
             ScanJobEntity result = scanPipelineService.executeScanJob(queuedJob.getId());
 

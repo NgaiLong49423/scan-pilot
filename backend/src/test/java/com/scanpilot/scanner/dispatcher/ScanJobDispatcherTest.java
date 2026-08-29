@@ -19,6 +19,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,11 +36,14 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
 @SpringBootTest
-@DisplayName("ScanJobDispatcher Integration & Unit Tests")
+@DisplayName("ScanJobDispatcher Integration & Unit Tests (Issue #54 BUILD 3)")
 class ScanJobDispatcherTest {
 
     @Autowired
     private ScanJobDispatcher scanJobDispatcher;
+
+    @Autowired
+    private ScanJobStateTransitionService scanJobStateTransitionService;
 
     @Autowired
     private ScanJobRepository scanJobRepository;
@@ -60,6 +65,9 @@ class ScanJobDispatcherTest {
 
     @Autowired
     private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     @MockitoBean
     private ScanPipelineService scanPipelineService;
@@ -103,9 +111,10 @@ class ScanJobDispatcherTest {
         doAnswer(invocation -> {
             UUID jobId = invocation.getArgument(0);
             Optional<ScanJobEntity> entity = scanJobRepository.findById(jobId);
-            if (entity.isPresent() && "QUEUED".equals(entity.get().getStatus())) {
+            if (entity.isPresent() && ("QUEUED".equals(entity.get().getStatus()) || "RUNNING".equals(entity.get().getStatus()))) {
                 jobVisibleDuringExecution.set(true);
             }
+            scanJobRepository.updateJobStatusAndError(jobId, "COMPLETED", "COMPLETED", null, Instant.now());
             executionLatch.countDown();
             return null;
         }).when(scanPipelineService).executeScanJob(any(UUID.class));
@@ -125,7 +134,7 @@ class ScanJobDispatcherTest {
     }
 
     @Test
-    @DisplayName("Test 2: Executor rejection after commit transitions job to FAILED with safe message and emits JOB_FAILED event")
+    @DisplayName("Test 2: Executor rejection transitions job to FAILED with safe message without recursive drain")
     void testExecutorRejectionAfterCommitTransitionsJobToFailed() {
         ThreadPoolTaskExecutor mockExecutor = org.mockito.Mockito.mock(ThreadPoolTaskExecutor.class);
         doThrow(new RejectedExecutionException("Queue full with secret token ghp_secretmarker1234567890"))
@@ -138,6 +147,8 @@ class ScanJobDispatcherTest {
                 repositoryRepository,
                 scanWorkerInstance,
                 telemetryPayloadSerializer,
+                scanJobStateTransitionService,
+                transactionManager,
                 mockExecutor
         );
 
@@ -159,7 +170,7 @@ class ScanJobDispatcherTest {
     }
 
     @Test
-    @DisplayName("Test 3: dispatch() prevents duplicate scans and returns existing active job")
+    @DisplayName("Test 3: dispatch() prevents duplicate manual scans and returns existing active job")
     void testDuplicateTriggerReturnsExistingActiveJob() {
         ScanJobEntity activeJob = scanJobRepository.save(ScanJobEntity.builder()
                 .repositoryId(repositoryEntity.getId())
@@ -186,48 +197,60 @@ class ScanJobDispatcherTest {
     }
 
     @Test
-    @DisplayName("Test 4: dispatch() is atomic under 10 concurrent threads: exactly 1 active job created, 9 threads receive same job ID")
-    void testConcurrentDispatchReturnsSameJobAtomically() throws Exception {
-        int threadCount = 10;
-        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(threadCount);
-        java.util.concurrent.CountDownLatch readyLatch = new java.util.concurrent.CountDownLatch(threadCount);
-        java.util.concurrent.CountDownLatch startLatch = new java.util.concurrent.CountDownLatch(1);
-        List<java.util.concurrent.Future<ScanJobEntity>> futures = new java.util.ArrayList<>();
+    @DisplayName("Test 4: Two deliveries for same repo execute in FIFO order (one RUNNING at a time, next starts after first finishes)")
+    void testTwoDeliveriesSameRepoExecuteInFifoOrder() throws Exception {
+        UUID repoId = repositoryEntity.getId();
 
-        for (int i = 0; i < threadCount; i++) {
-            futures.add(executor.submit(() -> {
-                readyLatch.countDown();
-                startLatch.await();
-                return scanJobDispatcher.dispatch(repositoryEntity, "main");
-            }));
-        }
+        ScanJobEntity job1 = scanJobRepository.save(ScanJobEntity.builder()
+                .repositoryId(repoId)
+                .branchName("main")
+                .status("QUEUED")
+                .stage("QUEUED")
+                .triggerType("WEBHOOK_PUSH")
+                .createdAt(Instant.now().minusSeconds(5))
+                .build());
 
-        // Wait for all threads to be ready, then trigger concurrently
-        readyLatch.await(5, TimeUnit.SECONDS);
-        startLatch.countDown();
+        ScanJobEntity job2 = scanJobRepository.save(ScanJobEntity.builder()
+                .repositoryId(repoId)
+                .branchName("feature-2")
+                .status("QUEUED")
+                .stage("QUEUED")
+                .triggerType("WEBHOOK_PULL_REQUEST")
+                .createdAt(Instant.now())
+                .build());
 
-        List<ScanJobEntity> results = new java.util.ArrayList<>();
-        for (java.util.concurrent.Future<ScanJobEntity> future : futures) {
-            results.add(future.get(10, TimeUnit.SECONDS));
-        }
-        executor.shutdown();
+        List<UUID> executedJobIds = Collections.synchronizedList(new ArrayList<>());
+        CountDownLatch job1Started = new CountDownLatch(1);
+        CountDownLatch allowJob1ToFinish = new CountDownLatch(1);
+        CountDownLatch allDone = new CountDownLatch(2);
 
-        assertThat(results).hasSize(threadCount);
-        UUID expectedJobId = results.get(0).getId();
-        assertThat(expectedJobId).isNotNull();
+        doAnswer(invocation -> {
+            UUID jId = invocation.getArgument(0);
+            executedJobIds.add(jId);
+            if (jId.equals(job1.getId())) {
+                job1Started.countDown();
+                allowJob1ToFinish.await();
+            }
+            // Emulate ScanPipelineService marking completed
+            scanJobRepository.updateJobStatusAndError(jId, "COMPLETED", "COMPLETED", null, Instant.now());
+            allDone.countDown();
+            return null;
+        }).when(scanPipelineService).executeScanJob(any(UUID.class));
 
-        // All 10 threads received the exact same active job ID
-        for (ScanJobEntity result : results) {
-            assertThat(result.getId()).isEqualTo(expectedJobId);
-            assertThat(result.getRepositoryId()).isEqualTo(repositoryEntity.getId());
-        }
+        // Start processing queue for this repo
+        scanJobDispatcher.tryProcessNextJobForRepository(repoId);
 
-        // Exactly 1 job exists in the database
-        List<ScanJobEntity> dbJobs = scanJobRepository.findAll();
-        assertThat(dbJobs).hasSize(1);
-        assertThat(dbJobs.get(0).getId()).isEqualTo(expectedJobId);
-        assertThat(dbJobs.get(0).getStatus()).isIn("QUEUED", "RUNNING");
-        assertThat(dbJobs.get(0).getWorkerInstanceId()).isEqualTo(scanWorkerInstance.getInstanceId());
-        assertThat(dbJobs.get(0).getHeartbeatAt()).isNotNull();
+        // Verify Job 1 starts running first
+        boolean j1Started = job1Started.await(5, TimeUnit.SECONDS);
+        assertThat(j1Started).isTrue();
+        assertThat(executedJobIds).containsExactly(job1.getId());
+
+        // Allow Job 1 to finish
+        allowJob1ToFinish.countDown();
+
+        // Verify Job 2 starts automatically via self-contained finally block drain
+        boolean completed = allDone.await(5, TimeUnit.SECONDS);
+        assertThat(completed).isTrue();
+        assertThat(executedJobIds).containsExactly(job1.getId(), job2.getId());
     }
 }

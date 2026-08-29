@@ -14,6 +14,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 @Configuration
 public class ScanExecutorConfig {
 
+    public static final int MAX_QUEUED_JOBS_PER_REPOSITORY = 10;
+
     @Bean(name = "scanTaskExecutor")
     public ThreadPoolTaskExecutor scanTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

@@ -64,6 +64,12 @@ class GitHubWebhookControllerTest {
     @SpyBean
     private GitHubWebhookService gitHubWebhookService;
 
+    @SpyBean
+    private com.scanpilot.scanner.pipeline.ScanPipelineService scanPipelineService;
+
+    @Autowired
+    private com.scanpilot.persistence.repository.ScanJobRepository scanJobRepository;
+
     private UserEntity testUser;
     private RepositoryEntity testRepo;
 
@@ -702,6 +708,7 @@ class GitHubWebhookControllerTest {
         String json = """
             {
                 "ref": "refs/heads/main",
+                "after": "1111222233334444555566667777888899990000",
                 "repository": {
                     "id": 999000,
                     "default_branch": "main"
@@ -782,5 +789,50 @@ class GitHubWebhookControllerTest {
 
         WebhookDeliveryEntity entity = webhookDeliveryRepository.findByDeliveryId(deliveryId).orElseThrow();
         assertThat(entity.getCommitSha()).isEqualTo("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+    }
+
+    @Test
+    @DisplayName("Should return 200 OK immediately with ACCEPTED while background scan executes asynchronously on worker thread")
+    void testAcceptedWebhookDispatchesScanAndReturnsImmediately() throws Exception {
+        java.util.concurrent.CountDownLatch scanStartedLatch = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch holdScanLatch = new java.util.concurrent.CountDownLatch(1);
+
+        org.mockito.Mockito.doAnswer(invocation -> {
+            scanStartedLatch.countDown();
+            holdScanLatch.await(5, java.util.concurrent.TimeUnit.SECONDS);
+            return null;
+        }).when(scanPipelineService).executeScanJob(any(UUID.class));
+
+        String deliveryId = UUID.randomUUID().toString();
+        String json = """
+            {
+                "ref": "refs/heads/main",
+                "repository": {
+                    "id": 999000,
+                    "default_branch": "main"
+                },
+                "installation": {
+                    "id": 888000
+                },
+                "head_commit": {
+                    "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                }
+            }
+            """;
+
+        byte[] payload = json.getBytes(StandardCharsets.UTF_8);
+        String signature = computeHmac(payload, TEST_SECRET);
+
+        mockMvc.perform(post("/api/v1/github/webhooks")
+                        .header("X-GitHub-Event", "push")
+                        .header("X-GitHub-Delivery", deliveryId)
+                        .header("X-Hub-Signature-256", signature)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACCEPTED"))
+                .andExpect(jsonPath("$.reason").value("ROUTED_ACTIVE_MONITORED_REPOSITORY"));
+
+        holdScanLatch.countDown();
     }
 }

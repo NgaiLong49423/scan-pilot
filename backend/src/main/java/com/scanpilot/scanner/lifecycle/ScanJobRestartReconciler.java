@@ -1,7 +1,7 @@
 package com.scanpilot.scanner.lifecycle;
 
-import com.scanpilot.persistence.entity.ScanJobEntity;
 import com.scanpilot.persistence.repository.ScanJobRepository;
+import com.scanpilot.scanner.dispatcher.ScanJobDispatcher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -11,11 +11,13 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 
 /**
- * Startup / Periodic Reconciler for in-flight scan jobs (FR-002, AC-52-06, Issue #52).
- * Reconciles stale scan jobs left in QUEUED or RUNNING states without recent heartbeat periodically and upon application startup.
- * Protects active jobs from other healthy instances or long-running scans by enforcing a heartbeat expiration threshold (2 minutes).
+ * Startup / Periodic Reconciler for in-flight scan jobs (FR-002, AC-52-06, Issue #52, Issue #54).
+ * Reconciles stalled scan jobs left in RUNNING state without recent heartbeat periodically and upon application startup.
+ * Discovers and kicks stranded QUEUED jobs for idle repositories.
  */
 @Slf4j
 @Component
@@ -26,6 +28,7 @@ public class ScanJobRestartReconciler {
     public static final Duration HEARTBEAT_EXPIRATION_THRESHOLD = Duration.ofMinutes(2);
 
     private final ScanJobRepository scanJobRepository;
+    private final ScanJobDispatcher scanJobDispatcher;
 
     @EventListener(ApplicationReadyEvent.class)
     public void reconcileStaleJobsOnStartup() {
@@ -39,10 +42,21 @@ public class ScanJobRestartReconciler {
 
         int reconciled = scanJobRepository.reconcileStaleJobsAtomic(cutoff, RESTART_INTERRUPTED_MESSAGE, now);
         if (reconciled > 0) {
-            log.warn("Atomic reconciliation completed. Marked {} expired jobs as FAILED (cutoff={})", reconciled, cutoff);
+            log.warn("Atomic reconciliation completed. Marked {} expired RUNNING jobs as FAILED (cutoff={})", reconciled, cutoff);
         } else {
             log.debug("Atomic reconciliation completed. No expired jobs found (cutoff={})", cutoff);
         }
+
+        // Kick stranded queues for repositories with QUEUED jobs and zero RUNNING jobs
+        try {
+            List<UUID> strandedRepoIds = scanJobRepository.findRepositoriesWithQueuedJobsAndNoRunningJobs();
+            for (UUID repoId : strandedRepoIds) {
+                scanJobDispatcher.tryProcessNextJobForRepository(repoId);
+            }
+        } catch (Exception e) {
+            log.warn("Error kicking stranded repository queues");
+        }
+
         return reconciled;
     }
 }
