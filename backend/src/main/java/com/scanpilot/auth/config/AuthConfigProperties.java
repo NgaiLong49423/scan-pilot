@@ -21,4 +21,5 @@ public class AuthConfigProperties {
     private long sessionTtlSeconds = 604800; // 7 days
     private long stateTtlSeconds = 600; // 10 minutes
     private String cookieName = DEFAULT_SESSION_COOKIE_NAME;
+    private String scopes = ""; // Empty by default for GitHub App user-to-server auth
 }

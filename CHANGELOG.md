@@ -1,13 +1,38 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.37.0
+> **Version:** v2.38.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-28
+> **Last Updated:** 2026-08-29
 > **Status:** Active
 
 # Scan Pilot Changelog
 
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
+
+## 2026-08-29 — Verified GitHub App Installation Linking & Durable Ownership Anchor (Issue #54 Prerequisite Slice)
+
+**Status:** Committed (`cf8bb52`)
+
+**Scope:** Implemented prerequisite verified GitHub App installation linking and two-level server-side repository authorization (BUILD 1 slice of Issue #54) enforcing fail-closed zero-trust boundaries without accepting client-controlled installation identifiers.
+
+### Added
+
+- Added Flyway migration `V6__add_verified_installations_and_states.sql` adding `installation_states` (single-use SHA-256 hash, 10-minute TTL, atomic status transition), `user_installations` (composite unique `(user_id, installation_id)`), and column `repositories.installation_id`.
+- Added JPA entities `InstallationStateEntity` and `UserInstallationEntity`, and updated `RepositoryEntity` with `installationId`.
+- Added `InstallationStateRepository` with atomic single-statement consumption (`@Modifying(clearAutomatically = true, flushAutomatically = true)`), `UserInstallationRepository`, `UserInstallationRepositoryCustom`, and `UserInstallationRepositoryImpl` with native atomic upsert (`INSERT ... ON CONFLICT (user_id, installation_id) DO UPDATE SET` on PostgreSQL and `MERGE INTO` on H2).
+- Added `InstallationStateService` generating 256-bit CSPRNG Base64URL opaque state tokens, storing only SHA-256 digests in database, and validating single-use consumption.
+- Added `GitHubAppCallbackController` exposing `GET /api/v1/github/installations/callback` with mandatory authenticated session, atomic state consumption, Level 1 user-accessible installation verification against official GitHub REST API with multi-page pagination, and atomic upsert into `user_installations`.
+- Added automated tests: `FlywayV6MigrationTest`, `InstallationStateServiceTest`, `GitHubAppCallbackControllerTest`, `ProjectServiceVerifiedInstallationTest`, `UserInstallationPersistenceTest` (including 4-thread parallel concurrency test), and updated `GitHubControllerTest`, `GitHubOAuthServiceTest`, `GitHubAppServiceTest`, `ProjectServiceTest`, `FindingIssueControllerTest`, `FindingIssueServiceStateMachineTest`.
+
+### Changed
+
+- Updated `AuthConfigProperties` with configurable `scopes` defaulting to empty (`""`) for GitHub App user-to-server auth flow.
+- Updated `GitHubOAuthService` to generate scope-free authorization URLs by default for GitHub App authentication.
+- Updated `GitHubController` to make `GET /api/v1/github/install-url` require authenticated user session, append single-use state token, and removed client-controlled `POST /installations/link`.
+- Updated `GitHubAppService` with multi-page paginated `getUserAccessibleInstallations` and `getUserAccessibleInstallationRepositories` enforcing fail-closed error handling (throwing internal error codes on malformed payloads, missing required fields, or subsequent page HTTP errors without partial returns), removed all `mock-dev-token` bypass branches, removed obsolete in-memory installations map and random UUID fallback, and removed unused constructor dependencies.
+- Updated `ProjectService.selectRepository` with two-level server-side authorization check (strictly persisting genuine metadata from trusted server `GitHubRepositoryDto` without client request fallback on verified path, and preserving verified metadata against unverified selection attempts).
+- Updated `FindingIssueService` to resolve `installationId` exclusively from `RepositoryEntity.installationId` (denying with 403 Forbidden when null, without session fallback).
+- Removed raw exception diagnostic logging (`e.getMessage()`) across all modified services.
 
 ## 2026-08-28 — Secret-Safe GitHub Issue Creation from Finding (Issue #55)
 

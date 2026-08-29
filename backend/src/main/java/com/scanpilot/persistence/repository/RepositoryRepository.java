@@ -19,6 +19,8 @@ public interface RepositoryRepository extends JpaRepository<RepositoryEntity, UU
 
     Optional<RepositoryEntity> findByUserIdAndFullName(UUID userId, String fullName);
 
+    List<RepositoryEntity> findByGithubRepoIdAndInstallationIdAndStatus(Long githubRepoId, Long installationId, String status);
+
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @org.springframework.data.jpa.repository.Query("SELECT r FROM RepositoryEntity r WHERE r.id = :id")
     Optional<RepositoryEntity> findByIdForUpdate(@org.springframework.data.repository.query.Param("id") UUID id);

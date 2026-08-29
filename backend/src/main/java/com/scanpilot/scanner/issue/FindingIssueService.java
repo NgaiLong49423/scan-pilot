@@ -51,7 +51,6 @@ public class FindingIssueService {
     private final FindingIssueTokenService tokenService;
     private final GitHubIssueClient gitHubIssueClient;
     private final GitHubAppAuthService gitHubAppAuthService;
-    private final GitHubAppService gitHubAppService;
 
     /**
      * Generates a preview and signed previewToken for creating a GitHub issue from a finding.
@@ -77,9 +76,7 @@ public class FindingIssueService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied to repository");
         }
 
-        Long installationId = session.getInstallationId() != null
-                ? session.getInstallationId()
-                : gitHubAppService.getInstallationId(session.getGithubUserId());
+        Long installationId = repo.getInstallationId();
 
         if (installationId == null || !gitHubAppAuthService.isConfigured()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "GitHub App installation required to create issues");
@@ -153,9 +150,7 @@ public class FindingIssueService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied to repository");
         }
 
-        Long installationId = session.getInstallationId() != null
-                ? session.getInstallationId()
-                : gitHubAppService.getInstallationId(session.getGithubUserId());
+        Long installationId = repo.getInstallationId();
 
         if (installationId == null || !gitHubAppAuthService.isConfigured()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "GitHub App installation required to create issues");
