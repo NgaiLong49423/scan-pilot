@@ -11,7 +11,7 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 ## 2026-08-30 — Secret-Safe Local Gemini PR Pre-review Runner (Issue #84)
 
-**Status:** Working tree (pre-commit)
+**Status:** Committed (`f2e59bf`)
 
 **Scope:** Implemented secret-safe local Gemini PR pre-review runner for Windows (`.agents/scripts/local-pr-reviewer/`) supporting `gemini-3.7-flash` with `thinking_level` (`low`, `medium`, `high`), header-only authentication (`x-goog-api-key`), kernel-atomic lock creation (`FileMode.CreateNew`) with PID-liveness recovery, pinned repository targeting (`--repo NgaiLong49423/scan-pilot`), process working directory protection, fail-closed query error handling, mandatory remote marker gate deduplication (`<!-- scanpilot-gemini-pr-review: PR HEAD -->`), diff patch hunk line validation, best-effort secret redaction, safe diagnostic codes (`PR_COMMENT_FAILED`, `MODEL_UNAVAILABLE`, `REPOSITORY_QUERY_FAILED`), neutral finding-free comments, and 46 automated tests.
 
