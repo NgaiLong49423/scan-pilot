@@ -7,7 +7,10 @@ function Get-EligibleDevPullRequests {
     )
 
     try {
-        $json = & $GhCommand pr list --repo $Repo --state open --base dev --json number,title,isDraft,headRefOid,headRepository,baseRepository,baseRefName,url 2>$null
+        # `gh pr list` does not expose baseRepository. The pinned --repo is the base
+        # repository, while GitHub's isCrossRepository flag is the supported
+        # immutable same-repository signal for excluding fork PRs.
+        $json = & $GhCommand pr list --repo $Repo --state open --base dev --json number,title,isDraft,headRefOid,headRepository,isCrossRepository,baseRefName,url 2>$null
         if ($LASTEXITCODE -ne 0) {
             return @{
                 Success = $false
@@ -41,12 +44,9 @@ function Get-EligibleDevPullRequests {
                 continue
             }
 
-            # 4. Immutable repository identity check (same-repo, exclude forks)
-            if ($null -eq $pr.headRepository -or $null -eq $pr.baseRepository -or [string]::IsNullOrEmpty($pr.headRepository.id) -or [string]::IsNullOrEmpty($pr.baseRepository.id)) {
-                continue
-            }
-
-            if ($pr.headRepository.id -ne $pr.baseRepository.id) {
+            # 4. Same-repository check (exclude forks). Missing or non-false values
+            # fail closed so an incomplete CLI response cannot be treated as safe.
+            if ($pr.isCrossRepository -ne $false) {
                 continue
             }
 
@@ -124,11 +124,13 @@ function Get-PrDiffContent {
     )
 
     try {
-        $diff = & $GhCommand pr diff $PrNumber --repo $Repo 2>$null
+        $diffLines = & $GhCommand pr diff $PrNumber --repo $Repo 2>$null
         if ($LASTEXITCODE -ne 0) {
             return $null
         }
-        return $diff
+        # Native commands emit one object per output line. Preserve the unified
+        # diff as one string so the parser receives the real headers and hunks.
+        return ($diffLines -join "`n")
     } catch {
         return $null
     }
@@ -157,8 +159,8 @@ function Format-PrReviewCommentBody {
 $marker
 ## 🤖 Scan Pilot — AI Heuristic Pre-Review
 
-> **Model:** `$Model` (Thinking: `$ThinkingLevel`)
-> **Target PR HEAD:** `$HeadSha`
+> **Model:** $Model (Thinking: $ThinkingLevel)
+> **Target PR HEAD:** $HeadSha
 > **Pre-Review Status:** $statusBadge
 > **Notice:** *This is an advisory AI pre-review based on static diff heuristics. It does not replace automated CI checks or technical sign-off by Technical Manager (Codex).*
 
