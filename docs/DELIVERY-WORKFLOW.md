@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Delivery Workflow
 > **File:** `docs/DELIVERY-WORKFLOW.md`
-> **Version:** v2.1.0
+> **Version:** v2.2.0
 > **Created:** 2026-08-16
-> **Last Updated:** 2026-08-22
+> **Last Updated:** 2026-08-30
 > **Status:** Active
 
 # Scan Pilot Delivery Workflow
@@ -74,13 +74,18 @@ The instruction does not authorize creating unrelated Issues, closing the Issue,
 
 ## Implementation and Branch Contract
 
-- Keep `main` stable.
-- Prefer one branch per coherent checkpoint or large workstream rather than one branch for every small child task.
-- Use the project-defined branch convention. Scan Pilot currently uses `codex/<issue-number>-<short-kebab-name>`; the reusable skill does not prescribe a prefix.
+- Keep `main` and `dev` stable.
+- The repository uses a PR-First delivery model:
+  1. `origin/dev` is the shared integration branch branched from `origin/main`.
+  2. Feature branches use the convention `codex/<issue-number>-<short-kebab-name>` and are branched from `origin/dev`.
+  3. Feature branches open Pull Requests targeting `dev`.
+  4. GitHub Actions CI (`.github/workflows/ci.yml`) runs automated checks on PRs targeting `dev` and updates to `dev`.
+  5. Codex reviews the exact PR HEAD commit targeting `dev`.
+  6. Upon approval and green CI, the PR is merged into `dev`.
+  7. Only the Product Owner has the authority to open a Pull Request and merge `dev` into `main`.
+  8. Merging `dev` into `main` triggers Continuous Deployment (`.github/workflows/deploy-cloud-run.yml`) to Google Cloud Run.
 - Do not combine unrelated Issues merely to reduce branch or commit count.
-- Reference the active Issue in progress reports and checkpoint proposals.
-
-Before Product Owner acceptance, the reviewable artifact is a frozen uncommitted local diff, not a commit or pull request. The Coder and Agent 4 must not create a commit, push, or PR merely to obtain a SHA. After Product Owner explicitly authorizes a commit, push and pull-request creation remain separate permissions. The eventual PR uses `Refs #N` until its merge will satisfy every acceptance criterion, then uses `Closes #N` only with Product Owner merge authority; its head must equal the Product Owner-approved commit or the review cycle restarts.
+- Reference the active Issue in progress reports and pull requests using `Refs #N` (or `Closes #N` when authorized).
 
 ## Handoff Channel Contract
 
@@ -221,21 +226,23 @@ Delivery automation is staged so repeatable checks reduce manual review effort w
 
 ### Current State
 
-No GitHub Actions CI/CD workflow is configured yet. Until a CI workflow is implemented and verified, the implementer must provide applicable local test/build evidence and Codex must review it manually.
+GitHub Actions Continuous Integration (`.github/workflows/ci.yml`) is active for all pull requests targeting `dev` and `main`, as well as direct pushes to `dev` and `main`. Continuous Deployment (`.github/workflows/deploy-cloud-run.yml`) is configured for pushes to `main` only.
 
-### Continuous Integration First
+### Continuous Integration
 
-A separately authorized CI Issue must introduce the smallest relevant automated checks for both production workspaces. The initial target is frontend dependency installation, lint, and production build plus backend Java 21 Maven verification. It should run for pull requests targeting `main` and for updates to `main`.
+The CI workflow executes automated checks across both production workspaces:
+- **Frontend (Node.js 20):** `npm ci`, `npm run lint`, `npm run test`, `npm run build`.
+- **Backend (Java 21 / Maven):** `mvn -B clean verify`, container smoke test (`git --version`, `gitleaks version`).
 
-Once that workflow has produced reliable green evidence on real pull requests, a later authorized repository-settings task may make its named checks required for `main`. Do not make a check required before it has run successfully, because a missing or skipped required check can block all pull requests.
+A green CI run is a mandatory prerequisite before Codex technical review and merge into `dev`.
 
-### Continuous Delivery Is Deferred
+### Continuous Delivery
 
-CI success is not deployment authorization. Cloud Run deployment, credentials, database migration, release validation, cost controls, and public availability remain a separate deployment/release Issue. A production deploy requires explicit Product Owner authorization for that release, even if all CI checks pass.
+CD is triggered automatically only when the Product Owner merges `dev` into `main`. Merging feature PRs into `dev` never triggers CD or modifies the production Cloud Run deployment.
 
 ### Review Boundary
 
-Automated checks provide repeatable build and test evidence only. Codex still reviews scope, security, architecture, documentation, known limitations, and the Issue acceptance criteria. The Product Owner still controls final acceptance, merge, and public deployment.
+Automated checks provide repeatable build and test evidence only. Codex still reviews scope, security, architecture, documentation, known limitations, and the Issue acceptance criteria. The Product Owner still controls final acceptance, merge to `main`, and public deployment.
 
 ## GitHub Project Automation
 
