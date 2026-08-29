@@ -361,6 +361,39 @@ index 2345678..9abcdef0 100644
     }
     Assert-Condition "Remote marker detected and suppresses duplicate call" $hasMarker
 
+    # -------------------------------------------------------------
+    # 13. R84-05: Pinned Repository & Query Error Fail-Closed
+    # -------------------------------------------------------------
+    Write-Host "`nTest Group 13: Pinned Repository & Query Error Fail-Closed" -ForegroundColor Yellow
+
+    # Test 13a: Mock gh script to capture arguments
+    $mockGhCapturePath = Join-Path $testTempDir "mock-gh-capture.bat"
+    $argLogPath = Join-Path $testTempDir "gh-args.log"
+    "@echo off`necho %* >> `"$argLogPath`"`necho []" | Set-Content -Path $mockGhCapturePath -Encoding ascii
+
+    $queryWithPinnedRepo = Get-EligibleDevPullRequests -Repo "NgaiLong49423/scan-pilot" -GhCommand $mockGhCapturePath
+    $capturedArgs = if (Test-Path $argLogPath) { Get-Content $argLogPath -Raw } else { "" }
+    Assert-Condition "gh pr list pinned to NgaiLong49423/scan-pilot" ($capturedArgs.Contains("--repo NgaiLong49423/scan-pilot"))
+
+    # Test 13b: Query failure returns UNAVAILABLE (not false NO_PRS)
+    $mockGhFailPath = Join-Path $testTempDir "mock-gh-fail.bat"
+    "@echo off`nexit /b 1" | Set-Content -Path $mockGhFailPath -Encoding ascii
+    $failQueryResult = Get-EligibleDevPullRequests -Repo "NgaiLong49423/scan-pilot" -GhCommand $mockGhFailPath
+    Assert-Condition "gh pr list failure reports Success = false" (-not $failQueryResult.Success)
+    Assert-Condition "gh pr list failure sets REPOSITORY_QUERY_FAILED" ($failQueryResult.ErrorCode -eq "REPOSITORY_QUERY_FAILED")
+
+    # Test 13c: Working directory restoration
+    $originalDir = (Get-Location).Path
+    $foreignDir = Join-Path $testTempDir "foreign-workdir"
+    New-Item -ItemType Directory -Force -Path $foreignDir | Out-Null
+    Set-Location $foreignDir
+    
+    # Run runner with dry-run from foreign dir
+    $runnerResult = & "$scriptDir\run-pr-review.ps1" -BaseDir $scriptDir -PrNumber 999999 -DryRun
+    $restoredDir = (Get-Location).Path
+    Assert-Condition "Working directory restored after runner completes" ($restoredDir -eq $foreignDir)
+    Set-Location $originalDir
+
 } finally {
     Remove-Item -Path $testTempDir -Recurse -Force -ErrorAction SilentlyContinue
 }

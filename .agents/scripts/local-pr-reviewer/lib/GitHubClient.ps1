@@ -2,13 +2,26 @@
 
 function Get-EligibleDevPullRequests {
     param (
+        [string]$Repo = "NgaiLong49423/scan-pilot",
         [string]$GhCommand = "gh"
     )
 
     try {
-        $json = & $GhCommand pr list --state open --base dev --json number,title,isDraft,headRefOid,headRepository,baseRepository,baseRefName,url 2>$null
+        $json = & $GhCommand pr list --repo $Repo --state open --base dev --json number,title,isDraft,headRefOid,headRepository,baseRepository,baseRefName,url 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            return @{
+                Success = $false
+                ErrorCode = "REPOSITORY_QUERY_FAILED"
+                PullRequests = @()
+            }
+        }
+
         if ([string]::IsNullOrWhiteSpace($json)) {
-            return @()
+            return @{
+                Success = $true
+                ErrorCode = $null
+                PullRequests = @()
+            }
         }
 
         $prs = $json | ConvertFrom-Json
@@ -40,9 +53,17 @@ function Get-EligibleDevPullRequests {
             $eligible.Add($pr)
         }
 
-        return $eligible.ToArray()
+        return @{
+            Success = $true
+            ErrorCode = $null
+            PullRequests = $eligible.ToArray()
+        }
     } catch {
-        return @()
+        return @{
+            Success = $false
+            ErrorCode = "REPOSITORY_QUERY_FAILED"
+            PullRequests = @()
+        }
     }
 }
 
@@ -50,13 +71,14 @@ function Check-RemotePrMarker {
     param (
         [int]$PrNumber,
         [string]$HeadSha,
+        [string]$Repo = "NgaiLong49423/scan-pilot",
         [string]$GhCommand = "gh"
     )
 
     $marker = "<!-- scanpilot-gemini-pr-review: $PrNumber $HeadSha -->"
 
     try {
-        $json = & $GhCommand pr view $PrNumber --json comments 2>$null
+        $json = & $GhCommand pr view $PrNumber --repo $Repo --json comments 2>$null
         if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($json)) {
             return @{
                 Success = $false
@@ -97,11 +119,12 @@ function Check-RemotePrMarker {
 function Get-PrDiffContent {
     param (
         [int]$PrNumber,
+        [string]$Repo = "NgaiLong49423/scan-pilot",
         [string]$GhCommand = "gh"
     )
 
     try {
-        $diff = & $GhCommand pr diff $PrNumber 2>$null
+        $diff = & $GhCommand pr diff $PrNumber --repo $Repo 2>$null
         if ($LASTEXITCODE -ne 0) {
             return $null
         }
@@ -178,11 +201,12 @@ function Publish-PrReviewComment {
     param (
         [int]$PrNumber,
         [string]$Body,
+        [string]$Repo = "NgaiLong49423/scan-pilot",
         [string]$GhCommand = "gh"
     )
 
     try {
-        $output = & $GhCommand pr comment $PrNumber --body $Body 2>&1
+        $output = & $GhCommand pr comment $PrNumber --repo $Repo --body $Body 2>&1
         if ($LASTEXITCODE -eq 0) {
             return @{
                 Success = $true
