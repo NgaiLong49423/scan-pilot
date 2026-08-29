@@ -28,16 +28,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-/**
- * Orchestration service for Spring Boot safe remediation PR generation, validation, and execution.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class FindingRemediationPrService {
 
-    public static final String REVOCATION_WARNING =
-            "WARNING: Creating and merging this Pull Request replaces hardcoded credentials with environment variable placeholders, but does NOT revoke the exposed secret. You must immediately revoke and rotate the secret in your cloud/service provider console.";
+    private static final String TARGET_RULE_ID = "SP-CONFIG-001";
+    private static final String REVOCATION_WARNING = "MANDATORY REVOCATION NOTICE: Merging this Pull Request replaces the hardcoded secret in configuration with ${ENV_VAR_NAME}, but DOES NOT revoke or invalidate the exposed credential. You must immediately rotate and revoke the credential in your cloud or service provider console.";
 
     private final FindingRepository findingRepository;
     private final FindingLocationRepository findingLocationRepository;
@@ -50,7 +47,7 @@ public class FindingRemediationPrService {
     private final GitHubAppAuthService gitHubAppAuthService;
 
     /**
-     * Generates a preview diff and signed token for creating a remediation PR.
+     * Generates a secret-safe preview of the remediation Pull Request and signed confirmation token.
      */
     public FindingRemediationPrPreviewDto generatePreview(UUID findingId, UserSession session) {
         if (session == null || session.getGithubUserId() == null) {
@@ -63,8 +60,8 @@ public class FindingRemediationPrService {
         FindingEntity finding = findingRepository.findById(findingId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Finding not found"));
 
-        if (!"SP-CONFIG-001".equalsIgnoreCase(finding.getRuleId())) {
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "MANUAL_REMEDIATION_REQUIRED: Remediation PR is only supported for SP-CONFIG-001");
+        if (!TARGET_RULE_ID.equalsIgnoreCase(finding.getRuleId())) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "MANUAL_REMEDIATION_REQUIRED: Rule " + finding.getRuleId() + " is not supported for automated remediation PRs");
         }
 
         RepositoryEntity repo = repositoryRepository.findById(finding.getRepositoryId())
@@ -88,6 +85,11 @@ public class FindingRemediationPrService {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "MANUAL_REMEDIATION_REQUIRED: Missing finding location");
         }
 
+        String locationCommitSha = location.getCommitSha();
+        if (locationCommitSha == null || locationCommitSha.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "MANUAL_REMEDIATION_REQUIRED: Missing commit SHA on finding location");
+        }
+
         String filePath = location.getFilePath();
         int lineNumber = location.getStartLine() != null ? location.getStartLine() : 1;
 
@@ -99,6 +101,12 @@ public class FindingRemediationPrService {
         GitHubPullRequestClient.DefaultBranchHead head = gitHubPullRequestClient.getDefaultBranchHead(repo.getOwner(), repo.getName(), installationToken);
         String targetCommitSha = head.commitSha();
         String targetBranch = head.branchName();
+
+        // Source-provenance validation: finding location commit must match current default branch HEAD
+        if (!targetCommitSha.equalsIgnoreCase(locationCommitSha.trim())) {
+            log.warn("Finding location commit ({}) does not match default branch HEAD ({})", locationCommitSha, targetCommitSha);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "STALE_REVISION_ERROR: Finding detected on commit " + locationCommitSha + " differs from default branch HEAD " + targetCommitSha);
+        }
 
         String fileContent = gitHubPullRequestClient.getFileContent(repo.getOwner(), repo.getName(), filePath, targetCommitSha, installationToken);
 
@@ -195,16 +203,27 @@ public class FindingRemediationPrService {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "MANUAL_REMEDIATION_REQUIRED: Missing finding location");
         }
 
+        String locationCommitSha = location.getCommitSha();
+        if (locationCommitSha == null || locationCommitSha.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "MANUAL_REMEDIATION_REQUIRED: Missing commit SHA on finding location");
+        }
+
         String filePath = location.getFilePath();
         int lineNumber = location.getStartLine() != null ? location.getStartLine() : 1;
 
         String installationToken = gitHubAppAuthService.createInstallationAccessToken(installationId);
         GitHubPullRequestClient.DefaultBranchHead head = gitHubPullRequestClient.getDefaultBranchHead(repo.getOwner(), repo.getName(), installationToken);
 
+        // Source-provenance validation: finding location commit must match current default branch HEAD
+        if (!head.commitSha().equalsIgnoreCase(locationCommitSha.trim())) {
+            log.warn("Finding location commit ({}) does not match current default branch HEAD ({})", locationCommitSha, head.commitSha());
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "STALE_REVISION_ERROR: Finding commit does not match current default branch HEAD");
+        }
+
         // Verify that default branch HEAD matches the preview target commit
         if (!head.commitSha().equalsIgnoreCase(token.targetCommitSha())) {
             log.warn("Default branch HEAD ({}) differs from token target SHA ({})", head.commitSha(), token.targetCommitSha());
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "STALE_REVISION_ERROR: Target default branch HEAD has changed since preview generation. Please refresh the preview.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "STALE_REVISION_ERROR: Target default branch HEAD has changed since preview generation");
         }
 
         String targetBranch = head.branchName();
@@ -291,18 +310,18 @@ public class FindingRemediationPrService {
 
             return mapToDto(linkEntity);
         } catch (Exception e) {
-            log.error("Failed to create remediation branch or PR on GitHub for finding {}", findingId, e);
+            log.error("Failed to create remediation branch or PR on GitHub for finding {}: {}", findingId, e.getClass().getSimpleName());
             linkEntity.setState("FAILED");
-            linkEntity.setFailureReason(e.getMessage() != null && e.getMessage().length() > 64 ? e.getMessage().substring(0, 64) : e.getMessage());
+            linkEntity.setFailureReason("REMEDIATION_PR_CREATION_FAILED");
             linkEntity.setUpdatedAt(Instant.now());
             linkRepository.save(linkEntity);
 
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to create GitHub remediation Pull Request: " + e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "REMEDIATION_PR_CREATION_FAILED");
         }
     }
 
     /**
-     * Retrieves the persisted remediation PR link for a finding.
+     * Retrieves the persisted remediation PR link for a finding with authorization check.
      */
     public FindingRemediationPrLinkDto getRemediationPrLink(UUID findingId, UserSession session) {
         if (session == null || session.getGithubUserId() == null) {
@@ -310,6 +329,19 @@ public class FindingRemediationPrService {
         }
         if (findingId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Finding ID must not be null");
+        }
+
+        FindingEntity finding = findingRepository.findById(findingId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Finding not found"));
+
+        RepositoryEntity repo = repositoryRepository.findById(finding.getRepositoryId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Repository not found"));
+
+        UserEntity user = userRepository.findByGithubUserId(session.getGithubUserId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (!repo.getUserId().equals(user.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied to repository");
         }
 
         FindingRemediationPrLinkEntity link = linkRepository.findByFindingId(findingId)

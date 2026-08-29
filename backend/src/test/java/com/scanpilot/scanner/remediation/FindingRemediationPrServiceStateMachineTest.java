@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -41,6 +42,9 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class FindingRemediationPrServiceStateMachineTest {
+
+    private static final String SHA_1 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    private static final String SHA_2 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
     @Mock
     private FindingRepository findingRepository;
@@ -119,12 +123,12 @@ class FindingRemediationPrServiceStateMachineTest {
                 .findingId(finding.getId())
                 .filePath("src/main/resources/application.properties")
                 .startLine(3)
-                .commitSha("sha-base-12345")
+                .commitSha(SHA_1)
                 .build();
     }
 
     @Test
-    @DisplayName("Generates preview for SP-CONFIG-001 with masked diff and token")
+    @DisplayName("Generates preview for SP-CONFIG-001 with masked diff and token when location matches HEAD")
     void testGeneratePreviewSuccess() {
         when(findingRepository.findById(finding.getId())).thenReturn(Optional.of(finding));
         when(repositoryRepository.findById(finding.getRepositoryId())).thenReturn(Optional.of(repo));
@@ -135,8 +139,8 @@ class FindingRemediationPrServiceStateMachineTest {
         when(patcher.isSupportedConfigFile("src/main/resources/application.properties")).thenReturn(true);
 
         when(gitHubPullRequestClient.getDefaultBranchHead("scanpilot-org", "target-repo", "ghs_mockToken"))
-                .thenReturn(new GitHubPullRequestClient.DefaultBranchHead("main", "head-commit-sha-456"));
-        when(gitHubPullRequestClient.getFileContent("scanpilot-org", "target-repo", "src/main/resources/application.properties", "head-commit-sha-456", "ghs_mockToken"))
+                .thenReturn(new GitHubPullRequestClient.DefaultBranchHead("main", SHA_1));
+        when(gitHubPullRequestClient.getFileContent("scanpilot-org", "target-repo", "src/main/resources/application.properties", SHA_1, "ghs_mockToken"))
                 .thenReturn("spring.datasource.password=secret123");
 
         SpringConfigurationPatcher.PatchResult patchResult = SpringConfigurationPatcher.PatchResult.ok(
@@ -148,9 +152,9 @@ class FindingRemediationPrServiceStateMachineTest {
         when(patcher.createPatch("src/main/resources/application.properties", "spring.datasource.password=secret123", 3, null))
                 .thenReturn(patchResult);
 
-        when(tokenService.computePatchPlanHash(finding.getId(), "head-commit-sha-456", "src/main/resources/application.properties", 3, patchResult.patchedLine()))
+        when(tokenService.computePatchPlanHash(finding.getId(), SHA_1, "src/main/resources/application.properties", 3, patchResult.patchedLine()))
                 .thenReturn("patch-plan-hash-789");
-        when(tokenService.generateToken(finding.getId(), repo.getId(), "head-commit-sha-456", "patch-plan-hash-789"))
+        when(tokenService.generateToken(finding.getId(), repo.getId(), SHA_1, "patch-plan-hash-789"))
                 .thenReturn("signed.preview.token");
         when(linkRepository.findByFindingId(finding.getId())).thenReturn(Optional.empty());
 
@@ -162,29 +166,113 @@ class FindingRemediationPrServiceStateMachineTest {
         assertThat(preview.originalLineMasked()).isEqualTo("spring.datasource.password=***");
         assertThat(preview.patchedLine()).isEqualTo("spring.datasource.password=${SPRING_DATASOURCE_PASSWORD}");
         assertThat(preview.previewToken()).isEqualTo("signed.preview.token");
-        assertThat(preview.revocationWarning()).contains("WARNING: Creating and merging this Pull Request replaces hardcoded credentials");
+        assertThat(preview.revocationWarning()).contains("MANDATORY REVOCATION NOTICE");
     }
 
     @Test
-    @DisplayName("Rejects preview when finding is not SP-CONFIG-001")
-    void testRejectsNonSpConfigRule() {
-        finding.setRuleId("SP-CI-001");
+    @DisplayName("P1-1: Preview fails closed with 409 STALE_REVISION_ERROR when location commit differs from default branch HEAD")
+    void testGeneratePreviewRejectsSourceProvenanceMismatch() {
+        location.setCommitSha(SHA_1); // Old commit
         when(findingRepository.findById(finding.getId())).thenReturn(Optional.of(finding));
+        when(repositoryRepository.findById(finding.getRepositoryId())).thenReturn(Optional.of(repo));
+        when(userRepository.findByGithubUserId(session.getGithubUserId())).thenReturn(Optional.of(user));
+        when(gitHubAppAuthService.isConfigured()).thenReturn(true);
+        when(gitHubAppAuthService.createInstallationAccessToken(repo.getInstallationId())).thenReturn("ghs_mockToken");
+        when(findingLocationRepository.findByFindingId(finding.getId())).thenReturn(List.of(location));
+        when(patcher.isSupportedConfigFile("src/main/resources/application.properties")).thenReturn(true);
+
+        // HEAD moved to SHA_2
+        when(gitHubPullRequestClient.getDefaultBranchHead("scanpilot-org", "target-repo", "ghs_mockToken"))
+                .thenReturn(new GitHubPullRequestClient.DefaultBranchHead("main", SHA_2));
 
         assertThatThrownBy(() -> remediationService.generatePreview(finding.getId(), session))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> {
                     ResponseStatusException rse = (ResponseStatusException) ex;
-                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
-                    assertThat(rse.getReason()).contains("MANUAL_REMEDIATION_REQUIRED");
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(rse.getReason()).contains("STALE_REVISION_ERROR");
                 });
     }
 
     @Test
-    @DisplayName("Creates remediation PR successfully with valid token")
+    @DisplayName("P1-2: getRemediationPrLink rejects cross-tenant / unauthorized access with 403 Forbidden")
+    void testGetRemediationPrLinkRejectsCrossTenant() {
+        UUID otherUserId = UUID.randomUUID();
+        repo.setUserId(otherUserId); // Belongs to different user
+
+        when(findingRepository.findById(finding.getId())).thenReturn(Optional.of(finding));
+        when(repositoryRepository.findById(finding.getRepositoryId())).thenReturn(Optional.of(repo));
+        when(userRepository.findByGithubUserId(session.getGithubUserId())).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> remediationService.getRemediationPrLink(finding.getId(), session))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> {
+                    ResponseStatusException rse = (ResponseStatusException) ex;
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+                });
+    }
+
+    @Test
+    @DisplayName("P1-3: Raw diagnostic leakage prevention — GitHub exception with token/path yields safe static error")
+    void testRawDiagnosticLeakageSanitized() {
+        String tokenString = "valid.preview.token";
+        FindingRemediationPrTokenService.VerifiedRemediationToken verifiedToken =
+                new FindingRemediationPrTokenService.VerifiedRemediationToken(finding.getId(), repo.getId(), SHA_1, "hash", 100, 1000);
+
+        when(tokenService.validateToken(tokenString, finding.getId(), null, null)).thenReturn(verifiedToken);
+        when(findingRepository.findById(finding.getId())).thenReturn(Optional.of(finding));
+        when(repositoryRepository.findById(finding.getRepositoryId())).thenReturn(Optional.of(repo));
+        when(userRepository.findByGithubUserId(session.getGithubUserId())).thenReturn(Optional.of(user));
+        when(gitHubAppAuthService.isConfigured()).thenReturn(true);
+        when(gitHubAppAuthService.createInstallationAccessToken(repo.getInstallationId())).thenReturn("ghs_mockToken");
+        when(findingLocationRepository.findByFindingId(finding.getId())).thenReturn(List.of(location));
+        when(gitHubPullRequestClient.getDefaultBranchHead("scanpilot-org", "target-repo", "ghs_mockToken"))
+                .thenReturn(new GitHubPullRequestClient.DefaultBranchHead("main", SHA_1));
+        when(linkRepository.findByFindingIdAndSourceRevisionCommit(finding.getId(), SHA_1)).thenReturn(Optional.empty());
+        when(gitHubPullRequestClient.getFileContent("scanpilot-org", "target-repo", "src/main/resources/application.properties", SHA_1, "ghs_mockToken"))
+                .thenReturn("spring.datasource.password=secret123");
+
+        SpringConfigurationPatcher.PatchResult patchResult = SpringConfigurationPatcher.PatchResult.ok(
+                "spring.datasource.password=${SPRING_DATASOURCE_PASSWORD}",
+                "spring.datasource.password=***",
+                "spring.datasource.password=${SPRING_DATASOURCE_PASSWORD}",
+                "SPRING_DATASOURCE_PASSWORD"
+        );
+        when(patcher.createPatch("src/main/resources/application.properties", "spring.datasource.password=secret123", 3, null))
+                .thenReturn(patchResult);
+        when(tokenService.computePatchPlanHash(finding.getId(), SHA_1, "src/main/resources/application.properties", 3, patchResult.patchedLine()))
+                .thenReturn("hash");
+
+        when(linkRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // Simulate GitHub client throwing exception containing a sensitive token and internal URI
+        when(gitHubPullRequestClient.createPullRequest(anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString()))
+                .thenThrow(new RuntimeException("GitHub error for uri: https://api.github.com/repos/private/repo?token=ghp_superSecretToken12345"));
+
+        assertThatThrownBy(() -> remediationService.createRemediationPr(finding.getId(), new CreateFindingRemediationPrRequest(tokenString), session))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> {
+                    ResponseStatusException rse = (ResponseStatusException) ex;
+                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+                    // Must be sanitized static message, never contains token or raw message
+                    assertThat(rse.getReason()).isEqualTo("REMEDIATION_PR_CREATION_FAILED");
+                    assertThat(rse.getReason()).doesNotContain("ghp_");
+                    assertThat(rse.getReason()).doesNotContain("private/repo");
+                });
+
+        ArgumentCaptor<FindingRemediationPrLinkEntity> entityCaptor = ArgumentCaptor.forClass(FindingRemediationPrLinkEntity.class);
+        verify(linkRepository).save(entityCaptor.capture());
+        FindingRemediationPrLinkEntity saved = entityCaptor.getValue();
+        assertThat(saved.getState()).isEqualTo("FAILED");
+        assertThat(saved.getFailureReason()).isEqualTo("REMEDIATION_PR_CREATION_FAILED");
+        assertThat(saved.getFailureReason()).doesNotContain("ghp_");
+    }
+
+    @Test
+    @DisplayName("Creates remediation PR successfully with valid token and matching HEAD")
     void testCreateRemediationPrSuccess() {
         String tokenString = "valid.preview.token";
-        String targetSha = "head-commit-sha-456";
+        String targetSha = SHA_1;
         String patchPlanHash = "patch-plan-hash-789";
 
         FindingRemediationPrTokenService.VerifiedRemediationToken verifiedToken =
@@ -236,39 +324,5 @@ class FindingRemediationPrServiceStateMachineTest {
         assertThat(link.githubPrUrl()).isEqualTo("https://github.com/scanpilot-org/target-repo/pull/77");
 
         verify(gitHubPullRequestClient).createBranch(eq("scanpilot-org"), eq("target-repo"), anyString(), eq(targetSha), eq("ghs_mockToken"));
-    }
-
-    @Test
-    @DisplayName("Fails closed with STALE_REVISION_ERROR when target branch HEAD moved")
-    void testRejectsStaleTargetHead() {
-        String tokenString = "valid.preview.token";
-        String tokenTargetSha = "old-sha-111";
-        String currentHeadSha = "new-sha-222";
-
-        FindingRemediationPrTokenService.VerifiedRemediationToken verifiedToken =
-                new FindingRemediationPrTokenService.VerifiedRemediationToken(finding.getId(), repo.getId(), tokenTargetSha, "hash", 100, 1000);
-
-        when(tokenService.validateToken(tokenString, finding.getId(), null, null)).thenReturn(verifiedToken);
-        when(findingRepository.findById(finding.getId())).thenReturn(Optional.of(finding));
-        when(repositoryRepository.findById(finding.getRepositoryId())).thenReturn(Optional.of(repo));
-        when(userRepository.findByGithubUserId(session.getGithubUserId())).thenReturn(Optional.of(user));
-        when(gitHubAppAuthService.isConfigured()).thenReturn(true);
-        when(gitHubAppAuthService.createInstallationAccessToken(repo.getInstallationId())).thenReturn("ghs_mockToken");
-        when(findingLocationRepository.findByFindingId(finding.getId())).thenReturn(List.of(location));
-
-        when(gitHubPullRequestClient.getDefaultBranchHead("scanpilot-org", "target-repo", "ghs_mockToken"))
-                .thenReturn(new GitHubPullRequestClient.DefaultBranchHead("main", currentHeadSha));
-
-        assertThatThrownBy(() -> remediationService.createRemediationPr(
-                finding.getId(),
-                new CreateFindingRemediationPrRequest(tokenString),
-                session
-        ))
-                .isInstanceOf(ResponseStatusException.class)
-                .satisfies(ex -> {
-                    ResponseStatusException rse = (ResponseStatusException) ex;
-                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-                    assertThat(rse.getReason()).contains("STALE_REVISION_ERROR");
-                });
     }
 }

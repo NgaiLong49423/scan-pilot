@@ -1,24 +1,21 @@
 package com.scanpilot.github.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.web.client.RestClientCustomizer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
+import java.util.regex.Pattern;
 
-/**
- * REST client seam for GitHub Pull Requests, Branches, and File Contents API operations.
- */
 @Slf4j
 @Service
 public class GitHubPullRequestClient {
@@ -29,16 +26,24 @@ public class GitHubPullRequestClient {
     public static final String GITHUB_CONTENTS_URL = "https://api.github.com/repos/%s/%s/contents/%s";
     public static final String GITHUB_PULLS_URL = "https://api.github.com/repos/%s/%s/pulls";
 
-    public static final java.time.Duration CONNECT_TIMEOUT = java.time.Duration.ofSeconds(10);
-    public static final java.time.Duration READ_TIMEOUT = java.time.Duration.ofSeconds(20);
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
+    private static final Pattern SHA40_HEX_PATTERN = Pattern.compile("^[0-9a-fA-F]{40}$");
 
     private final RestClient restClient;
-    private final ObjectMapper objectMapper;
+
+    public GitHubPullRequestClient(RestClient.Builder restClientBuilder, RestClientCustomizer... customizers) {
+        RestClient.Builder builder = restClientBuilder
+                .requestFactory(createRequestFactory());
+        for (RestClientCustomizer customizer : customizers) {
+            customizer.customize(builder);
+        }
+        this.restClient = builder.build();
+    }
 
     public record DefaultBranchHead(String branchName, String commitSha) {}
     public record GitHubPrResult(int prNumber, String htmlUrl) {}
 
-    @Getter
     public static class GitHubPrClientException extends RuntimeException {
         private final int statusCode;
         private final String errorCode;
@@ -48,24 +53,18 @@ public class GitHubPullRequestClient {
             this.statusCode = statusCode;
             this.errorCode = errorCode;
         }
-    }
 
-    @org.springframework.beans.factory.annotation.Autowired
-    public GitHubPullRequestClient(RestClient.Builder restClientBuilder, ObjectMapper objectMapper) {
-        this(restClientBuilder, createDefaultRequestFactory(), objectMapper);
-    }
-
-    public GitHubPullRequestClient(RestClient.Builder restClientBuilder, org.springframework.http.client.ClientHttpRequestFactory requestFactory, ObjectMapper objectMapper) {
-        if (requestFactory != null) {
-            restClientBuilder.requestFactory(requestFactory);
+        public int getStatusCode() {
+            return statusCode;
         }
-        this.restClient = restClientBuilder.build();
-        this.objectMapper = objectMapper;
+
+        public String getErrorCode() {
+            return errorCode;
+        }
     }
 
-    public static org.springframework.http.client.ClientHttpRequestFactory createDefaultRequestFactory() {
-        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
-                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+    private SimpleClientHttpRequestFactory createRequestFactory() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout((int) CONNECT_TIMEOUT.toMillis());
         factory.setReadTimeout((int) READ_TIMEOUT.toMillis());
         return factory;
@@ -73,6 +72,7 @@ public class GitHubPullRequestClient {
 
     /**
      * Resolves the default branch name and latest commit SHA for a repository.
+     * Fails closed if repository response or commit SHA is missing or malformed.
      */
     public DefaultBranchHead getDefaultBranchHead(String owner, String repo, String installationToken) {
         String repoUri = String.format(GITHUB_REPO_URL, owner.trim(), repo.trim());
@@ -85,9 +85,14 @@ public class GitHubPullRequestClient {
                     .retrieve()
                     .body(new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {});
 
-            String defaultBranch = repoResp != null && repoResp.get("default_branch") != null
-                    ? repoResp.get("default_branch").toString()
-                    : "main";
+            if (repoResp == null || repoResp.get("default_branch") == null) {
+                throw new GitHubPrClientException(502, "INVALID_DEFAULT_BRANCH");
+            }
+
+            String defaultBranch = repoResp.get("default_branch").toString().trim();
+            if (defaultBranch.isBlank()) {
+                throw new GitHubPrClientException(502, "INVALID_DEFAULT_BRANCH");
+            }
 
             String refUri = String.format(GITHUB_REF_URL, owner.trim(), repo.trim(), defaultBranch);
             Map<String, Object> refResp = restClient.get()
@@ -98,20 +103,26 @@ public class GitHubPullRequestClient {
                     .retrieve()
                     .body(new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {});
 
-            String commitSha = "";
+            String commitSha = null;
             if (refResp != null && refResp.get("object") instanceof Map<?, ?> objMap) {
-                commitSha = objMap.get("sha") != null ? objMap.get("sha").toString() : "";
+                commitSha = objMap.get("sha") != null ? objMap.get("sha").toString().trim() : null;
+            }
+
+            if (commitSha == null || !SHA40_HEX_PATTERN.matcher(commitSha).matches()) {
+                throw new GitHubPrClientException(502, "INVALID_HEAD_SHA");
             }
 
             return new DefaultBranchHead(defaultBranch, commitSha);
         } catch (HttpClientErrorException e) {
-            log.error("GitHub API error fetching default branch for {}/{}: {}", owner, repo, e.getStatusCode());
+            log.error("GitHub API error fetching default branch for {}/{}: HTTP {}", owner, repo, e.getStatusCode().value());
             throw new GitHubPrClientException(e.getStatusCode().value(), mapHttpError(e.getStatusCode().value()));
         } catch (ResourceAccessException e) {
             log.error("Timeout connecting to GitHub API for {}/{}", owner, repo);
             throw new GitHubPrClientException(504, "GITHUB_COMMUNICATION_TIMEOUT");
+        } catch (GitHubPrClientException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("Unexpected error fetching default branch for {}/{}", owner, repo, e);
+            log.error("Unexpected error fetching default branch for {}/{}: {}", owner, repo, e.getClass().getSimpleName());
             throw new GitHubPrClientException(500, "GITHUB_INTERNAL_ERROR");
         }
     }
@@ -138,14 +149,15 @@ public class GitHubPullRequestClient {
             byte[] decoded = Base64.getDecoder().decode(base64Content);
             return new String(decoded, StandardCharsets.UTF_8);
         } catch (HttpClientErrorException e) {
-            log.error("GitHub API error fetching file content {}/{}/{}: {}", owner, repo, filePath, e.getStatusCode());
+            log.error("GitHub API error fetching file content for {}/{}: HTTP {}", owner, repo, e.getStatusCode().value());
             throw new GitHubPrClientException(e.getStatusCode().value(), mapHttpError(e.getStatusCode().value()));
         } catch (ResourceAccessException e) {
+            log.error("Timeout connecting to GitHub API for {}/{}", owner, repo);
             throw new GitHubPrClientException(504, "GITHUB_COMMUNICATION_TIMEOUT");
         } catch (GitHubPrClientException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Unexpected error fetching file content {}/{}/{}", owner, repo, filePath, e);
+            log.error("Unexpected error fetching file content for {}/{}: {}", owner, repo, e.getClass().getSimpleName());
             throw new GitHubPrClientException(500, "GITHUB_INTERNAL_ERROR");
         }
     }
@@ -171,12 +183,13 @@ public class GitHubPullRequestClient {
                     .retrieve()
                     .toBodilessEntity();
         } catch (HttpClientErrorException e) {
-            log.error("GitHub API error creating branch {} on {}/{}: {}", branchName, owner, repo, e.getStatusCode());
+            log.error("GitHub API error creating branch for {}/{}: HTTP {}", owner, repo, e.getStatusCode().value());
             throw new GitHubPrClientException(e.getStatusCode().value(), mapHttpError(e.getStatusCode().value()));
         } catch (ResourceAccessException e) {
+            log.error("Timeout connecting to GitHub API for {}/{}", owner, repo);
             throw new GitHubPrClientException(504, "GITHUB_COMMUNICATION_TIMEOUT");
         } catch (Exception e) {
-            log.error("Unexpected error creating branch {} on {}/{}", branchName, owner, repo, e);
+            log.error("Unexpected error creating branch for {}/{}: {}", owner, repo, e.getClass().getSimpleName());
             throw new GitHubPrClientException(500, "GITHUB_INTERNAL_ERROR");
         }
     }
@@ -202,7 +215,7 @@ public class GitHubPullRequestClient {
                 existingSha = resp.get("sha").toString();
             }
         } catch (Exception e) {
-            log.debug("No existing file SHA found for {}/{} on branch {}", owner, repo, branchName);
+            log.debug("No existing file SHA found for {}/{} on branch", owner, repo);
         }
 
         String base64Encoded = Base64.getEncoder().encodeToString(newContent.getBytes(StandardCharsets.UTF_8));
@@ -221,12 +234,13 @@ public class GitHubPullRequestClient {
                     .retrieve()
                     .toBodilessEntity();
         } catch (HttpClientErrorException e) {
-            log.error("GitHub API error updating file {} on {}/{}: {}", filePath, owner, repo, e.getStatusCode());
+            log.error("GitHub API error updating file for {}/{}: HTTP {}", owner, repo, e.getStatusCode().value());
             throw new GitHubPrClientException(e.getStatusCode().value(), mapHttpError(e.getStatusCode().value()));
         } catch (ResourceAccessException e) {
+            log.error("Timeout connecting to GitHub API for {}/{}", owner, repo);
             throw new GitHubPrClientException(504, "GITHUB_COMMUNICATION_TIMEOUT");
         } catch (Exception e) {
-            log.error("Unexpected error updating file {} on {}/{}", filePath, owner, repo, e);
+            log.error("Unexpected error updating file for {}/{}: {}", owner, repo, e.getClass().getSimpleName());
             throw new GitHubPrClientException(500, "GITHUB_INTERNAL_ERROR");
         }
     }
@@ -263,14 +277,15 @@ public class GitHubPullRequestClient {
 
             return new GitHubPrResult(prNumber, htmlUrl);
         } catch (HttpClientErrorException e) {
-            log.error("GitHub API error creating PR for {}/{}: {}", owner, repo, e.getStatusCode());
+            log.error("GitHub API error creating PR for {}/{}: HTTP {}", owner, repo, e.getStatusCode().value());
             throw new GitHubPrClientException(e.getStatusCode().value(), mapHttpError(e.getStatusCode().value()));
         } catch (ResourceAccessException e) {
+            log.error("Timeout connecting to GitHub API for {}/{}", owner, repo);
             throw new GitHubPrClientException(504, "GITHUB_COMMUNICATION_TIMEOUT");
         } catch (GitHubPrClientException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Unexpected error creating PR for {}/{}", owner, repo, e);
+            log.error("Unexpected error creating PR for {}/{}: {}", owner, repo, e.getClass().getSimpleName());
             throw new GitHubPrClientException(500, "GITHUB_INTERNAL_ERROR");
         }
     }

@@ -44,6 +44,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("Finding Remediation PR Controller Integration & Authorization Tests")
 class FindingRemediationPrControllerTest {
 
+    private static final String TARGET_SHA = "1111111111111111111111111111111111111111";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -83,6 +85,9 @@ class FindingRemediationPrControllerTest {
     private FindingEntity findingEntity;
     private FindingLocationEntity locationEntity;
 
+    private UserSession bobSession;
+    private UserEntity bobEntity;
+
     @BeforeEach
     void setUp() {
         linkRepository.deleteAll();
@@ -114,6 +119,25 @@ class FindingRemediationPrControllerTest {
                 "gho_sample_token"
         );
 
+        bobEntity = userRepository.save(UserEntity.builder()
+                .githubUserId(99999L)
+                .login("bob")
+                .name("Bob Developer")
+                .email("bob@example.com")
+                .avatarUrl("https://github.com/bob.png")
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build());
+
+        bobSession = sessionService.createSession(
+                bobEntity.getGithubUserId(),
+                bobEntity.getLogin(),
+                bobEntity.getName(),
+                bobEntity.getAvatarUrl(),
+                bobEntity.getEmail(),
+                "gho_bob_token"
+        );
+
         repositoryEntity = repositoryRepository.save(RepositoryEntity.builder()
                 .userId(userEntity.getId())
                 .githubRepoId(1001L)
@@ -142,7 +166,7 @@ class FindingRemediationPrControllerTest {
                 .findingId(findingEntity.getId())
                 .filePath("src/main/resources/application.properties")
                 .startLine(2)
-                .commitSha("sha-base-1111")
+                .commitSha(TARGET_SHA)
                 .isCurrentHead(true)
                 .detectedAt(Instant.now())
                 .build());
@@ -152,7 +176,7 @@ class FindingRemediationPrControllerTest {
     @DisplayName("GET preview returns 200 OK with masked diff and signed token")
     void testGetPreviewSuccess() throws Exception {
         when(gitHubPullRequestClient.getDefaultBranchHead(anyString(), anyString(), anyString()))
-                .thenReturn(new com.scanpilot.github.service.GitHubPullRequestClient.DefaultBranchHead("main", "sha-base-1111"));
+                .thenReturn(new com.scanpilot.github.service.GitHubPullRequestClient.DefaultBranchHead("main", TARGET_SHA));
         when(gitHubPullRequestClient.getFileContent(anyString(), anyString(), anyString(), anyString(), anyString()))
                 .thenReturn("server.port=8080\nspring.datasource.password=superSecret123\n");
 
@@ -164,26 +188,25 @@ class FindingRemediationPrControllerTest {
                 .andExpect(jsonPath("$.originalLineMasked", is("spring.datasource.password=***")))
                 .andExpect(jsonPath("$.patchedLine", is("spring.datasource.password=${SPRING_DATASOURCE_PASSWORD}")))
                 .andExpect(jsonPath("$.previewToken").isNotEmpty())
-                .andExpect(jsonPath("$.revocationWarning", containsString("WARNING: Creating and merging this Pull Request replaces hardcoded credentials")));
+                .andExpect(jsonPath("$.revocationWarning", containsString("MANDATORY REVOCATION NOTICE")));
     }
 
     @Test
     @DisplayName("POST remediation-pr creates PR successfully with valid token")
     void testCreateRemediationPrSuccess() throws Exception {
-        String targetSha = "sha-base-1111";
         when(gitHubPullRequestClient.getDefaultBranchHead(anyString(), anyString(), anyString()))
-                .thenReturn(new com.scanpilot.github.service.GitHubPullRequestClient.DefaultBranchHead("main", targetSha));
+                .thenReturn(new com.scanpilot.github.service.GitHubPullRequestClient.DefaultBranchHead("main", TARGET_SHA));
         when(gitHubPullRequestClient.getFileContent(anyString(), anyString(), anyString(), anyString(), anyString()))
                 .thenReturn("server.port=8080\nspring.datasource.password=superSecret123\n");
 
         String patchPlanHash = tokenService.computePatchPlanHash(
                 findingEntity.getId(),
-                targetSha,
+                TARGET_SHA,
                 "src/main/resources/application.properties",
                 2,
                 "spring.datasource.password=${SPRING_DATASOURCE_PASSWORD}"
         );
-        String token = tokenService.generateToken(findingEntity.getId(), repositoryEntity.getId(), targetSha, patchPlanHash);
+        String token = tokenService.generateToken(findingEntity.getId(), repositoryEntity.getId(), TARGET_SHA, patchPlanHash);
 
         when(gitHubPullRequestClient.createPullRequest(anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(new com.scanpilot.github.service.GitHubPullRequestClient.GitHubPrResult(99, "https://github.com/alice-org/payments-service/pull/99"));
@@ -213,12 +236,12 @@ class FindingRemediationPrControllerTest {
     }
 
     @Test
-    @DisplayName("GET remediation-pr returns persisted link")
+    @DisplayName("GET remediation-pr returns persisted link for owner")
     void testGetRemediationPrLink() throws Exception {
         FindingRemediationPrLinkEntity link = linkRepository.save(FindingRemediationPrLinkEntity.builder()
                 .findingId(findingEntity.getId())
                 .repositoryId(repositoryEntity.getId())
-                .sourceRevisionCommit("sha-base-1111")
+                .sourceRevisionCommit(TARGET_SHA)
                 .targetBranch("main")
                 .headBranch("scanpilot/remediation-test")
                 .state("CREATED")
@@ -236,5 +259,28 @@ class FindingRemediationPrControllerTest {
                 .andExpect(jsonPath("$.state", is("CREATED")))
                 .andExpect(jsonPath("$.githubPrNumber", is(99)))
                 .andExpect(jsonPath("$.githubPrUrl", is("https://github.com/alice-org/payments-service/pull/99")));
+    }
+
+    @Test
+    @DisplayName("P1-2: GET remediation-pr rejects non-owner with 403 Forbidden")
+    void testGetRemediationPrLinkRejectsNonOwner() throws Exception {
+        linkRepository.save(FindingRemediationPrLinkEntity.builder()
+                .findingId(findingEntity.getId())
+                .repositoryId(repositoryEntity.getId())
+                .sourceRevisionCommit(TARGET_SHA)
+                .targetBranch("main")
+                .headBranch("scanpilot/remediation-test")
+                .state("CREATED")
+                .githubPrNumber(99)
+                .githubPrUrl("https://github.com/alice-org/payments-service/pull/99")
+                .idempotencyMarker("m1")
+                .createdByUserId(userEntity.getId())
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build());
+
+        mockMvc.perform(get("/api/v1/findings/{findingId}/remediation-pr", findingEntity.getId())
+                        .cookie(new Cookie("SCANPILOT_SESSION", bobSession.getSessionId())))
+                .andExpect(status().isForbidden());
     }
 }
