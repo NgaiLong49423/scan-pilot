@@ -141,7 +141,8 @@ All agent skills are installed in `.agents/skill/`. Agents must consult and appl
 | **UI/UX Design Audit** | `.agents/skill/ui-design-audit/SKILL.md` | Mandatory for reviewing Frontend PRs, ensuring beginner-friendly usability, accessibility, and visual polish. |
 | **Full Output Enforcement** | `.agents/skill/full-output-enforcement/SKILL.md` | Mandatory across all implementation tasks. Strictly bans `// TODO`, `// rest of code`, and truncated outputs. |
 | **Platform-Native Cheat-Sheet** | `.agents/docs/platform-native-cheatsheet.md` | Reference guide for Java 21, Spring Boot 3, PostgreSQL, and Web APIs native features. |
-| **Agent Delivery Governance** | `.agents/skill/agent-delivery-governance/SKILL.md` | Mandatory for `FULL_TRACKED` delivery workflow, PO ratifications, and Codex PR reviews. |
+| **Agent Delivery Governance** | `.agents/skill/agent-delivery-governance/SKILL.md` | Mandatory for `FULL_TRACKED` PR-First delivery workflow, PO ratifications, and Codex PR reviews (v2.0.0). |
+| **Pull Request Reviewer** | `.agents/skill/pull-request-reviewer/SKILL.md` | Mandatory for all GitHub Pull Request reviews and PR-First delivery gate checks (v1.0.0). |
 | **GitHub Issue Delivery** | `.agents/skill/github-issue-delivery/SKILL.md` | Mandatory for executing assigned GitHub Issues. |
 | **SRS to GitHub Issues** | `.agents/skill/srs-to-github-issues/SKILL.md` | Use when decomposing approved specifications into actionable GitHub Issues. |
 | **Document Metadata Standardizer** | `.agents/skill/document-metadata-standardizer/SKILL.md` | Mandatory when creating, editing, auditing, or standardizing repository Markdown files. |
@@ -189,7 +190,7 @@ All agent skills are installed in `.agents/skill/`. Agents must consult and appl
 ## Agent Delivery Governance
 
 > **Status:** Active (`FULL_TRACKED`)
-> **Installed skill:** `.agents/skill/agent-delivery-governance/` v1.0.0
+> **Installed skill:** `.agents/skill/agent-delivery-governance/` v2.0.0, `.agents/skill/pull-request-reviewer/` v1.0.0
 > **Delivery mode:** `FULL_TRACKED` (PR-First Delivery Workflow with `origin/dev` integration branch active on 2026-08-30)
 > **Product Owner / final acceptance & production merge authority:** User
 > **Agent 4 — Delivery Gatekeeper / Coordinator:** agent coordinator & CI/PR compliance verifier (assigns Agent 1, 2, 3 in execution plan before BUILD)
