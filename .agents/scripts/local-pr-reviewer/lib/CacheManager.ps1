@@ -110,7 +110,7 @@ function Save-CachedPrReview {
     $allCache["$PrNumber"] = $entry
 
     $jsonContent = $allCache | ConvertTo-Json -Depth 5
-    
+
     # Atomic write
     Set-Content -Path $tmpFile -Value $jsonContent -Force -Encoding utf8 -ErrorAction Stop
     Move-Item -Path $tmpFile -Destination $cacheFile -Force -ErrorAction Stop

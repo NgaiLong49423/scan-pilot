@@ -11,9 +11,9 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 ## 2026-08-30 — Secret-Safe Local Gemini PR Pre-review Runner (Issue #84)
 
-**Status:** Committed (`f2e59bf`)
+**Status:** Working tree (pre-commit)
 
-**Scope:** Implemented secret-safe local Gemini PR pre-review runner for Windows (`.agents/scripts/local-pr-reviewer/`) supporting `gemini-3.7-flash` with `thinking_level` (`low`, `medium`, `high`), header-only authentication (`x-goog-api-key`), kernel-atomic lock creation (`FileMode.CreateNew`) with PID-liveness recovery, pinned repository targeting (`--repo NgaiLong49423/scan-pilot`), process working directory protection, fail-closed query error handling, mandatory remote marker gate deduplication (`<!-- scanpilot-gemini-pr-review: PR HEAD -->`), diff patch hunk line validation, best-effort secret redaction, safe diagnostic codes (`PR_COMMENT_FAILED`, `MODEL_UNAVAILABLE`, `REPOSITORY_QUERY_FAILED`), neutral finding-free comments, and 46 automated tests.
+**Scope:** Implemented secret-safe local Gemini PR pre-review runner for Windows (`.agents/scripts/local-pr-reviewer/`) supporting `gemini-3.7-flash` with `thinking_level` (`low`, `medium`, `high`), header-only authentication (`x-goog-api-key`), kernel-atomic lock creation (`FileMode.CreateNew`) with PID-liveness recovery, pinned repository targeting (`--repo NgaiLong49423/scan-pilot`), process working directory protection, fail-closed query error handling, mandatory remote marker gate deduplication (`<!-- scanpilot-gemini-pr-review: PR HEAD -->`), diff patch hunk line validation with safe integer parsing, best-effort secret redaction, safe diagnostic codes (`PR_COMMENT_FAILED`, `MODEL_UNAVAILABLE`, `REPOSITORY_QUERY_FAILED`), neutral finding-free comments, and 49 automated tests.
 
 ### Added
 
@@ -24,9 +24,9 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 - Added `.agents/scripts/local-pr-reviewer/lib/LockManager.ps1` (Atomic OS file lock with PID liveness stale-lock recovery).
 - Added `.agents/scripts/local-pr-reviewer/lib/CacheManager.ps1` (Atomic JSON cache with UNAVAILABLE cooldown).
 - Added `.agents/scripts/local-pr-reviewer/lib/GeminiClient.ps1` (Gemini 3.7 Flash client with header-only auth and thinking_level).
-- Added `.agents/scripts/local-pr-reviewer/lib/OutputValidator.ps1` (Local output validation and anti-hallucination filter).
+- Added `.agents/scripts/local-pr-reviewer/lib/OutputValidator.ps1` (Local output validation, safe line parsing, and anti-hallucination filter).
 - Added `.agents/scripts/local-pr-reviewer/lib/GitHubClient.ps1` (gh CLI wrapper with pinned repository and sanitized error codes).
-- Added `.agents/scripts/local-pr-reviewer/tests/LocalPrReviewer.Tests.ps1` (46 automated unit and integration tests).
+- Added `.agents/scripts/local-pr-reviewer/tests/LocalPrReviewer.Tests.ps1` (49 automated unit and integration tests).
 
 ## 2026-08-30 — PR-First Delivery Workflow with Dev Branch Integration & Governance Harmonization (Issue #79)
 

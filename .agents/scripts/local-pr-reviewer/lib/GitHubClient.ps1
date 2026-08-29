@@ -30,7 +30,7 @@ function Get-EligibleDevPullRequests {
         foreach ($pr in $prs) {
             # 1. State must be OPEN
             # (already queried with --state open, but double-check if present)
-            
+
             # 2. Must not be draft
             if ($pr.isDraft -eq $true) {
                 continue
@@ -157,9 +157,9 @@ function Format-PrReviewCommentBody {
 $marker
 ## 🤖 Scan Pilot — AI Heuristic Pre-Review
 
-> **Model:** `$Model` (Thinking: `$ThinkingLevel`)  
-> **Target PR HEAD:** `$HeadSha`  
-> **Pre-Review Status:** $statusBadge  
+> **Model:** `$Model` (Thinking: `$ThinkingLevel`)
+> **Target PR HEAD:** `$HeadSha`
+> **Pre-Review Status:** $statusBadge
 > **Notice:** *This is an advisory AI pre-review based on static diff heuristics. It does not replace automated CI checks or technical sign-off by Technical Manager (Codex).*
 
 ### Summary

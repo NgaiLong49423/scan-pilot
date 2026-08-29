@@ -61,42 +61,64 @@ function Validate-GeminiResponse {
 
     if ($null -ne $parsed.findings -and $parsed.findings.Count -gt 0) {
         foreach ($finding in $parsed.findings) {
-            $file = [string]$finding.file
-            $line = [int]$finding.line
-            $severity = [string]$finding.severity
-            $message = [string]$finding.message
+            try {
+                if ($null -eq $finding) {
+                    continue
+                }
 
-            # Validate file existence in diff hunks
-            if (-not $HunkLines.ContainsKey($file)) {
-                # Hallucinated file -> drop finding
+                $file = [string]$finding.file
+                if ([string]::IsNullOrWhiteSpace($file)) {
+                    continue
+                }
+
+                # Safe positive integer parsing for line
+                $lineParsed = 0
+                if (-not [int]::TryParse([string]$finding.line, [ref]$lineParsed) -or $lineParsed -le 0) {
+                    continue
+                }
+                $line = $lineParsed
+
+                $severity = [string]$finding.severity
+                $message = [string]$finding.message
+                if ([string]::IsNullOrWhiteSpace($message)) {
+                    continue
+                }
+
+                # Validate file existence in diff hunks
+                if (-not $HunkLines.ContainsKey($file)) {
+                    # Hallucinated file -> drop finding
+                    continue
+                }
+
+                # Validate line existence in changed hunk lines
+                if (-not $HunkLines[$file].Contains($line)) {
+                    # Hallucinated line outside diff hunk -> drop finding
+                    continue
+                }
+
+                # Validate severity
+                if ($allowedSeverities -notcontains $severity.ToUpper()) {
+                    $severity = "MEDIUM"
+                } else {
+                    $severity = $severity.ToUpper()
+                }
+
+                # Sanitize and cap message length (max 500 chars)
+                if ($message.Length -gt 500) {
+                    $message = $message.Substring(0, 497) + "..."
+                }
+                $message = Redact-Secrets -Content $message
+
+                $validFindings.Add([PSCustomObject]@{
+                    file = $file
+                    line = $line
+                    severity = $severity
+                    message = $message
+                })
+            } catch {
+                # Malformed finding object -> safely skip
                 continue
             }
-
-            # Validate line existence in changed hunk lines
-            if (-not $HunkLines[$file].Contains($line)) {
-                # Hallucinated line outside diff hunk -> drop finding
-                continue
-            }
-
-            # Validate severity
-            if ($allowedSeverities -notcontains $severity.ToUpper()) {
-                $severity = "MEDIUM"
-            } else {
-                $severity = $severity.ToUpper()
-            }
-
-            # Sanitize and cap message length (max 500 chars)
-            if ($message.Length -gt 500) {
-                $message = $message.Substring(0, 497) + "..."
-            }
-            $message = Redact-Secrets -Content $message
-
-            $validFindings.Add([PSCustomObject]@{
-                file = $file
-                line = $line
-                severity = $severity
-                message = $message
-            })
         }
     }
 

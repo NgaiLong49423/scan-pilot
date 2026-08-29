@@ -168,11 +168,11 @@ $SanitizedDiff
     while ($retryCount -le $maxRetries) {
         try {
             $response = Invoke-RestMethod -Uri $endpoint -Headers $headers -Method Post -Body $payload -ContentType "application/json" -TimeoutSec 45 -ErrorAction Stop
-            
+
             if ($null -ne $response -and $response.candidates -and $response.candidates.Count -gt 0) {
                 $candidate = $response.candidates[0]
                 $partText = $candidate.content.parts[0].text
-                
+
                 return @{
                     Status = "SUCCESS"
                     ErrorCode = $null

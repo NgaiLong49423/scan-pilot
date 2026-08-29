@@ -38,7 +38,7 @@ try {
     # 1. Best-Effort Secret Redaction Tests
     # -------------------------------------------------------------
     Write-Host "`nTest Group 1: Best-Effort Secret Redaction" -ForegroundColor Yellow
-    
+
     $secretSample = @"
 aws_key = AKIAIOSFODNN7EXAMPLE
 github_pat = ghp_123456789012345678901234567890123456
@@ -151,6 +151,53 @@ index 2345678..9abcdef0 100644
 '@
     $valMalicious = Validate-GeminiResponse -RawJson $maliciousJson -HunkLines $parsed.HunkLines
     Assert-Condition "Disallowed status / prompt injection filtered" ($valMalicious.Summary.Contains("No AI findings were validated") -and -not $valMalicious.Summary.Contains("approved"))
+
+    # Test 3d: Non-integer / negative / zero line in findings
+    $malformedLineJson = @'
+{
+  "status": "CHANGES_NEEDED",
+  "summary": "Found defects",
+  "findings": [
+    {
+      "file": "src/main/App.java",
+      "line": "abc",
+      "severity": "HIGH",
+      "message": "String line instead of integer"
+    },
+    {
+      "file": "src/main/App.java",
+      "line": -5,
+      "severity": "HIGH",
+      "message": "Negative line number"
+    },
+    {
+      "file": "src/main/App.java",
+      "line": 0,
+      "severity": "HIGH",
+      "message": "Zero line number"
+    }
+  ]
+}
+'@
+    $valMalformedLine = Validate-GeminiResponse -RawJson $malformedLineJson -HunkLines $parsed.HunkLines
+    Assert-Condition "Non-integer and non-positive lines safely dropped" ($valMalformedLine.Findings.Count -eq 0)
+    Assert-Condition "Malformed lines fallback to neutral summary" ($valMalformedLine.Summary.Contains("No AI findings were validated"))
+
+    # Test 3e: Malformed finding objects (null / missing fields)
+    $malformedObjJson = @'
+{
+  "status": "CHANGES_NEEDED",
+  "summary": "Found defects",
+  "findings": [
+    null,
+    { "file": "" },
+    { "line": 11 },
+    { "file": "src/main/App.java", "line": 11, "message": "" }
+  ]
+}
+'@
+    $valMalformedObj = Validate-GeminiResponse -RawJson $malformedObjJson -HunkLines $parsed.HunkLines
+    Assert-Condition "Incomplete finding objects safely skipped" ($valMalformedObj.Findings.Count -eq 0)
 
     # -------------------------------------------------------------
     # 4. Inter-Process Lock & Stale-Lock Recovery Tests
@@ -387,7 +434,7 @@ index 2345678..9abcdef0 100644
     $foreignDir = Join-Path $testTempDir "foreign-workdir"
     New-Item -ItemType Directory -Force -Path $foreignDir | Out-Null
     Set-Location $foreignDir
-    
+
     # Run runner with dry-run from foreign dir
     $runnerResult = & "$scriptDir\run-pr-review.ps1" -BaseDir $scriptDir -PrNumber 999999 -DryRun
     $restoredDir = (Get-Location).Path
