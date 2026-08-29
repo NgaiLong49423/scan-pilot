@@ -52,6 +52,19 @@ class BoundedStreamReaderTest {
     }
 
     @Test
+    @DisplayName("Should throw PayloadTooLargeException when stream exceeds physical 1 MiB limit")
+    void testRejectsStreamExceedingPhysical1MiBLimit() {
+        int maxBytes = 1_048_576; // 1 MiB
+        byte[] oversizedData = new byte[maxBytes + 1];
+        Arrays.fill(oversizedData, (byte) 'x');
+        InputStream is = new ByteArrayInputStream(oversizedData);
+
+        assertThatThrownBy(() -> BoundedStreamReader.readBoundedStream(is, maxBytes))
+                .isInstanceOf(BoundedStreamReader.PayloadTooLargeException.class)
+                .hasMessageContaining("Payload exceeds maximum permitted size");
+    }
+
+    @Test
     @DisplayName("Should safely handle empty and null streams")
     void testHandlesEmptyAndNullStreams() throws IOException {
         byte[] emptyResult = BoundedStreamReader.readBoundedStream(new ByteArrayInputStream(new byte[0]), 1024);
