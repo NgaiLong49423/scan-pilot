@@ -7,7 +7,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,9 +18,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
-@DisplayName("GitCloneService Unit & Security Hardening Tests (AC-01, AC-02, AC-03, AC-04)")
+@DisplayName("GitCloneService Guardrail, Isolation, and Exact-SHA Command Sequence Tests")
 class GitCloneServiceTest {
 
     private GitCloneProperties properties;
@@ -30,10 +28,10 @@ class GitCloneServiceTest {
     @BeforeEach
     void setUp() {
         properties = new GitCloneProperties();
+        properties.setGitBinaryPath("git");
         properties.setDefaultDepth(50);
         properties.setMaxDepth(100);
         properties.setTimeoutSeconds(60);
-        properties.setGitBinaryPath("git");
         properties.setOperationalStopThresholdBytes(120 * 1024 * 1024L);
         properties.setPollIntervalMs(50);
         gitCloneService = new GitCloneService(properties);
@@ -196,6 +194,116 @@ class GitCloneServiceTest {
                     assertThat(ex.getMessage()).doesNotContain("Authorization");
                     assertThat(ex.getMessage()).isEqualTo("Git clone execution failure");
                 });
+    }
+
+    @Test
+    @DisplayName("Should build exact-SHA clone command with --no-checkout, depth, and security isolation")
+    void testBuildCloneProcessBuilderWithNoCheckout(@TempDir Path tempDir) {
+        Path emptyHooks = tempDir.resolve(".empty-hooks");
+        ProcessBuilder pb = gitCloneService.buildCloneProcessBuilder(
+                "owner/repo",
+                "feat-branch",
+                true,
+                "ghp_testtoken123",
+                tempDir,
+                emptyHooks
+        );
+
+        List<String> command = pb.command();
+        assertThat(command).contains("clone", "--no-checkout", "--single-branch", "--branch", "feat-branch", "--no-recurse-submodules", "--no-tags");
+        assertThat(command).contains("https://github.com/owner/repo.git");
+        assertThat(command).contains(tempDir.toAbsolutePath().normalize().toString());
+
+        // Assert zero token in argv command line
+        assertThat(String.join(" ", command)).doesNotContain("ghp_testtoken123");
+
+        // Assert token in GIT_CONFIG environment
+        assertThat(pb.environment().get("GIT_CONFIG_VALUE_0")).isEqualTo("Authorization: Bearer ghp_testtoken123");
+        assertThat(pb.environment().get("GIT_TERMINAL_PROMPT")).isEqualTo("0");
+    }
+
+    @Test
+    @DisplayName("Should build fetch process builder for exact commit SHA")
+    void testBuildFetchProcessBuilderForSha(@TempDir Path tempDir) {
+        Path emptyHooks = tempDir.resolve(".empty-hooks");
+        String targetSha = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+        ProcessBuilder pb = gitCloneService.buildFetchProcessBuilder(
+                targetSha,
+                "ghp_testtoken123",
+                tempDir,
+                emptyHooks
+        );
+
+        List<String> command = pb.command();
+        assertThat(command).contains("fetch", "--depth", "origin", targetSha);
+        assertThat(String.join(" ", command)).doesNotContain("ghp_testtoken123");
+        assertThat(pb.environment().get("GIT_CONFIG_VALUE_0")).isEqualTo("Authorization: Bearer ghp_testtoken123");
+    }
+
+    @Test
+    @DisplayName("Should build checkout process builder with --detach for exact commit SHA")
+    void testBuildCheckoutProcessBuilderForSha(@TempDir Path tempDir) {
+        Path emptyHooks = tempDir.resolve(".empty-hooks");
+        String targetSha = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+        ProcessBuilder pb = gitCloneService.buildCheckoutProcessBuilder(
+                targetSha,
+                tempDir,
+                emptyHooks
+        );
+
+        List<String> command = pb.command();
+        assertThat(command).contains("checkout", "--detach", targetSha);
+        assertThat(pb.environment().get("GIT_TERMINAL_PROMPT")).isEqualTo("0");
+    }
+
+    @Test
+    @DisplayName("Should kill process tree and fail closed when rev-parse process times out (R54-B3-02)")
+    void testRevParseTimeoutKillsProcessTreeAndThrows(@TempDir Path tempDir) throws Exception {
+        // Set git binary to sleep command to simulate hanging rev-parse
+        String[] sleepCmd = getSleepCommand(30);
+        properties.setGitBinaryPath(sleepCmd[0]);
+        gitCloneService = new GitCloneService(properties);
+
+        Instant expiredDeadline = Instant.now().minusSeconds(1);
+
+        assertThatThrownBy(() -> gitCloneService.resolveAndVerifyHeadSha(tempDir, "4b825dc642cb6eb9a060e54bf8d69288fbee4904", expiredDeadline, 1))
+                .isInstanceOf(ResourceGuardrailExceededException.class)
+                .hasMessageContaining("SCAN_TIMEOUT");
+    }
+
+    @Test
+    @DisplayName("Should never log or expose raw exception messages, tokens, or paths during execution failure (R54-B3-01)")
+    void testZeroDiagnosticLeakageOnExecutionFailure(@TempDir Path tempDir) {
+        String forgedSecret = "ghp_forged_secret_token_1234567890abcdef";
+        String forgedPath = "C:\\Users\\SecretAdmin\\private\\keys";
+        String rawDiagnostic = "Internal network timeout with credentials at " + forgedPath + " token=" + forgedSecret;
+
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(GitCloneService.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> listAppender = new ch.qos.logback.core.read.ListAppender<>();
+        listAppender.start();
+        logger.addAppender(listAppender);
+
+        try {
+            GitCloneProperties customProps = new GitCloneProperties();
+            customProps.setGitBinaryPath(rawDiagnostic);
+            GitCloneService customService = new GitCloneService(customProps);
+
+            assertThatThrownBy(() -> customService.cloneRepository("owner/repo", "main", forgedSecret, tempDir, null))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Git clone execution failure") // Static safe message only
+                    .satisfies(e -> {
+                        assertThat(e.getMessage()).doesNotContain(forgedSecret);
+                        assertThat(e.getMessage()).doesNotContain(forgedPath);
+                    });
+
+            for (ch.qos.logback.classic.spi.ILoggingEvent event : listAppender.list) {
+                String formatted = event.getFormattedMessage();
+                assertThat(formatted).doesNotContain(forgedSecret);
+                assertThat(formatted).doesNotContain(forgedPath);
+            }
+        } finally {
+            logger.detachAppender(listAppender);
+        }
     }
 
     private String[] getSleepCommand(int seconds) {

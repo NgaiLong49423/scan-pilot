@@ -37,6 +37,9 @@ class GitHubWebhookServiceTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private com.scanpilot.persistence.repository.ScanJobRepository scanJobRepository;
+
     private UserEntity testUser;
 
     @BeforeEach
@@ -151,6 +154,7 @@ class GitHubWebhookServiceTest {
                 .githubRepoId(12345L)
                 .installationId(54321L)
                 .branch("main")
+                .commitSha("1111222233334444555566667777888899990000")
                 .build();
 
         WebhookDeliveryResponseDto response = gitHubWebhookService.processWebhook(deliveryId, "push", payload);
@@ -350,6 +354,7 @@ class GitHubWebhookServiceTest {
                 .githubRepoId(12345L)
                 .installationId(54321L)
                 .branch("main")
+                .commitSha("1111222233334444555566667777888899990000")
                 .build();
 
         WebhookDeliveryResponseDto first = gitHubWebhookService.processWebhook(deliveryId, "push", payload);
@@ -358,5 +363,344 @@ class GitHubWebhookServiceTest {
         WebhookDeliveryResponseDto duplicate = gitHubWebhookService.processWebhook(deliveryId, "push", payload);
         assertThat(duplicate.status()).isEqualTo("IGNORED_DUPLICATE");
         assertThat(duplicate.reason()).isEqualTo("DUPLICATE_DELIVERY");
+    }
+
+    @Test
+    @DisplayName("Should provision QUEUED ScanJobEntity with trigger provenance when webhook is ACCEPTED")
+    void testAcceptedDeliveryProvisionsScanJobAndEnqueuesAsync() {
+        RepositoryEntity repo = repositoryRepository.save(RepositoryEntity.builder()
+                .userId(testUser.getId())
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .fullName("owner/repo")
+                .status("ACTIVE")
+                .build());
+
+        String deliveryId = UUID.randomUUID().toString();
+        GitHubWebhookPayloadDto payload = GitHubWebhookPayloadDto.builder()
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .branch("feature/auth")
+                .commitSha("1111222233334444555566667777888899990000")
+                .build();
+
+        WebhookDeliveryResponseDto response = gitHubWebhookService.processWebhook(deliveryId, "push", payload);
+        assertThat(response.status()).isEqualTo("ACCEPTED");
+
+        WebhookDeliveryEntity delivery = webhookDeliveryRepository.findByDeliveryId(deliveryId).orElseThrow();
+        assertThat(delivery.getRepositoryId()).isEqualTo(repo.getId());
+
+        com.scanpilot.persistence.entity.ScanJobEntity job = scanJobRepository.findByWebhookDeliveryId(delivery.getId()).orElseThrow();
+        assertThat(job.getRepositoryId()).isEqualTo(repo.getId());
+        assertThat(job.getBranchName()).isEqualTo("feature/auth");
+        assertThat(job.getTriggerType()).isEqualTo("WEBHOOK_PUSH");
+        assertThat(job.getExpectedCommitSha()).isEqualTo("1111222233334444555566667777888899990000");
+        assertThat(job.getStatus()).isEqualTo("QUEUED");
+        assertThat(job.getStage()).isEqualTo("QUEUED");
+    }
+
+    @Test
+    @DisplayName("Should return IGNORED_CAPACITY / DISPATCH_QUEUE_FULL when repository queue already contains 10 QUEUED jobs")
+    void testQueueFullRejectsWithDispatchQueueFullOutcome() {
+        RepositoryEntity repo = repositoryRepository.save(RepositoryEntity.builder()
+                .userId(testUser.getId())
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .fullName("owner/repo")
+                .status("ACTIVE")
+                .build());
+
+        // Fill queue to capacity (10 jobs)
+        for (int i = 0; i < 10; i++) {
+            scanJobRepository.save(com.scanpilot.persistence.entity.ScanJobEntity.builder()
+                    .repositoryId(repo.getId())
+                    .branchName("main")
+                    .status("QUEUED")
+                    .stage("QUEUED")
+                    .triggerType("WEBHOOK_PUSH")
+                    .createdAt(Instant.now().minusSeconds(10 - i))
+                    .build());
+        }
+
+        String deliveryId = UUID.randomUUID().toString();
+        GitHubWebhookPayloadDto payload = GitHubWebhookPayloadDto.builder()
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .branch("feature/11th")
+                .commitSha("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+                .build();
+
+        WebhookDeliveryResponseDto response = gitHubWebhookService.processWebhook(deliveryId, "push", payload);
+
+        assertThat(response.status()).isEqualTo("IGNORED_CAPACITY");
+        assertThat(response.reason()).isEqualTo("DISPATCH_QUEUE_FULL");
+
+        WebhookDeliveryEntity delivery = webhookDeliveryRepository.findByDeliveryId(deliveryId).orElseThrow();
+        assertThat(delivery.getStatus()).isEqualTo("IGNORED_CAPACITY");
+        assertThat(delivery.getReasonCode()).isEqualTo("DISPATCH_QUEUE_FULL");
+
+        // Assert 11th ScanJobEntity was NOT created
+        assertThat(scanJobRepository.findByWebhookDeliveryId(delivery.getId())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Should return IGNORED_INVALID_REF / TARGET_REF_INVALID and create zero ScanJob when push has blank branch (R54-B3-01)")
+    void testPushWithBlankBranchRejectsFailClosedWithoutFallbackToMain() {
+        RepositoryEntity repo = repositoryRepository.save(RepositoryEntity.builder()
+                .userId(testUser.getId())
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .fullName("owner/repo")
+                .status("ACTIVE")
+                .build());
+
+        String deliveryId = UUID.randomUUID().toString();
+        GitHubWebhookPayloadDto payload = GitHubWebhookPayloadDto.builder()
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .branch("   ")
+                .commitSha("1111222233334444555566667777888899990000")
+                .build();
+
+        WebhookDeliveryResponseDto response = gitHubWebhookService.processWebhook(deliveryId, "push", payload);
+
+        assertThat(response.status()).isEqualTo("IGNORED_INVALID_REF");
+        assertThat(response.reason()).isEqualTo("TARGET_REF_INVALID");
+
+        WebhookDeliveryEntity delivery = webhookDeliveryRepository.findByDeliveryId(deliveryId).orElseThrow();
+        assertThat(delivery.getStatus()).isEqualTo("IGNORED_INVALID_REF");
+        assertThat(delivery.getReasonCode()).isEqualTo("TARGET_REF_INVALID");
+        assertThat(scanJobRepository.findByWebhookDeliveryId(delivery.getId())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Should return IGNORED_INVALID_REF / TARGET_REF_INVALID and create zero ScanJob when PR has null headBranch (R54-B3-01)")
+    void testPrWithNullHeadBranchRejectsFailClosed() {
+        RepositoryEntity repo = repositoryRepository.save(RepositoryEntity.builder()
+                .userId(testUser.getId())
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .fullName("owner/repo")
+                .status("ACTIVE")
+                .build());
+
+        String deliveryId = UUID.randomUUID().toString();
+        GitHubWebhookPayloadDto payload = GitHubWebhookPayloadDto.builder()
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .prAction("opened")
+                .prNumber(10)
+                .headBranch(null)
+                .baseBranch("main")
+                .commitSha("1111222233334444555566667777888899990000")
+                .build();
+
+        WebhookDeliveryResponseDto response = gitHubWebhookService.processWebhook(deliveryId, "pull_request", payload);
+
+        assertThat(response.status()).isEqualTo("IGNORED_INVALID_REF");
+        assertThat(response.reason()).isEqualTo("TARGET_REF_INVALID");
+
+        WebhookDeliveryEntity delivery = webhookDeliveryRepository.findByDeliveryId(deliveryId).orElseThrow();
+        assertThat(delivery.getStatus()).isEqualTo("IGNORED_INVALID_REF");
+        assertThat(scanJobRepository.findByWebhookDeliveryId(delivery.getId())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Should return IGNORED_INVALID_REF / TARGET_REF_INVALID and create zero ScanJob when merged PR has blank baseBranch (R54-B3-01)")
+    void testMergedPrWithBlankBaseBranchRejectsFailClosed() {
+        RepositoryEntity repo = repositoryRepository.save(RepositoryEntity.builder()
+                .userId(testUser.getId())
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .fullName("owner/repo")
+                .status("ACTIVE")
+                .build());
+
+        String deliveryId = UUID.randomUUID().toString();
+        GitHubWebhookPayloadDto payload = GitHubWebhookPayloadDto.builder()
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .prAction("closed")
+                .isMerged(true)
+                .prNumber(10)
+                .headBranch("feature")
+                .baseBranch("  ")
+                .commitSha("1111222233334444555566667777888899990000")
+                .build();
+
+        WebhookDeliveryResponseDto response = gitHubWebhookService.processWebhook(deliveryId, "pull_request", payload);
+
+        assertThat(response.status()).isEqualTo("IGNORED_INVALID_REF");
+        assertThat(response.reason()).isEqualTo("TARGET_REF_INVALID");
+
+        WebhookDeliveryEntity delivery = webhookDeliveryRepository.findByDeliveryId(deliveryId).orElseThrow();
+        assertThat(delivery.getStatus()).isEqualTo("IGNORED_INVALID_REF");
+        assertThat(scanJobRepository.findByWebhookDeliveryId(delivery.getId())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Should return IGNORED_INVALID_COMMIT_SHA / COMMIT_SHA_INVALID when commit SHA is missing or invalid (R54-B3-01)")
+    void testMissingOrInvalidCommitShaRejectsFailClosed() {
+        RepositoryEntity repo = repositoryRepository.save(RepositoryEntity.builder()
+                .userId(testUser.getId())
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .fullName("owner/repo")
+                .status("ACTIVE")
+                .build());
+
+        String deliveryId = UUID.randomUUID().toString();
+        GitHubWebhookPayloadDto payload = GitHubWebhookPayloadDto.builder()
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .branch("feature")
+                .commitSha("invalid-short-sha")
+                .build();
+
+        WebhookDeliveryResponseDto response = gitHubWebhookService.processWebhook(deliveryId, "push", payload);
+
+        assertThat(response.status()).isEqualTo("IGNORED_INVALID_COMMIT_SHA");
+        assertThat(response.reason()).isEqualTo("COMMIT_SHA_INVALID");
+
+        WebhookDeliveryEntity delivery = webhookDeliveryRepository.findByDeliveryId(deliveryId).orElseThrow();
+        assertThat(delivery.getStatus()).isEqualTo("IGNORED_INVALID_COMMIT_SHA");
+        assertThat(delivery.getReasonCode()).isEqualTo("COMMIT_SHA_INVALID");
+        assertThat(scanJobRepository.findByWebhookDeliveryId(delivery.getId())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Should return IGNORED_INVALID_REF for path traversal branch '../main' (R54-B3-02)")
+    void testPathTraversalBranchRejectsFailClosed() {
+        RepositoryEntity repo = repositoryRepository.save(RepositoryEntity.builder()
+                .userId(testUser.getId())
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .fullName("owner/repo")
+                .status("ACTIVE")
+                .build());
+
+        String deliveryId = UUID.randomUUID().toString();
+        GitHubWebhookPayloadDto payload = GitHubWebhookPayloadDto.builder()
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .branch("../main")
+                .commitSha("1111222233334444555566667777888899990000")
+                .build();
+
+        WebhookDeliveryResponseDto response = gitHubWebhookService.processWebhook(deliveryId, "push", payload);
+
+        assertThat(response.status()).isEqualTo("IGNORED_INVALID_REF");
+        assertThat(response.reason()).isEqualTo("TARGET_REF_INVALID");
+        assertThat(scanJobRepository.countByRepositoryIdAndStatus(repo.getId(), "QUEUED")).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("Should return IGNORED_INVALID_REF for double-dot branch 'main..evil' (R54-B3-02)")
+    void testDoubleDotBranchRejectsFailClosed() {
+        RepositoryEntity repo = repositoryRepository.save(RepositoryEntity.builder()
+                .userId(testUser.getId())
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .fullName("owner/repo")
+                .status("ACTIVE")
+                .build());
+
+        String deliveryId = UUID.randomUUID().toString();
+        GitHubWebhookPayloadDto payload = GitHubWebhookPayloadDto.builder()
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .branch("main..evil")
+                .commitSha("1111222233334444555566667777888899990000")
+                .build();
+
+        WebhookDeliveryResponseDto response = gitHubWebhookService.processWebhook(deliveryId, "push", payload);
+
+        assertThat(response.status()).isEqualTo("IGNORED_INVALID_REF");
+        assertThat(response.reason()).isEqualTo("TARGET_REF_INVALID");
+        assertThat(scanJobRepository.countByRepositoryIdAndStatus(repo.getId(), "QUEUED")).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("Should return IGNORED_INVALID_REF for backslash branch 'refs\\heads\\main' (R54-B3-02)")
+    void testBackslashBranchRejectsFailClosed() {
+        RepositoryEntity repo = repositoryRepository.save(RepositoryEntity.builder()
+                .userId(testUser.getId())
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .fullName("owner/repo")
+                .status("ACTIVE")
+                .build());
+
+        String deliveryId = UUID.randomUUID().toString();
+        GitHubWebhookPayloadDto payload = GitHubWebhookPayloadDto.builder()
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .branch("refs\\heads\\main")
+                .commitSha("1111222233334444555566667777888899990000")
+                .build();
+
+        WebhookDeliveryResponseDto response = gitHubWebhookService.processWebhook(deliveryId, "push", payload);
+
+        assertThat(response.status()).isEqualTo("IGNORED_INVALID_REF");
+        assertThat(response.reason()).isEqualTo("TARGET_REF_INVALID");
+        assertThat(scanJobRepository.countByRepositoryIdAndStatus(repo.getId(), "QUEUED")).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("Should return IGNORED_INVALID_REF for whitespace-containing branch 'main branch' (R54-B3-02)")
+    void testWhitespaceBranchRejectsFailClosed() {
+        RepositoryEntity repo = repositoryRepository.save(RepositoryEntity.builder()
+                .userId(testUser.getId())
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .fullName("owner/repo")
+                .status("ACTIVE")
+                .build());
+
+        String deliveryId = UUID.randomUUID().toString();
+        GitHubWebhookPayloadDto payload = GitHubWebhookPayloadDto.builder()
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .branch("main branch")
+                .commitSha("1111222233334444555566667777888899990000")
+                .build();
+
+        WebhookDeliveryResponseDto response = gitHubWebhookService.processWebhook(deliveryId, "push", payload);
+
+        assertThat(response.status()).isEqualTo("IGNORED_INVALID_REF");
+        assertThat(response.reason()).isEqualTo("TARGET_REF_INVALID");
+        assertThat(scanJobRepository.countByRepositoryIdAndStatus(repo.getId(), "QUEUED")).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("Should accept valid multi-slash branch 'feature/security/fix' and create ScanJob (R54-B3-02)")
+    void testValidMultiSlashBranchAccepted() {
+        RepositoryEntity repo = repositoryRepository.save(RepositoryEntity.builder()
+                .userId(testUser.getId())
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .fullName("owner/repo")
+                .status("ACTIVE")
+                .build());
+
+        String deliveryId = UUID.randomUUID().toString();
+        GitHubWebhookPayloadDto payload = GitHubWebhookPayloadDto.builder()
+                .githubRepoId(12345L)
+                .installationId(54321L)
+                .branch("feature/security/fix")
+                .commitSha("1111222233334444555566667777888899990000")
+                .build();
+
+        WebhookDeliveryResponseDto response = gitHubWebhookService.processWebhook(deliveryId, "push", payload);
+
+        assertThat(response.status()).isEqualTo("ACCEPTED");
+        assertThat(response.reason()).isEqualTo("ROUTED_ACTIVE_MONITORED_REPOSITORY");
+
+        WebhookDeliveryEntity delivery = webhookDeliveryRepository.findByDeliveryId(deliveryId).orElseThrow();
+        assertThat(delivery.getStatus()).isEqualTo("ACCEPTED");
+
+        com.scanpilot.persistence.entity.ScanJobEntity job = scanJobRepository.findByWebhookDeliveryId(delivery.getId()).orElseThrow();
+        assertThat(job.getBranchName()).isEqualTo("feature/security/fix");
+        assertThat(job.getStatus()).isEqualTo("QUEUED");
     }
 }

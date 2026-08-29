@@ -31,16 +31,24 @@ public class GitCloneService {
 
     /**
      * Executes shallow git clone for the given repository and branch into an isolated workspace.
-     *
-     * @param repoFullName   repository full name (e.g. "owner/repo")
-     * @param branch         target branch name (e.g. "main")
-     * @param token          GitHub access token for environment injection (or null for public)
-     * @param workspacePath  isolated ephemeral directory on disk
-     * @param jobDeadline    cumulative scan deadline timestamp (or null if unconstrained)
      */
     public void cloneRepository(
             String repoFullName,
             String branch,
+            String token,
+            Path workspacePath,
+            Instant jobDeadline
+    ) {
+        cloneRepository(repoFullName, branch, null, token, workspacePath, jobDeadline);
+    }
+
+    /**
+     * Executes shallow git clone and optional detached exact-SHA checkout into an isolated workspace (Issue #54).
+     */
+    public void cloneRepository(
+            String repoFullName,
+            String branch,
+            String expectedCommitSha,
             String token,
             Path workspacePath,
             Instant jobDeadline
@@ -69,39 +77,111 @@ public class GitCloneService {
                 effectiveTimeout = Math.min((int) remainingSeconds, properties.getTimeoutSeconds());
             }
 
-            ProcessBuilder pb = buildProcessBuilder(repoFullName, branch, token, workspacePath, emptyHooksDir);
+            boolean exactShaMode = (expectedCommitSha != null && !expectedCommitSha.isBlank());
 
-            log.info("Executing shallow git clone [repo={}, branch={}, depth={}]",
-                    repoFullName, branch, Math.min(properties.getDefaultDepth(), properties.getMaxDepth()));
+            // 1. Clone repository (with --no-checkout if in exact-SHA mode)
+            ProcessBuilder clonePb = buildCloneProcessBuilder(repoFullName, branch, exactShaMode, token, workspacePath, emptyHooksDir);
 
-            Process process = pb.start();
+            log.info("Executing shallow git clone [repo={}, branch={}, exactShaMode={}, depth={}]",
+                    repoFullName, branch, exactShaMode, Math.min(properties.getDefaultDepth(), properties.getMaxDepth()));
 
-            monitorAndEnforceGuardrails(process, workspacePath, jobDeadline, effectiveTimeout);
+            runMonitoredProcess(clonePb, workspacePath, jobDeadline, effectiveTimeout, "Git clone");
 
-            int exitCode = process.exitValue();
-            if (exitCode != 0) {
-                log.warn("Git clone process exited with code {} for repository {}", exitCode, repoFullName);
-                throw new IllegalStateException("Git clone failed with exit code " + exitCode);
+            if (exactShaMode) {
+                // 2. Fetch specific commit SHA from origin
+                ProcessBuilder fetchPb = buildFetchProcessBuilder(expectedCommitSha, token, workspacePath, emptyHooksDir);
+                log.info("Executing git fetch for exact SHA {} [repo={}]", expectedCommitSha, repoFullName);
+                runMonitoredProcess(fetchPb, workspacePath, jobDeadline, effectiveTimeout, "Git fetch SHA");
+
+                // 3. Detached checkout of target commit SHA
+                ProcessBuilder checkoutPb = buildCheckoutProcessBuilder(expectedCommitSha, workspacePath, emptyHooksDir);
+                log.info("Executing git checkout --detach {} [repo={}]", expectedCommitSha, repoFullName);
+                runMonitoredProcess(checkoutPb, workspacePath, jobDeadline, effectiveTimeout, "Git checkout --detach");
+
+                // 4. Verify absolute equality: rev-parse HEAD == expectedCommitSha
+                String verifiedHead = resolveAndVerifyHeadSha(workspacePath, expectedCommitSha, jobDeadline, effectiveTimeout);
+                log.info("Git clone & exact SHA checkout verified successfully for {} at commit {}", repoFullName, verifiedHead);
+            } else {
+                log.info("Git clone completed successfully for repository {} on branch {}", repoFullName, branch);
             }
-
-            log.info("Git clone completed successfully for repository {} on branch {}", repoFullName, branch);
         } catch (ResourceGuardrailExceededException rge) {
             throw rge;
         } catch (IllegalStateException ise) {
             throw ise;
         } catch (Exception e) {
             log.warn("Git clone execution failure for repository {}", repoFullName);
-            throw new IllegalStateException("Git clone execution failure");
+            throw new IllegalStateException("Git clone execution failure", e);
         }
     }
 
-    /**
-     * Builds the ProcessBuilder with security hardening flags and environment credential transport.
-     * Guaranteed zero token exposure in command-line arguments (argv) and safe output redirection.
-     */
-    public ProcessBuilder buildProcessBuilder(
+    private void runMonitoredProcess(
+            ProcessBuilder pb,
+            Path workspacePath,
+            Instant jobDeadline,
+            int effectiveTimeout,
+            String stageName
+    ) throws Exception {
+        Process process = pb.start();
+        monitorAndEnforceGuardrails(process, workspacePath, jobDeadline, effectiveTimeout);
+        int exitCode = process.exitValue();
+        if (exitCode != 0) {
+            log.warn("{} process exited with code {}", stageName, exitCode);
+            throw new IllegalStateException(stageName + " failed with exit code " + exitCode);
+        }
+    }
+
+    public String resolveAndVerifyHeadSha(Path workspacePath, String expectedCommitSha) throws Exception {
+        return resolveAndVerifyHeadSha(workspacePath, expectedCommitSha, null, properties.getTimeoutSeconds());
+    }
+
+    public String resolveAndVerifyHeadSha(
+            Path workspacePath,
+            String expectedCommitSha,
+            Instant jobDeadline,
+            int effectiveTimeout
+    ) throws Exception {
+        ProcessBuilder pb = new ProcessBuilder(properties.getGitBinaryPath(), "rev-parse", "HEAD");
+        pb.directory(workspacePath.toFile());
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+        try {
+            long timeoutSeconds = 5L;
+            if (jobDeadline != null) {
+                long remainingMillis = java.time.Duration.between(Instant.now(), jobDeadline).toMillis();
+                if (remainingMillis <= 0) {
+                    killProcessTree(process);
+                    throw new ResourceGuardrailExceededException("SCAN_TIMEOUT", 0L, 0, effectiveTimeout);
+                }
+                timeoutSeconds = Math.min(timeoutSeconds, Math.max(1, remainingMillis / 1000));
+            } else if (effectiveTimeout > 0) {
+                timeoutSeconds = Math.min(timeoutSeconds, effectiveTimeout);
+            }
+
+            boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+            if (!finished) {
+                killProcessTree(process);
+                throw new IllegalStateException("Git rev-parse HEAD process timed out");
+            }
+            if (process.exitValue() != 0) {
+                killProcessTree(process);
+                throw new IllegalStateException("Failed to resolve git rev-parse HEAD");
+            }
+            String resolvedSha = new String(process.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
+            if (!resolvedSha.equalsIgnoreCase(expectedCommitSha)) {
+                log.error("Commit SHA mismatch: expected {} but resolved {}", expectedCommitSha, resolvedSha);
+                throw new IllegalStateException("Commit SHA mismatch: expected " + expectedCommitSha + " but was " + resolvedSha);
+            }
+            return resolvedSha;
+        } catch (Exception e) {
+            killProcessTree(process);
+            throw e;
+        }
+    }
+
+    public ProcessBuilder buildCloneProcessBuilder(
             String repoFullName,
             String branch,
+            boolean noCheckout,
             String token,
             Path workspacePath,
             Path emptyHooksDir
@@ -113,6 +193,9 @@ public class GitCloneService {
         command.add("-c");
         command.add("core.fsmonitor=false");
         command.add("clone");
+        if (noCheckout) {
+            command.add("--no-checkout");
+        }
         command.add("--depth");
         command.add(String.valueOf(Math.min(properties.getDefaultDepth(), properties.getMaxDepth())));
         command.add("--single-branch");
@@ -136,6 +219,74 @@ public class GitCloneService {
         env.put("GIT_TERMINAL_PROMPT", "0");
 
         return pb;
+    }
+
+    public ProcessBuilder buildFetchProcessBuilder(
+            String expectedCommitSha,
+            String token,
+            Path workspacePath,
+            Path emptyHooksDir
+    ) {
+        List<String> command = new ArrayList<>();
+        command.add(properties.getGitBinaryPath());
+        command.add("-c");
+        command.add("core.hooksPath=" + emptyHooksDir.toAbsolutePath().normalize().toString());
+        command.add("-c");
+        command.add("core.fsmonitor=false");
+        command.add("fetch");
+        command.add("--depth");
+        command.add(String.valueOf(Math.min(properties.getDefaultDepth(), properties.getMaxDepth())));
+        command.add("origin");
+        command.add(expectedCommitSha);
+
+        ProcessBuilder pb = new ProcessBuilder(command);
+        pb.directory(workspacePath.toFile());
+        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+        pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+        Map<String, String> env = pb.environment();
+
+        if (token != null && !token.isBlank() && !token.startsWith("mock-")) {
+            env.put("GIT_CONFIG_COUNT", "1");
+            env.put("GIT_CONFIG_KEY_0", "http.extraHeader");
+            env.put("GIT_CONFIG_VALUE_0", "Authorization: Bearer " + token);
+        }
+        env.put("GIT_TERMINAL_PROMPT", "0");
+
+        return pb;
+    }
+
+    public ProcessBuilder buildCheckoutProcessBuilder(
+            String expectedCommitSha,
+            Path workspacePath,
+            Path emptyHooksDir
+    ) {
+        List<String> command = new ArrayList<>();
+        command.add(properties.getGitBinaryPath());
+        command.add("-c");
+        command.add("core.hooksPath=" + emptyHooksDir.toAbsolutePath().normalize().toString());
+        command.add("-c");
+        command.add("core.fsmonitor=false");
+        command.add("checkout");
+        command.add("--detach");
+        command.add(expectedCommitSha);
+
+        ProcessBuilder pb = new ProcessBuilder(command);
+        pb.directory(workspacePath.toFile());
+        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+        pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+        pb.environment().put("GIT_TERMINAL_PROMPT", "0");
+
+        return pb;
+    }
+
+    public ProcessBuilder buildProcessBuilder(
+            String repoFullName,
+            String branch,
+            String token,
+            Path workspacePath,
+            Path emptyHooksDir
+    ) {
+        return buildCloneProcessBuilder(repoFullName, branch, false, token, workspacePath, emptyHooksDir);
     }
 
     /**
@@ -209,7 +360,7 @@ public class GitCloneService {
             process.destroyForcibly();
             process.waitFor(5, TimeUnit.SECONDS);
         } catch (Exception e) {
-            log.warn("Error during git clone process tree termination: {}", e.getMessage());
+            log.warn("Error during git clone process tree termination");
         }
     }
 

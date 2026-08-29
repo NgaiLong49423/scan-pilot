@@ -28,11 +28,20 @@ public interface ScanJobRepository extends JpaRepository<ScanJobEntity, UUID> {
 
     Optional<ScanJobEntity> findTopByRepositoryIdAndBranchNameOrderByStartedAtDesc(UUID repositoryId, String branchName);
 
+    Optional<ScanJobEntity> findByWebhookDeliveryId(UUID webhookDeliveryId);
+
+    long countByRepositoryIdAndStatus(UUID repositoryId, String status);
+
+    Optional<ScanJobEntity> findFirstByRepositoryIdAndStatusOrderByCreatedAtAsc(UUID repositoryId, String status);
+
+    @Query("SELECT DISTINCT j.repositoryId FROM ScanJobEntity j WHERE j.status = 'QUEUED' AND j.repositoryId NOT IN (SELECT r.repositoryId FROM ScanJobEntity r WHERE r.status = 'RUNNING')")
+    List<UUID> findRepositoriesWithQueuedJobsAndNoRunningJobs();
+
     @Modifying(clearAutomatically = true)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Query("UPDATE ScanJobEntity j SET j.status = 'FAILED', j.stage = 'FAILED', " +
            "j.errorMessage = :errorMessage, j.completedAt = :now, j.updatedAt = :now " +
-           "WHERE j.status IN ('QUEUED', 'RUNNING') AND j.heartbeatAt < :cutoff")
+           "WHERE j.status = 'RUNNING' AND j.heartbeatAt < :cutoff")
     int reconcileStaleJobsAtomic(@Param("cutoff") Instant cutoff,
                                  @Param("errorMessage") String errorMessage,
                                  @Param("now") Instant now);
