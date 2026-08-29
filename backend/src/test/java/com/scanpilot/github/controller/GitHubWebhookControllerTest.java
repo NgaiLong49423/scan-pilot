@@ -69,6 +69,7 @@ class GitHubWebhookControllerTest {
 
     @BeforeEach
     void setUp() {
+        webhookDeliveryRepository.deleteAll();
         gitHubAppConfigProperties.setWebhookSecret(TEST_SECRET);
 
         long uniqueGithubUserId = Math.abs(UUID.randomUUID().getMostSignificantBits());
