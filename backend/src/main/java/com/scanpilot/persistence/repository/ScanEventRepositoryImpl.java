@@ -2,6 +2,7 @@ package com.scanpilot.persistence.repository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -70,8 +71,42 @@ public class ScanEventRepositoryImpl implements ScanEventRepositoryCustom {
 
             return Optional.ofNullable(allocatedSeq);
         } catch (Exception e) {
-            log.warn("Event persistence error for eventType={}", eventType);
+            if (!isH2Database()) {
+                log.warn("Event persistence error for eventType={}", eventType);
+                return Optional.empty();
+            }
+
+            // H2 does not support this PostgreSQL CTE form in local tests.
+            try {
+                int updated = jdbcTemplate.update(
+                    "UPDATE scan_jobs SET next_event_sequence = next_event_sequence + 1 WHERE id = ? AND next_event_sequence < ?",
+                    jobId, maxLimit
+                );
+                if (updated > 0) {
+                    Long currentSeq = jdbcTemplate.queryForObject(
+                        "SELECT next_event_sequence FROM scan_jobs WHERE id = ?",
+                        Long.class, jobId
+                    );
+                    jdbcTemplate.update(
+                        "INSERT INTO scan_events (id, scan_job_id, sequence_number, stage, event_type, message_code, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        eventId, jobId, currentSeq, stage, eventType, messageCode, payloadJson, Timestamp.from(createdAt != null ? createdAt : Instant.now())
+                    );
+                    return Optional.ofNullable(currentSeq);
+                }
+            } catch (Exception ex) {
+                log.warn("Event persistence error for eventType={}", eventType);
+            }
             return Optional.empty();
+        }
+    }
+
+    private boolean isH2Database() {
+        try {
+            return Boolean.TRUE.equals(jdbcTemplate.execute((ConnectionCallback<Boolean>) connection ->
+                "H2".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName())
+            ));
+        } catch (Exception ignored) {
+            return false;
         }
     }
 }

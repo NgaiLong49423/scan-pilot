@@ -6,7 +6,6 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -37,29 +36,43 @@ public interface ScanJobRepository extends JpaRepository<ScanJobEntity, UUID> {
     @Query("SELECT DISTINCT j.repositoryId FROM ScanJobEntity j WHERE j.status = 'QUEUED' AND j.repositoryId NOT IN (SELECT r.repositoryId FROM ScanJobEntity r WHERE r.status = 'RUNNING')")
     List<UUID> findRepositoriesWithQueuedJobsAndNoRunningJobs();
 
+    @Query("SELECT j FROM ScanJobEntity j WHERE j.status = 'RUNNING' AND " +
+           "(COALESCE(j.heartbeatAt, j.startedAt, j.createdAt) < :cutoff)")
+    List<ScanJobEntity> findStaleRunningJobs(@Param("cutoff") Instant cutoff);
+
     @Modifying(clearAutomatically = true)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
+    @Query("UPDATE ScanJobEntity j SET j.status = 'FAILED', j.stage = 'FAILED', " +
+           "j.errorMessage = :errorMessage, j.completedAt = :now, j.updatedAt = :now, j.heartbeatAt = :now " +
+           "WHERE j.id = :jobId AND j.status = 'RUNNING' AND (COALESCE(j.heartbeatAt, j.startedAt, j.createdAt) < :cutoff)")
+    int reconcileStaleJobByIdAtomic(@Param("jobId") UUID jobId,
+                                    @Param("cutoff") Instant cutoff,
+                                    @Param("errorMessage") String errorMessage,
+                                    @Param("now") Instant now);
+
+    @Modifying(clearAutomatically = true)
+    @Transactional
     @Query("UPDATE ScanJobEntity j SET j.status = 'FAILED', j.stage = 'FAILED', " +
            "j.errorMessage = :errorMessage, j.completedAt = :now, j.updatedAt = :now " +
-           "WHERE j.status = 'RUNNING' AND j.heartbeatAt < :cutoff")
+           "WHERE j.status = 'RUNNING' AND (COALESCE(j.heartbeatAt, j.startedAt, j.createdAt) < :cutoff)")
     int reconcileStaleJobsAtomic(@Param("cutoff") Instant cutoff,
                                  @Param("errorMessage") String errorMessage,
                                  @Param("now") Instant now);
 
     @Modifying(clearAutomatically = true)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     @Query("UPDATE ScanJobEntity j SET j.heartbeatAt = :now, j.updatedAt = :now " +
            "WHERE j.workerInstanceId = :workerInstanceId AND j.status = 'QUEUED'")
     int updateHeartbeatForQueuedJobsByWorker(@Param("workerInstanceId") String workerInstanceId, @Param("now") Instant now);
 
     @Modifying(clearAutomatically = true)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     @Query("UPDATE ScanJobEntity j SET j.heartbeatAt = :now, j.updatedAt = :now " +
            "WHERE j.id = :jobId AND j.status = 'RUNNING'")
     int updateHeartbeatForRunningJob(@Param("jobId") UUID jobId, @Param("now") Instant now);
 
     @Modifying(clearAutomatically = true)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     @Query("UPDATE ScanJobEntity j SET j.status = :status, j.stage = :stage, j.errorMessage = :errorMessage, j.completedAt = :now, j.updatedAt = :now, j.heartbeatAt = :now WHERE j.id = :jobId")
     int updateJobStatusAndError(@Param("jobId") UUID jobId, @Param("status") String status, @Param("stage") String stage, @Param("errorMessage") String errorMessage, @Param("now") Instant now);
 }

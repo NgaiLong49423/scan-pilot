@@ -6,6 +6,7 @@ import com.scanpilot.persistence.repository.RepositoryRepository;
 import com.scanpilot.persistence.repository.ScanEventRepository;
 import com.scanpilot.persistence.repository.ScanJobRepository;
 import com.scanpilot.scanner.config.ScanWorkerInstance;
+import com.scanpilot.scanner.lifecycle.ScanJobRestartReconciler;
 import com.scanpilot.scanner.pipeline.ScanPipelineService;
 import com.scanpilot.scanner.telemetry.ScanEventPayload;
 import com.scanpilot.scanner.telemetry.TelemetryPayloadSerializer;
@@ -75,13 +76,33 @@ public class ScanJobDispatcher {
         // 1. Pessimistic lock at DB level on repository row to prevent race conditions across threads/instances
         repositoryRepository.findByIdForUpdate(repo.getId());
 
-        // 2. Duplicate Prevention: check if repository has an active job (QUEUED or RUNNING)
+        // 2. Duplicate Prevention & Stale Job Recovery
         List<ScanJobEntity> activeJobs = scanJobRepository.findByRepositoryIdAndStatusIn(repo.getId(), ACTIVE_STATUSES);
         if (!activeJobs.isEmpty()) {
             ScanJobEntity activeJob = activeJobs.get(0);
-            log.info("Duplicate scan trigger prevented for repository {}. Returning active job {} in status {}",
-                    repo.getId(), activeJob.getId(), activeJob.getStatus());
-            return activeJob;
+            if ("RUNNING".equals(activeJob.getStatus())) {
+                Instant cutoff = Instant.now().minus(ScanJobRestartReconciler.HEARTBEAT_EXPIRATION_THRESHOLD);
+                Instant lastActivity = activeJob.getHeartbeatAt() != null ? activeJob.getHeartbeatAt()
+                        : (activeJob.getStartedAt() != null ? activeJob.getStartedAt() : activeJob.getCreatedAt());
+                if (lastActivity != null && lastActivity.isBefore(cutoff)) {
+                    log.warn("Active RUNNING job {} for repository {} has stale heartbeat. Recovering job as FAILED.",
+                            activeJob.getId(), repo.getId());
+                    int updated = scanJobRepository.reconcileStaleJobByIdAtomic(
+                            activeJob.getId(), cutoff, ScanJobRestartReconciler.RESTART_INTERRUPTED_MESSAGE, Instant.now());
+                    if (updated > 0) {
+                        emitEvent(activeJob.getId(), "FAILED", "SCAN_FAILED", "JOB_FAILED",
+                                new ScanEventPayload.JobFailedPayload("STALE_HEARTBEAT_TIMEOUT"), 100L);
+                    }
+                } else {
+                    log.info("Duplicate scan trigger prevented for repository {}. Returning active job {} in status {}",
+                            repo.getId(), activeJob.getId(), activeJob.getStatus());
+                    return activeJob;
+                }
+            } else {
+                log.info("Duplicate scan trigger prevented for repository {}. Returning active job {} in status {}",
+                        repo.getId(), activeJob.getId(), activeJob.getStatus());
+                return activeJob;
+            }
         }
 
         Instant now = Instant.now();
@@ -133,44 +154,68 @@ public class ScanJobDispatcher {
             return;
         }
 
-        getRequiresNewTxTemplate().executeWithoutResult(status -> {
-            // Pessimistic lock at DB level on repository row
-            repositoryRepository.findByIdForUpdate(repoId);
+        try {
+            getRequiresNewTxTemplate().executeWithoutResult(status -> {
+                // Pessimistic lock at DB level on repository row
+                repositoryRepository.findByIdForUpdate(repoId);
 
-            // Check if there is already a RUNNING job for this repository
-            List<ScanJobEntity> runningJobs = scanJobRepository.findByRepositoryIdAndStatus(repoId, "RUNNING");
-            if (!runningJobs.isEmpty()) {
-                return; // Active job is currently running; its finally block will drain the next job
-            }
-
-            // Find oldest QUEUED job for this repository
-            Optional<ScanJobEntity> nextQueuedJobOpt = scanJobRepository.findFirstByRepositoryIdAndStatusOrderByCreatedAtAsc(repoId, "QUEUED");
-            if (nextQueuedJobOpt.isEmpty()) {
-                return;
-            }
-
-            ScanJobEntity nextJob = nextQueuedJobOpt.get();
-            UUID jobId = nextJob.getId();
-
-            // Transition QUEUED -> RUNNING via independent transaction coordinator
-            boolean claimed = scanJobStateTransitionService.transitionQueuedToRunning(jobId, scanWorkerInstance.getInstanceId());
-            if (!claimed) {
-                return;
-            }
-
-            emitEvent(jobId, "RUNNING", "STAGE_TRANSITION", "STAGE_STARTED", new ScanEventPayload.StageStartedPayload("RUNNING"), 95L);
-
-            if (TransactionSynchronizationManager.isSynchronizationActive()) {
-                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                    @Override
-                    public void afterCommit() {
-                        submitTaskToExecutor(jobId, repoId);
+                // Check if there is already a RUNNING job for this repository
+                List<ScanJobEntity> runningJobs = scanJobRepository.findByRepositoryIdAndStatus(repoId, "RUNNING");
+                if (!runningJobs.isEmpty()) {
+                    ScanJobEntity runningJob = runningJobs.get(0);
+                    Instant cutoff = Instant.now().minus(ScanJobRestartReconciler.HEARTBEAT_EXPIRATION_THRESHOLD);
+                    Instant lastActivity = runningJob.getHeartbeatAt() != null ? runningJob.getHeartbeatAt()
+                            : (runningJob.getStartedAt() != null ? runningJob.getStartedAt() : runningJob.getCreatedAt());
+                    if (lastActivity != null && lastActivity.isBefore(cutoff)) {
+                        log.warn("Found stale RUNNING job {} during queue drain for repoId={}. Recovering as FAILED.",
+                                runningJob.getId(), repoId);
+                        int updated = scanJobRepository.reconcileStaleJobByIdAtomic(
+                                runningJob.getId(), cutoff, ScanJobRestartReconciler.RESTART_INTERRUPTED_MESSAGE, Instant.now());
+                        if (updated > 0) {
+                            emitEvent(runningJob.getId(), "FAILED", "SCAN_FAILED", "JOB_FAILED",
+                                    new ScanEventPayload.JobFailedPayload("STALE_HEARTBEAT_TIMEOUT"), 100L);
+                        }
+                    } else {
+                        return; // Active job is currently running; its finally block will drain the next job
                     }
-                });
-            } else {
-                submitTaskToExecutor(jobId, repoId);
-            }
-        });
+                }
+
+                // Find oldest QUEUED job for this repository
+                Optional<ScanJobEntity> nextQueuedJobOpt = scanJobRepository.findFirstByRepositoryIdAndStatusOrderByCreatedAtAsc(repoId, "QUEUED");
+                if (nextQueuedJobOpt.isEmpty()) {
+                    return;
+                }
+
+                ScanJobEntity nextJob = nextQueuedJobOpt.get();
+                UUID jobId = nextJob.getId();
+
+                // Transition QUEUED -> RUNNING directly within this single transaction
+                nextJob.setStatus("RUNNING");
+                nextJob.setStage("RUNNING");
+                Instant now = Instant.now();
+                nextJob.setStartedAt(now);
+                nextJob.setUpdatedAt(now);
+                nextJob.setHeartbeatAt(now);
+                nextJob.setWorkerInstanceId(scanWorkerInstance.getInstanceId());
+                scanJobRepository.saveAndFlush(nextJob);
+
+                emitEvent(jobId, "RUNNING", "STAGE_TRANSITION", "STAGE_STARTED", new ScanEventPayload.StageStartedPayload("RUNNING"), 95L);
+
+                if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            submitTaskToExecutor(jobId, repoId);
+                        }
+                    });
+                } else {
+                    submitTaskToExecutor(jobId, repoId);
+                }
+            });
+        } catch (Exception e) {
+            log.warn("Database error during tryProcessNextJobForRepository for repoId={}: errorType={}",
+                    repoId, e.getClass().getSimpleName());
+        }
     }
 
     private void submitTaskToExecutor(UUID jobId, UUID repoId) {
@@ -192,6 +237,10 @@ public class ScanJobDispatcher {
             emitEvent(jobId, "FAILED", "SCAN_FAILED", "JOB_FAILED", new ScanEventPayload.JobFailedPayload("DISPATCH_CAPACITY_EXCEEDED"), 100L);
             scanJobStateTransitionService.markJobFailed(jobId, CAPACITY_EXCEEDED_MESSAGE);
             // NON-RECURSIVE: do not call tryProcessNextJobForRepository here; reconciler recovers later
+        } catch (Exception e) {
+            log.error("Failed to submit scan task for jobId={} repoId={}: errorType={}", jobId, repoId, e.getClass().getSimpleName());
+            emitEvent(jobId, "FAILED", "SCAN_FAILED", "JOB_FAILED", new ScanEventPayload.JobFailedPayload("DISPATCH_ERROR"), 100L);
+            scanJobStateTransitionService.markJobFailed(jobId, "Task dispatch failed");
         }
     }
 
@@ -205,21 +254,19 @@ public class ScanJobDispatcher {
                 log.debug("Event {} ({}) suppressed due to invalid/oversized payload", eventType, messageCode);
                 return;
             }
-            getRequiresNewTxTemplate().executeWithoutResult(status -> {
-                Optional<Long> allocatedSeq = scanEventRepository.insertEventAtomicCTE(
-                        jobId,
-                        maxLimit,
-                        UUID.randomUUID(),
-                        stage,
-                        eventType,
-                        messageCode,
-                        payloadJson,
-                        Instant.now()
-                );
-                if (allocatedSeq.isEmpty()) {
-                    log.debug("Event {} ({}) dropped/suppressed", eventType, messageCode);
-                }
-            });
+            Optional<Long> allocatedSeq = scanEventRepository.insertEventAtomicCTE(
+                    jobId,
+                    maxLimit,
+                    UUID.randomUUID(),
+                    stage,
+                    eventType,
+                    messageCode,
+                    payloadJson,
+                    Instant.now()
+            );
+            if (allocatedSeq.isEmpty()) {
+                log.debug("Event {} ({}) dropped/suppressed", eventType, messageCode);
+            }
         } catch (Exception e) {
             log.warn("Event persistence error for eventType={}", eventType);
         }

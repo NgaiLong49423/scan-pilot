@@ -4,6 +4,8 @@ import com.scanpilot.persistence.repository.ScanJobRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
@@ -18,8 +20,14 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ScanJobStateTransitionService {
 
-    private final TransactionTemplate transactionTemplate;
+    private final PlatformTransactionManager transactionManager;
     private final ScanJobRepository scanJobRepository;
+
+    private TransactionTemplate getRequiresNewTxTemplate() {
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return template;
+    }
 
     /**
      * Atomically marks a scan job as failed in an independent transaction.
@@ -28,11 +36,23 @@ public class ScanJobStateTransitionService {
         if (jobId == null) {
             return;
         }
-        transactionTemplate.executeWithoutResult(status -> {
-            Instant now = Instant.now();
-            scanJobRepository.updateJobStatusAndError(jobId, "FAILED", "FAILED", errorMessage, now);
-            log.info("Scan job {} transitioned to FAILED: {}", jobId, errorMessage);
-        });
+        try {
+            getRequiresNewTxTemplate().executeWithoutResult(status -> {
+                scanJobRepository.findById(jobId).ifPresent(job -> {
+                    Instant now = Instant.now();
+                    job.setStatus("FAILED");
+                    job.setStage("FAILED");
+                    job.setErrorMessage(errorMessage);
+                    job.setCompletedAt(now);
+                    job.setUpdatedAt(now);
+                    job.setHeartbeatAt(now);
+                    scanJobRepository.saveAndFlush(job);
+                    log.info("Scan job {} transitioned to FAILED: {}", jobId, errorMessage);
+                });
+            });
+        } catch (Exception e) {
+            log.warn("Failed to mark scan job {} as FAILED: errorType={}", jobId, e.getClass().getSimpleName());
+        }
     }
 
     /**
@@ -42,23 +62,28 @@ public class ScanJobStateTransitionService {
         if (jobId == null) {
             return false;
         }
-        return Boolean.TRUE.equals(transactionTemplate.execute(status -> {
-            return scanJobRepository.findById(jobId).map(job -> {
-                if (!"QUEUED".equals(job.getStatus())) {
-                    return false;
-                }
-                Instant now = Instant.now();
-                job.setStatus("RUNNING");
-                job.setStage("RUNNING");
-                job.setStartedAt(now);
-                job.setUpdatedAt(now);
-                job.setHeartbeatAt(now);
-                if (workerInstanceId != null) {
-                    job.setWorkerInstanceId(workerInstanceId);
-                }
-                scanJobRepository.saveAndFlush(job);
-                return true;
-            }).orElse(false);
-        }));
+        try {
+            return Boolean.TRUE.equals(getRequiresNewTxTemplate().execute(status -> {
+                return scanJobRepository.findById(jobId).map(job -> {
+                    if (!"QUEUED".equals(job.getStatus())) {
+                        return false;
+                    }
+                    Instant now = Instant.now();
+                    job.setStatus("RUNNING");
+                    job.setStage("RUNNING");
+                    job.setStartedAt(now);
+                    job.setUpdatedAt(now);
+                    job.setHeartbeatAt(now);
+                    if (workerInstanceId != null) {
+                        job.setWorkerInstanceId(workerInstanceId);
+                    }
+                    scanJobRepository.saveAndFlush(job);
+                    return true;
+                }).orElse(false);
+            }));
+        } catch (Exception e) {
+            log.warn("Failed to transition queued job {} to running: errorType={}", jobId, e.getClass().getSimpleName());
+            return false;
+        }
     }
 }

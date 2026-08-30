@@ -23,7 +23,11 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -138,7 +142,7 @@ public class GitleaksDetectorAdapter {
             boolean finished = process.waitFor(3, TimeUnit.SECONDS);
             return finished && process.exitValue() == 0;
         } catch (Exception e) {
-            log.debug("Gitleaks binary '{}' check failed: {}", properties.getBinaryPath(), e.getMessage());
+            log.debug("Gitleaks binary check failed: errorType={}", e.getClass().getSimpleName());
             return false;
         }
     }
@@ -154,12 +158,12 @@ public class GitleaksDetectorAdapter {
                 // Must NOT fallback to embedded scan on resource guardrail exceeded
                 throw rge;
             } catch (Exception e) {
-                log.warn("Gitleaks binary execution failed, falling back to embedded engine: {}", e.getMessage());
+                log.warn("Gitleaks binary execution failed, falling back to embedded engine: errorType={}", e.getClass().getSimpleName());
                 return scanEmbedded(request);
             }
         } else {
-            log.info("Gitleaks binary not available; executing embedded SP-CONFIG-001 engine on {}",
-                request.targetPath());
+            log.info("Gitleaks binary not available; executing embedded SP-CONFIG-001 engine [isGitScan={}]",
+                request.isGitScan());
             return scanEmbedded(request);
         }
     }
@@ -210,32 +214,21 @@ public class GitleaksDetectorAdapter {
             pb.environment().remove("GITLEAKS_CONFIG_TOML");
 
             pb.redirectErrorStream(true);
-            log.info("Executing Gitleaks detector CLI [isGitScan={}, path={}]",
-                request.isGitScan(), targetPath);
+            log.info("Executing Gitleaks detector CLI [isGitScan={}]", request.isGitScan());
 
-            int effectiveTimeout = (request.overrideTimeoutSeconds() != null && request.overrideTimeoutSeconds() > 0)
-                ? Math.min(properties.getTimeoutSeconds(), request.overrideTimeoutSeconds())
+            int effectiveTimeout = (request.overrideTimeoutSeconds() != null)
+                ? request.overrideTimeoutSeconds()
                 : properties.getTimeoutSeconds();
+
+            if (effectiveTimeout <= 0) {
+                throw new ResourceGuardrailExceededException("SCAN_TIMEOUT", 0, 0, Math.max(0, effectiveTimeout));
+            }
 
             Process process = pb.start();
             boolean completed = process.waitFor(effectiveTimeout, TimeUnit.SECONDS);
 
             if (!completed) {
-                try {
-                    List<ProcessHandle> descendants = process.descendants().toList();
-                    descendants.forEach(ProcessHandle::destroyForcibly);
-                    process.destroyForcibly();
-                    process.waitFor(5, TimeUnit.SECONDS);
-                    for (ProcessHandle ph : descendants) {
-                        if (ph.isAlive()) {
-                            try {
-                                ph.onExit().get(2, TimeUnit.SECONDS);
-                            } catch (Exception ignored) {}
-                        }
-                    }
-                } catch (Exception e) {
-                    log.warn("Error during watchdog process-tree termination: {}", e.getMessage());
-                }
+                killProcessTree(process);
                 throw new ResourceGuardrailExceededException("SCAN_TIMEOUT", 0, 0, effectiveTimeout);
             }
 
@@ -255,8 +248,8 @@ public class GitleaksDetectorAdapter {
             throw rge;
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
-            log.error("Failed to execute Gitleaks binary: {}", e.getMessage());
-            return GitleaksScanResult.error("Execution failure: " + e.getMessage(), -1, targetPath.toString(), duration);
+            log.error("Failed to execute Gitleaks binary: errorType={}", e.getClass().getSimpleName());
+            return GitleaksScanResult.error("Execution failure", -1, "[REDACTED_PATH]", duration);
         } finally {
             // Mandated strict cleanup: immediately delete raw temporary JSON report and config
             if (tempReport != null) {
@@ -275,17 +268,22 @@ public class GitleaksDetectorAdapter {
     /**
      * Executes the embedded SP-CONFIG-001 regex detection engine.
      */
-    /**
-     * Executes the embedded SP-CONFIG-001 regex detection engine.
-     */
     public GitleaksScanResult scanEmbedded(GitleaksScanRequest request) {
         Path targetPath = request.targetPath();
         long startTime = System.currentTimeMillis();
         List<GitleaksRawFinding> findings = new ArrayList<>();
 
+        int effectiveTimeout = (request.overrideTimeoutSeconds() != null)
+            ? request.overrideTimeoutSeconds()
+            : properties.getTimeoutSeconds();
+
+        if (effectiveTimeout <= 0) {
+            throw new ResourceGuardrailExceededException("SCAN_TIMEOUT", 0, 0, Math.max(0, effectiveTimeout));
+        }
+
         try {
             if (request.isGitScan() && Files.isDirectory(targetPath) && Files.exists(targetPath.resolve(".git"))) {
-                scanGitHistoryWithCli(targetPath, request.commitRange(), findings);
+                scanGitHistoryWithCli(targetPath, request.commitRange(), findings, effectiveTimeout);
             } else if (Files.isRegularFile(targetPath)) {
                 scanSingleFile(targetPath, targetPath.getFileName().toString(), findings);
             } else if (Files.isDirectory(targetPath)) {
@@ -298,8 +296,8 @@ public class GitleaksDetectorAdapter {
                         });
                 }
             } else {
-                return GitleaksScanResult.error("Target path does not exist: " + targetPath,
-                    -1, targetPath.toString(), 0);
+                return GitleaksScanResult.error("Target path does not exist",
+                    -1, "[REDACTED_PATH]", 0);
             }
 
             long duration = System.currentTimeMillis() - startTime;
@@ -308,20 +306,27 @@ public class GitleaksDetectorAdapter {
                 findings.size(), duration);
 
             return GitleaksScanResult.success(findings, exitCode, targetPath.toString(), duration);
+        } catch (ResourceGuardrailExceededException rge) {
+            throw rge;
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
-            log.error("Error during embedded SP-CONFIG-001 scan: {}", e.getMessage());
-            return GitleaksScanResult.error("Embedded scan error: " + e.getMessage(), -1, targetPath.toString(), duration);
+            log.error("Error during embedded SP-CONFIG-001 scan: errorType={}", e.getClass().getSimpleName());
+            return GitleaksScanResult.error("Embedded scan error", -1, "[REDACTED_PATH]", duration);
         }
     }
 
     /**
      * Scans git history by invoking git log -p when Gitleaks binary is not present.
      */
-    private void scanGitHistoryWithCli(Path repoPath, String commitRange, List<GitleaksRawFinding> findings) {
+    private void scanGitHistoryWithCli(Path repoPath, String commitRange, List<GitleaksRawFinding> findings, int effectiveTimeout) {
+        long deadlineMillis = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(effectiveTimeout);
+        Process process = null;
+        ExecutorService readerExecutor = Executors.newSingleThreadExecutor();
+
         try {
             List<String> cmd = new ArrayList<>();
-            cmd.add("git");
+            cmd.add(properties.getGitBinaryPath());
+            cmd.add("--no-pager");
             cmd.add("log");
             cmd.add("-p");
             if (commitRange != null && !commitRange.isBlank()) {
@@ -331,62 +336,114 @@ public class GitleaksDetectorAdapter {
             ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.directory(repoPath.toFile());
             pb.redirectErrorStream(true);
-            Process process = pb.start();
+            pb.environment().put("GIT_PAGER", "cat");
+            pb.environment().put("PAGER", "cat");
+            process = pb.start();
 
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-                String line;
-                String currentCommit = null;
-                String currentAuthor = null;
-                String currentDate = null;
-                String currentFile = null;
-                int lineNum = 0;
+            Process finalProcess = process;
+            Future<?> readFuture = readerExecutor.submit(() -> {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(finalProcess.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    String currentCommit = null;
+                    String currentAuthor = null;
+                    String currentDate = null;
+                    String currentFile = null;
+                    int lineNum = 0;
 
-                while ((line = reader.readLine()) != null) {
-                    if (line.startsWith("commit ")) {
-                        currentCommit = line.substring(7).trim();
-                        currentFile = null;
-                        lineNum = 0;
-                    } else if (line.startsWith("Author: ")) {
-                        currentAuthor = line.substring(8).trim();
-                    } else if (line.startsWith("Date: ")) {
-                        currentDate = line.substring(6).trim();
-                    } else if (line.startsWith("diff --git ")) {
-                        String[] parts = line.split(" ");
-                        if (parts.length >= 4) {
-                            String bPath = parts[3];
-                            if (bPath.startsWith("b/")) {
-                                currentFile = bPath.substring(2);
-                            } else {
-                                currentFile = bPath;
-                            }
+                    while ((line = reader.readLine()) != null) {
+                        if (System.currentTimeMillis() > deadlineMillis || Thread.currentThread().isInterrupted()) {
+                            break;
                         }
-                        lineNum = 0;
-                    } else if (line.startsWith("@@ ")) {
-                        int plusIdx = line.indexOf('+');
-                        if (plusIdx != -1) {
-                            int commaIdx = line.indexOf(',', plusIdx);
-                            int endIdx = line.indexOf(' ', plusIdx);
-                            int targetIdx = commaIdx != -1 && commaIdx < endIdx ? commaIdx : endIdx;
-                            if (targetIdx != -1) {
-                                try {
-                                    lineNum = Integer.parseInt(line.substring(plusIdx + 1, targetIdx).trim()) - 1;
-                                } catch (NumberFormatException ignored) {
-                                    lineNum = 1;
+                        if (line.startsWith("commit ")) {
+                            currentCommit = line.substring(7).trim();
+                            currentFile = null;
+                            lineNum = 0;
+                        } else if (line.startsWith("Author: ")) {
+                            currentAuthor = line.substring(8).trim();
+                        } else if (line.startsWith("Date: ")) {
+                            currentDate = line.substring(6).trim();
+                        } else if (line.startsWith("diff --git ")) {
+                            String[] parts = line.split(" ");
+                            if (parts.length >= 4) {
+                                String bPath = parts[3];
+                                if (bPath.startsWith("b/")) {
+                                    currentFile = bPath.substring(2);
+                                } else {
+                                    currentFile = bPath;
                                 }
                             }
+                            lineNum = 0;
+                        } else if (line.startsWith("@@ ")) {
+                            int plusIdx = line.indexOf('+');
+                            if (plusIdx != -1) {
+                                int commaIdx = line.indexOf(',', plusIdx);
+                                int endIdx = line.indexOf(' ', plusIdx);
+                                int targetIdx = commaIdx != -1 && commaIdx < endIdx ? commaIdx : endIdx;
+                                if (targetIdx != -1) {
+                                    try {
+                                        lineNum = Integer.parseInt(line.substring(plusIdx + 1, targetIdx).trim()) - 1;
+                                    } catch (NumberFormatException ignored) {
+                                        lineNum = 1;
+                                    }
+                                }
+                            }
+                        } else if (line.startsWith("+") && !line.startsWith("+++")) {
+                            lineNum++;
+                            String addedContent = line.substring(1);
+                            scanLineContent(addedContent, lineNum, currentFile != null ? currentFile : "unknown", currentCommit, currentAuthor, currentDate, findings);
+                        } else if (!line.startsWith("-")) {
+                            lineNum++;
                         }
-                    } else if (line.startsWith("+") && !line.startsWith("+++")) {
-                        lineNum++;
-                        String addedContent = line.substring(1);
-                        scanLineContent(addedContent, lineNum, currentFile != null ? currentFile : "unknown", currentCommit, currentAuthor, currentDate, findings);
-                    } else if (!line.startsWith("-")) {
-                        lineNum++;
                     }
+                } catch (IOException ignored) {
+                }
+            });
+
+            boolean finished = false;
+            try {
+                long remainingMs = Math.max(1, deadlineMillis - System.currentTimeMillis());
+                readFuture.get(remainingMs, TimeUnit.MILLISECONDS);
+                finished = process.waitFor(2, TimeUnit.SECONDS);
+            } catch (TimeoutException | java.util.concurrent.ExecutionException | InterruptedException e) {
+                finished = false;
+            } finally {
+                readFuture.cancel(true);
+            }
+
+            if (!finished || process.isAlive() || System.currentTimeMillis() > deadlineMillis) {
+                killProcessTree(process);
+                throw new ResourceGuardrailExceededException("SCAN_TIMEOUT", 0, 0, effectiveTimeout);
+            }
+        } catch (ResourceGuardrailExceededException rge) {
+            throw rge;
+        } catch (Exception e) {
+            log.warn("Git log history scan failed: errorType={}", e.getClass().getSimpleName());
+        } finally {
+            readerExecutor.shutdownNow();
+            if (process != null && process.isAlive()) {
+                killProcessTree(process);
+            }
+        }
+    }
+
+    private void killProcessTree(Process process) {
+        if (process == null) {
+            return;
+        }
+        try {
+            List<ProcessHandle> descendants = process.descendants().toList();
+            descendants.forEach(ProcessHandle::destroyForcibly);
+            process.destroyForcibly();
+            process.waitFor(2, TimeUnit.SECONDS);
+            for (ProcessHandle ph : descendants) {
+                if (ph.isAlive()) {
+                    try {
+                        ph.onExit().get(1, TimeUnit.SECONDS);
+                    } catch (Exception ignored) {}
                 }
             }
-            process.waitFor(5, TimeUnit.SECONDS);
         } catch (Exception e) {
-            log.warn("Git log history scan failed: {}", e.getMessage());
+            log.warn("Error during watchdog process-tree termination: errorType={}", e.getClass().getSimpleName());
         }
     }
 
