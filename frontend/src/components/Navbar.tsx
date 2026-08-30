@@ -22,6 +22,7 @@ interface NavbarProps {
   onTabChange: (tab: 'findings' | 'coverage') => void;
   isScanning: boolean;
   onTriggerRescan: () => void;
+  onLogout?: () => void;
   onNavigateHome?: () => void;
   onNavigateFleet?: () => void;
 }
@@ -34,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onTabChange,
   isScanning,
   onTriggerRescan,
+  onLogout,
   onNavigateHome,
   onNavigateFleet,
 }) => {
@@ -242,7 +244,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   type="button"
                   onClick={() => {
                     setIsProfileOpen(false);
-                    if (onNavigateHome) onNavigateHome();
+                    if (onLogout) {
+                      onLogout();
+                    } else if (onNavigateHome) {
+                      onNavigateHome();
+                    }
                   }}
                   className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-[#da3633]/15 hover:bg-[#da3633]/25 text-[#f85149] text-xs font-semibold border border-[#da3633]/30 transition-all duration-150 active:scale-98"
                 >
