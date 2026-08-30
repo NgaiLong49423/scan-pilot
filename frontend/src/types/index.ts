@@ -88,6 +88,9 @@ export interface Finding {
   githubIssueNumber?: number | null;
   githubIssueUrl?: string | null;
   issueLinkState?: 'PENDING' | 'CREATED' | 'UNKNOWN' | 'FAILED' | null;
+  remediationPrNumber?: number | null;
+  remediationPrUrl?: string | null;
+  remediationPrState?: 'PENDING' | 'CREATED' | 'UNKNOWN' | 'FAILED' | null;
 }
 
 export interface FindingIssuePreviewDto {
@@ -109,6 +112,42 @@ export interface FindingIssueLinkDto {
   githubIssueNumber?: number | null;
   githubIssueUrl?: string | null;
   createdAt: string;
+}
+
+export interface FindingRemediationPrPreviewDto {
+  findingId: string;
+  repositoryId: string;
+  filePath: string;
+  lineNumber: number;
+  targetCommitSha: string;
+  targetBranch: string;
+  remediationBranchName: string;
+  originalLineMasked: string;
+  patchedLine: string;
+  envVariableName: string;
+  previewToken: string;
+  expiresAt: string;
+  revocationWarning: string;
+  alreadyLinked: boolean;
+  existingPrNumber?: number | null;
+  existingPrUrl?: string | null;
+  linkState?: 'PENDING' | 'CREATED' | 'UNKNOWN' | 'FAILED' | null;
+}
+
+export interface FindingRemediationPrLinkDto {
+  id: string;
+  findingId: string;
+  repositoryId: string;
+  sourceRevisionCommit: string;
+  targetBranch: string;
+  headBranch: string;
+  state: 'PENDING' | 'CREATED' | 'UNKNOWN' | 'FAILED';
+  githubPrNumber?: number | null;
+  githubPrUrl?: string | null;
+  idempotencyMarker: string;
+  failureReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type { ScanEvent, ScanEventsResponse } from './api';

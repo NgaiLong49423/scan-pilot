@@ -1,17 +1,105 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.38.0
+> **Version:** v2.41.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-29
+> **Last Updated:** 2026-08-30
 > **Status:** Active
 
 # Scan Pilot Changelog
 
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
+## 2026-08-30 — Evidence-First Fleet Posture, Live Terminal, and Zero-Mock Telemetry Polish (Issue #81)
+
+**Status:** Committed (`8eda66c`)
+
+**Scope:** Polished frontend to be strictly evidence-first and zero-mock compliant per Issue #81. Eliminated synthetic scores, letter grades, percentages, and hardcoded mock artifact lists. Updated `CoverageAuditView.tsx` to dynamically formulate guardrail exclusions from `reasonCode` and `limitHitValue` without fabricated mock file names. Updated `CoverageWarningBanner.tsx` warning notices to reference verified audits without score/grade terminology. Added `LiveScanTerminal.test.tsx` and `CoverageWarningBanner.test.tsx` ensuring 100% test coverage across terminal event parsing, log hierarchy, and guardrail banner explanations.
+
+### Added
+
+- Added `frontend/src/components/LiveScanTerminal.test.tsx` (Component & log formatter tests).
+- Added `frontend/src/components/CoverageWarningBanner.test.tsx` (Guardrail reason & dynamic limit explanation tests).
+
+### Changed
+
+- Updated `frontend/src/components/CoverageWarningBanner.tsx` (Zero score/grade terminology).
+- Updated `frontend/src/components/CoverageAuditView.tsx` (Truthful, zero-mock guardrail telemetry reporting).
+
+## 2026-08-30 — Spring Boot Safe Remediation Pull Request MVP (Issue #80)
+
+**Status:** Committed (`864e558`)
+
+**Scope:** Implemented Spring Boot safe remediation PR generation and state machine for `SP-CONFIG-001` secret leaks in configuration files (`application*.properties`, `application*.yml`, `application*.yaml`). Features Flyway V9 durable state machine (`finding_remediation_pr_links`), HMAC-SHA256 signed preview tokens with 15-minute TTL, strict 2-step confirmation, in-memory patch derivation with environment variable placeholder `${ENV_VAR_NAME}`, exact default-branch HEAD validation with `STALE_REVISION_ERROR` (409), fail-closed handling for unsupported files and ambiguous patterns (`MANUAL_REMEDIATION_REQUIRED`), server-generated branch and PR metadata, accessible modal UI with masked side-by-side diff and mandatory revocation/rotation notice banner, zero raw secret exposure, and comprehensive unit/integration test coverage.
+
+### Added
+
+- Added `backend/src/main/resources/db/migration/V9__add_finding_remediation_pr_links.sql` (Flyway V9 schema for remediation PR state machine).
+- Added `backend/src/main/java/com/scanpilot/persistence/entity/FindingRemediationPrLinkEntity.java` (JPA Entity).
+- Added `backend/src/main/java/com/scanpilot/persistence/repository/FindingRemediationPrLinkRepository.java` (Spring Data JPA repository).
+- Added `backend/src/main/java/com/scanpilot/scanner/dto/CreateFindingRemediationPrRequest.java` (Strict single-field request DTO).
+- Added `backend/src/main/java/com/scanpilot/scanner/dto/FindingRemediationPrPreviewDto.java` (Preview DTO with masked diff and token).
+- Added `backend/src/main/java/com/scanpilot/scanner/dto/FindingRemediationPrLinkDto.java` (Remediation PR link DTO).
+- Added `backend/src/main/java/com/scanpilot/scanner/remediation/SpringConfigurationPatcher.java` (Deterministic configuration patch engine).
+- Added `backend/src/main/java/com/scanpilot/scanner/remediation/FindingRemediationPrTokenService.java` (HMAC-SHA256 signed preview token service).
+- Added `backend/src/main/java/com/scanpilot/scanner/remediation/FindingRemediationPrService.java` (Remediation PR orchestration service).
+- Added `backend/src/main/java/com/scanpilot/scanner/controller/FindingRemediationPrController.java` (REST API endpoints).
+- Added `backend/src/main/java/com/scanpilot/github/service/GitHubPullRequestClient.java` (REST client seam for GitHub branch, commit, and PR APIs).
+- Added `frontend/src/components/RemediationPrModal.tsx` (Accessible remediation modal with masked side-by-side diff and mandatory revocation warning).
+- Added `frontend/src/components/RemediationPrModal.test.tsx` (Component test suite).
+- Added `backend/src/test/java/com/scanpilot/scanner/remediation/SpringConfigurationPatcherTest.java` (Patch engine unit tests).
+- Added `backend/src/test/java/com/scanpilot/scanner/remediation/FindingRemediationPrTokenServiceTest.java` (Token service tests).
+- Added `backend/src/test/java/com/scanpilot/persistence/FindingRemediationPrLinkPersistenceTest.java` (JPA persistence tests).
+- Added `backend/src/test/java/com/scanpilot/scanner/remediation/FindingRemediationPrServiceStateMachineTest.java` (Service state machine tests).
+- Added `backend/src/test/java/com/scanpilot/scanner/controller/FindingRemediationPrControllerTest.java` (MockMvc integration & auth tests).
+- Added `backend/src/test/java/com/scanpilot/github/service/GitHubPullRequestClientTest.java` (Fail-closed default branch and head SHA tests).
+
+### Changed
+
+- Updated `docs/DECISIONS.md` (`DEC-062` added for constrained GitHub App branch and remediation PR creation).
+- Updated `frontend/src/types/index.ts` (Added remediation DTOs and Finding model fields).
+- Updated `frontend/src/services/api.ts` (Added remediation preview, create, and fetch link methods).
+- Updated `frontend/src/components/FindingCard.tsx` (Integrated Remediation PR button and modal).
+
+## 2026-08-30 — Secret-Safe Local Gemini PR Pre-review Runner (Issue #84)
+
+**Status:** Committed (`99331e8`)
+
+**Scope:** Implemented secret-safe local Gemini PR pre-review runner for Windows (`.agents/scripts/local-pr-reviewer/`) supporting `gemini-3.7-flash` with `thinking_level` (`low`, `medium`, `high`), header-only authentication (`x-goog-api-key`), kernel-atomic lock creation (`FileMode.CreateNew`) with PID-liveness recovery, pinned repository targeting (`--repo NgaiLong49423/scan-pilot`), process working directory protection, fail-closed query error handling, mandatory remote marker gate deduplication (`<!-- scanpilot-gemini-pr-review: PR HEAD -->`), diff patch hunk line validation with safe integer parsing, best-effort secret redaction, safe diagnostic codes (`PR_COMMENT_FAILED`, `MODEL_UNAVAILABLE`, `REPOSITORY_QUERY_FAILED`), neutral finding-free comments, and 49 automated tests.
+
+### Added
+
+- Added `.agents/scripts/local-pr-reviewer/run-pr-review.ps1` (Main CLI pre-review coordinator).
+- Added `.agents/scripts/local-pr-reviewer/bootstrap-pr-reviewer.ps1` (Task Scheduler bootstrap launcher).
+- Added `.agents/scripts/local-pr-reviewer/lib/RedactionEngine.ps1` (Best-effort secret redaction engine).
+- Added `.agents/scripts/local-pr-reviewer/lib/DiffParser.ps1` (Unified diff parser and hunk line extractor).
+- Added `.agents/scripts/local-pr-reviewer/lib/LockManager.ps1` (Atomic OS file lock with PID liveness stale-lock recovery).
+- Added `.agents/scripts/local-pr-reviewer/lib/CacheManager.ps1` (Atomic JSON cache with UNAVAILABLE cooldown).
+- Added `.agents/scripts/local-pr-reviewer/lib/GeminiClient.ps1` (Gemini 3.7 Flash client with header-only auth and thinking_level).
+- Added `.agents/scripts/local-pr-reviewer/lib/OutputValidator.ps1` (Local output validation, safe line parsing, and anti-hallucination filter).
+- Added `.agents/scripts/local-pr-reviewer/lib/GitHubClient.ps1` (gh CLI wrapper with pinned repository and sanitized error codes).
+- Added `.agents/scripts/local-pr-reviewer/tests/LocalPrReviewer.Tests.ps1` (49 automated unit and integration tests).
+
+## 2026-08-30 — PR-First Delivery Workflow with Dev Branch Integration & Governance Harmonization (Issue #79)
+
+**Status:** Committed (`bb8c972`)
+
+**Scope:** Enabled the PR-First Delivery Workflow with `origin/dev` integration branch and synchronized all governing specifications and agent skills (`.github/workflows/ci.yml`, `docs/DELIVERY-WORKFLOW.md`, `AGENTS.md`, `docs/MULTI-AGENT-GOVERNANCE-WORKFLOW.md`, `.agents/skill/agent-delivery-governance/SKILL.md`, `assets/codex-review-summary.md`). Feature branches are created from `origin/dev`, open PRs targeting `dev` with `Refs #N`, and run automated CI (`ci.yml`). Codex reviews the exact GitHub PR HEAD commit for `dev` merge eligibility (`APPROVED_FOR_DEV_MERGE`). The scoped implementer may commit, push, and open feature PRs; an authorized delivery agent may merge only a green, exactly reviewed PR HEAD into `dev`. Product Owner retains sole authority for `dev -> main` promotion (which triggers Cloud Run CD), production deployments, and final Issue closure.
+
+### Added
+
+- Added `.agents/skill/pull-request-reviewer/SKILL.md` (v1.0.0) establishing PR-First review guidelines, conditional PR template checks, `Refs #N` vs `Closes #N` branch rules, and `APPROVED_FOR_DEV_MERGE` outcome criteria.
+
+### Changed
+
+- Updated `.github/workflows/ci.yml` to trigger CI checks on push and pull_request for both `main` and `dev` branches.
+- Updated `docs/DELIVERY-WORKFLOW.md` (v2.2.1) harmonizing branch contracts, handoff channels, review gates, active CI policy, and the limited authorization boundary for feature-to-`dev` Git actions.
+- Updated `AGENTS.md` (v3.2.1) declaring `pull-request-reviewer` mandatory, updating `agent-delivery-governance` to v2.0.0, and reconciling the scoped feature PR authorization boundary.
+- Updated `docs/MULTI-AGENT-GOVERNANCE-WORKFLOW.md` (v2.1.0) aligning reporting templates, peer-review flow, and operating principles with `APPROVED_FOR_DEV_MERGE`.
+- Updated `.agents/skill/agent-delivery-governance/SKILL.md` (v2.0.0) and `assets/codex-review-summary.md` (v1.1.0) establishing `APPROVED_FOR_DEV_MERGE` and PR HEAD review criteria for feature-to-dev delivery.
+
 ## 2026-08-29 — Authorized Webhook-to-Async-Scan Dispatch, Queue-Safe FIFO Reconciliation & Exact-SHA Verification (Issue #54 BUILD 3)
 
-**Status:** Working tree (pre-commit)
+**Status:** Committed (`3d6d8db`)
 
 **Scope:** Implemented authorized asynchronous scan dispatch triggered by validated webhook deliveries (BUILD 3 of Issue #54), including Flyway V8 schema migration with portable ANSI unique constraint on `scan_jobs(webhook_delivery_id)`, per-repository FIFO queue processing with at most 1 active `RUNNING` job per repository, queue capacity limit (10 queued jobs per repository), independent transaction state transitions (`ScanJobStateTransitionService`), non-recursive executor rejection handling, queue-safe heartbeat reconciliation (protecting queued jobs from stale timeouts and automatically recovering stranded queues on startup and schedule), 4-step exact-commit git clone/fetch/detached checkout (`clone --no-checkout`, `fetch origin <sha>`, `checkout --detach <sha>`, `rev-parse HEAD` verification), and exclusive GitHub App installation token authentication (`createInstallationAccessToken`).
 

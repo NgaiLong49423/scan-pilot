@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Agent Instructions
 > **File:** `AGENTS.md`
-> **Version:** v3.1.0
+> **Version:** v3.2.1
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-22
+> **Last Updated:** 2026-08-30
 > **Status:** Active
 
 # Agent Instructions
@@ -141,7 +141,8 @@ All agent skills are installed in `.agents/skill/`. Agents must consult and appl
 | **UI/UX Design Audit** | `.agents/skill/ui-design-audit/SKILL.md` | Mandatory for reviewing Frontend PRs, ensuring beginner-friendly usability, accessibility, and visual polish. |
 | **Full Output Enforcement** | `.agents/skill/full-output-enforcement/SKILL.md` | Mandatory across all implementation tasks. Strictly bans `// TODO`, `// rest of code`, and truncated outputs. |
 | **Platform-Native Cheat-Sheet** | `.agents/docs/platform-native-cheatsheet.md` | Reference guide for Java 21, Spring Boot 3, PostgreSQL, and Web APIs native features. |
-| **Agent Delivery Governance** | `.agents/skill/agent-delivery-governance/SKILL.md` | Mandatory for `FULL_TRACKED` delivery workflow, PO ratifications, and Codex PR reviews. |
+| **Agent Delivery Governance** | `.agents/skill/agent-delivery-governance/SKILL.md` | Mandatory for `FULL_TRACKED` PR-First delivery workflow, PO ratifications, and Codex PR reviews (v2.0.0). |
+| **Pull Request Reviewer** | `.agents/skill/pull-request-reviewer/SKILL.md` | Mandatory for all GitHub Pull Request reviews and PR-First delivery gate checks (v1.0.0). |
 | **GitHub Issue Delivery** | `.agents/skill/github-issue-delivery/SKILL.md` | Mandatory for executing assigned GitHub Issues. |
 | **SRS to GitHub Issues** | `.agents/skill/srs-to-github-issues/SKILL.md` | Use when decomposing approved specifications into actionable GitHub Issues. |
 | **Document Metadata Standardizer** | `.agents/skill/document-metadata-standardizer/SKILL.md` | Mandatory when creating, editing, auditing, or standardizing repository Markdown files. |
@@ -160,7 +161,7 @@ All agent skills are installed in `.agents/skill/`. Agents must consult and appl
 
 - Do not hard-code or commit credentials, `.env` files, private keys, or production data.
 - Do not execute untrusted scanned repository code in the main API process.
-- Do not delete data or files, change public contracts, commit, push, merge, or open a pull request without explicit user authorization.
+- Do not delete data or files or change public contracts without explicit user authorization. In the active PR-First delivery workflow, an assigned implementer is authorized to commit, push, and open the scoped feature Pull Request targeting `dev`; promotion to `main`, public deployment, history rewrites, and destructive actions remain explicitly controlled.
 - Follow `CONTRIBUTING.md` and Conventional Commits when Git actions are authorized.
 
 ## Git Checkpoint Policy
@@ -189,17 +190,17 @@ All agent skills are installed in `.agents/skill/`. Agents must consult and appl
 ## Agent Delivery Governance
 
 > **Status:** Active (`FULL_TRACKED`)
-> **Installed skill:** `.agents/skill/agent-delivery-governance/` v1.0.0
-> **Delivery mode:** `FULL_TRACKED` (Integration Check passed on 2026-08-17; nested four-agent local-review-first workflow active on 2026-08-20)
-> **Product Owner / final acceptance & merge authority:** User
-> **Agent 4 — Delivery Gatekeeper / Coordinator:** agent coordinator & 3-gate compliance verifier (assigns Agent 1, 2, 3 in execution plan before BUILD)
+> **Installed skill:** `.agents/skill/agent-delivery-governance/` v2.0.0, `.agents/skill/pull-request-reviewer/` v1.0.0
+> **Delivery mode:** `FULL_TRACKED` (PR-First Delivery Workflow with `origin/dev` integration branch active on 2026-08-30)
+> **Product Owner / final acceptance & production merge authority:** User
+> **Agent 4 — Delivery Gatekeeper / Coordinator:** agent coordinator & CI/PR compliance verifier (assigns Agent 1, 2, 3 in execution plan before BUILD)
 > **Agent 1 — Coder (Primary Implementer):** Antigravity / delegated coding agent (named by Agent 4)
 > **Agent 2 — QA Reviewer (Independent Code Quality):** named by Agent 4 per work item
 > **Agent 3 — AppSec Auditor (Independent Security):** named by Agent 4 per work item
-> **Codex — Technical Manager / Tech Lead:** independent technical reviewer & architectural sign-off (separate from Agent 4)
+> **Codex — Technical Manager / Tech Lead:** independent technical reviewer & architectural sign-off for `dev` merge eligibility
 > **Executable work tracker:** GitHub Issues in `NgaiLong49423/scan-pilot`
 > **Operational status board:** GitHub Project #13
-> **Branch convention:** `codex/<issue-number>-<short-kebab-name>`
+> **Branch convention:** `codex/<issue-number>-<short-kebab-name>` branched from `origin/dev`
 > **Local coordination directory:** `.agent-work/` (Git-ignored; no secrets)
 
 The Integration Check **PASSED** on 2026-08-17:
@@ -207,7 +208,7 @@ The Integration Check **PASSED** on 2026-08-17:
 - `.agent-work/` is properly Git-ignored;
 - No secrets, tokens, or private credentials were detected in the review scope.
 
-Every Git-tracked code change must follow the mandatory Nested Coordination Model (Mô hình Phối hợp Lồng nhau) and the review-before-commit boundary:
+Every Git-tracked feature implementation follows the mandatory PR-First Nested Coordination Model:
 
 ```text
 Agent 4 (Coordinator / Delivery Gatekeeper)
@@ -215,42 +216,40 @@ Agent 4 (Coordinator / Delivery Gatekeeper)
 ├── Agent 2 (QA Reviewer)
 └── Agent 3 (AppSec Auditor)
      ↓
-Codex (Tech Lead)
+Codex (Tech Lead / Technical Manager)
+     ↓ [APPROVED_FOR_DEV_MERGE]
+Merge to dev
      ↓
-Product Owner (User)
+Product Owner (Promotion: dev -> main)
 ```
 
 **Pre-BUILD Assignment Rule:** Before `BUILD` starts, the Issue contract must explicitly name Agent 4 (Delivery Gatekeeper / Coordinator). In Agent 4's execution plan, Agent 4 must explicitly name Agent 1 (Coder), Agent 2 (independent QA Reviewer), and Agent 3 (independent AppSec Auditor). Codex is recorded separately as Technical Lead / Technical Manager (not Agent 4, and not a subagent of Agent 4).
 
-1. **Agent 4 (Delivery Gatekeeper / Coordinator):** Assigned to the Issue before `BUILD`; names Agent 1, 2, and 3; freezes the local review target before specialist review; verifies all three local reports refer to that unchanged worktree diff; and reports `READY_FOR_TECH_LEAD_REVIEW` in `.agent-work/acceptance/acceptance-<issue>.md`.
-2. **Agent 1 (Coder):** Named by Agent 4; implements code/tests only in the local worktree; creates `.agent-work/reports/handoff-<issue>.md`; and MUST NOT commit, push, create a PR, or self-approve as QA/AppSec before explicit Product Owner authorization.
-3. **Agent 2 (QA Reviewer):** Named by Agent 4; independently audits the frozen local diff and outputs strictly `APPROVED` or `REQUEST_CHANGES` in `.agent-work/qa-reviews/qa-<issue>.md`.
-4. **Agent 3 (AppSec Auditor):** Named by Agent 4; independently audits the same frozen local diff and outputs strictly `APPROVED` or `BLOCKED` in `.agent-work/security-audits/sec-<issue>.md`.
-5. **Codex (Technical Manager / Tech Lead):** Independently reviews the same local diff and Agent 4 package. Before returning `CHANGES_NEEDED` or `BLOCKED`, Codex performs root-cause analysis and corrects the accepted contract, template, or brief when that is the cause. Codex returns `APPROVED_FOR_PO_ACCEPTANCE` only within the stated verification limit.
-6. **Product Owner (User):** Holds final acceptance authority. Only after explicit Product Owner acceptance may an agent commit the approved local diff. Push, pull-request creation, merge, Issue closure, and deployment each still require separate explicit Product Owner authorization.
+1. **Agent 4 (Delivery Gatekeeper / Coordinator):** Assigned to the Issue before `BUILD`; names Agent 1, 2, and 3; coordinates implementation; ensures green CI on the PR targeting `dev`; verifies QA/AppSec evidence; and reports `READY_FOR_CODEX_REVIEW`.
+2. **Agent 1 (Coder):** Named by Agent 4; implements code/tests on `codex/<issue-number>-<short-kebab-name>` from `origin/dev`; commits scoped changes; pushes to origin; and opens a Pull Request targeting `dev` with `Refs #N`.
+3. **Agent 2 (QA Reviewer):** Named by Agent 4; independently audits the PR diff/tests and outputs strictly `APPROVED` or `REQUEST_CHANGES` in `.agent-work/qa-reviews/qa-<issue>.md`.
+4. **Agent 3 (AppSec Auditor):** Named by Agent 4; independently audits the same PR diff/security constraints and outputs strictly `APPROVED` or `BLOCKED` in `.agent-work/security-audits/sec-<issue>.md`.
+5. **Codex (Technical Manager / Tech Lead):** Independently reviews the exact PR HEAD commit on GitHub. Before returning `CHANGES_NEEDED` or `BLOCKED`, Codex performs root-cause analysis and corrects accepted delivery artifacts when needed. Codex returns `APPROVED_FOR_DEV_MERGE` only when all acceptance criteria and quality gates are satisfied.
+6. **Product Owner (User):** Holds final production promotion authority. Only the Product Owner may open a PR and merge `dev` into `main` (triggering production CD) and close completed Issues with `Closes #N`.
 
-**Local review target:** Before any QA/AppSec/Tech Lead review, Agent 4 records the worktree path, base commit for context only, and changed-file list, then stops implementation edits. Every pre-commit report must state `uncommitted local worktree`; it must not invent an implementation commit SHA. Any change to that local diff invalidates the QA, AppSec, Gatekeeper, and Tech Lead reports and requires fresh review.
+**Review target:** The reviewable artifact is the **exact PR HEAD commit** on GitHub targeting `dev` with passing CI (`.github/workflows/ci.yml`). Any new commit pushed to the PR branch restarts the review cycle on that exact new HEAD commit.
 
-**Target and proof preflight:** Before Agent 1 changes code, Agent 4 records the base ref and resolved commit, local worktree path, production artifact path, allowed/prohibited paths, and manual deployment handoff when applicable. For Scan Pilot frontend work, `frontend/src/**` is the deployable artifact that the Product Owner manually transfers to Google AI Studio; frozen prototypes/evidence paths are excluded unless the Issue explicitly includes them. For each high-risk acceptance criterion (repository identity, persistence, external I/O, security, fail-closed behavior, or frontend-backend contract), the plan names one focused proof, its expected failure/success, and its dependency-isolation method. A live-service test is integration evidence, never deterministic evidence.
+**Target and proof preflight:** Before Agent 1 changes code, Agent 4 records the base ref (`origin/dev`), target branch (`dev`), local worktree path, production artifact path, allowed/prohibited paths, and manual deployment handoff when applicable. For each high-risk acceptance criterion, the plan names one focused proof, its expected failure/success, and its dependency-isolation method.
 
-**Risk-based verification:** Run the narrowest relevant check after a coherent code slice; rerun a passing broad suite only when source changed, a prior test failed, or the remediation requires it. Run the full applicable backend/frontend verification once on the frozen local diff before handoff. Bruno applies only to affected REST/integration flows and never replaces compilation, automated tests, lint, or build.
+**Risk-based verification:** Run the narrowest relevant check after a coherent code slice; rerun a passing broad suite only when source changed, a prior test failed, or the remediation requires it. Run the full applicable backend/frontend verification once before PR push to ensure clean CI execution. Bruno applies only to affected REST/integration flows and never replaces compilation, automated tests, lint, or build.
 
-**Technical Lead RCA and prevention:** For a workflow, contract, or evidence failure, Codex records `.agent-work/diagnostics/rca-<issue>.md` with the symptom, root cause, affected source-of-truth files/templates, bounded correction, prevention rule, and re-dispatch criteria. Codex may correct these delivery artifacts within the accepted Issue scope; the RCA is the corrective-change handoff and Agent 4 must obtain fresh independent QA/AppSec review of that local diff before returning it to Codex. Codex must not self-approve its correction. Any product, UI/UX, cost, privacy, permission, architecture, dependency, or external-state change still requires Product Owner direction.
+**Technical Lead RCA and prevention:** For a workflow, contract, or evidence failure, Codex records `.agent-work/diagnostics/rca-<issue>.md` with the symptom, root cause, affected source-of-truth files/templates, bounded correction, prevention rule, and re-dispatch criteria. Codex may correct these delivery artifacts within the accepted Issue scope; the RCA is the corrective-change handoff and Agent 4 must obtain fresh independent QA/AppSec review of the updated PR commit before returning it to Codex. Codex must not self-approve its correction. Any product, UI/UX, cost, privacy, permission, architecture, dependency, or external-state change still requires Product Owner direction.
 
 **Directed remediation:** Every Codex `CHANGES_NEEDED` finding must specify the violated contract, exact evidence, confirmed cause or labelled hypothesis, bounded required change, required proof, and non-goals. It is never an open-ended request to rediscover a known defect. Agent 4 routes that card directly to Agent 1; QA/AppSec then review only the remediation and its affected regression surface. Existing passing broad evidence is cited rather than rerun unless source changed, a prior check failed, or the card requires it.
 
-Remediation rule: Any QA `REQUEST_CHANGES`, AppSec `BLOCKED`, or Codex `CHANGES_NEEDED`/`BLOCKED` returns the item through Agent 4 to Coder. After remediation, fresh QA, AppSec, Gatekeeper, and Tech Lead reviews are required for the changed local diff. Keep detailed briefs, reports, logs, and intermediate analysis in `.agent-work/`; keep eventual PR descriptions compact and secret-safe.
+Remediation rule: Any QA `REQUEST_CHANGES`, AppSec `BLOCKED`, or Codex `CHANGES_NEEDED`/`BLOCKED` returns the item through Agent 4 to Coder. After remediation, fresh QA, AppSec, Gatekeeper, and Tech Lead reviews are required for the new PR HEAD commit. Keep detailed briefs, reports, logs, and intermediate analysis in `.agent-work/`; keep eventual PR descriptions compact and secret-safe.
 
 
 ## Delivery Automation Policy
 
-The Product Owner accepted a staged delivery-automation direction on 2026-08-17. It does not authorize implementation of a workflow by itself.
-
-- **CI first:** a separate authorized Issue must introduce repeatable frontend and backend checks for pull requests and `main`. Once CI is active, a passing required check is a prerequisite for Codex technical review; before that point, agents must retain manual verification evidence.
-- **Branch protection later:** require CI checks for `main` only after the new workflow has produced reliable green evidence on one or more real pull requests. Do not configure a required check that has not run successfully.
-- **CD deferred:** production deployment is a separate release/deployment work item. It requires explicit Product Owner authorization and must not be triggered automatically merely because CI passes or a pull request merges.
-- **Human gates remain:** CI reports repeatable build/test evidence. It does not replace Codex scope/security review or Product Owner acceptance and merge authority.
-- **Current state:** no GitHub Actions CI/CD workflow is configured in this repository yet.
+- **CI active:** GitHub Actions Continuous Integration (`.github/workflows/ci.yml`) runs automated frontend and backend checks for pull requests targeting `dev` and `main`, as well as direct pushes to `dev` and `main`. A passing required CI check is a prerequisite for Codex technical review.
+- **CD deferred:** Continuous Deployment (`.github/workflows/deploy-cloud-run.yml`) triggers only when the Product Owner merges `dev` into `main`. Merging PRs into `dev` never triggers deployment.
+- **Human gates remain:** CI reports repeatable build/test evidence. It does not replace Codex scope/security review or Product Owner merge authority to `main`.
 
 ## Current Checkpoint
 
