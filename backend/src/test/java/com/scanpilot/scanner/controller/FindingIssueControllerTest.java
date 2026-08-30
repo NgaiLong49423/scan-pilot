@@ -110,13 +110,14 @@ class FindingIssueControllerTest {
         userSession.setInstallationId(5555L);
         sessionService.updateInstallationId(userSession.getSessionId(), 5555L);
 
-        userEntity = userRepository.save(UserEntity.builder()
-                .githubUserId(112233L)
-                .login("alice")
-                .name("Alice Developer")
-                .email("alice@example.com")
-                .createdAt(Instant.now())
-                .build());
+        userEntity = userRepository.findByGithubUserId(112233L)
+                .orElseGet(() -> userRepository.save(UserEntity.builder()
+                        .githubUserId(112233L)
+                        .login("alice")
+                        .name("Alice Developer")
+                        .email("alice@example.com")
+                        .createdAt(Instant.now())
+                        .build()));
 
         repositoryEntity = repositoryRepository.save(RepositoryEntity.builder()
                 .userId(userEntity.getId())
@@ -163,13 +164,14 @@ class FindingIssueControllerTest {
         otherUserSession.setInstallationId(7777L);
         sessionService.updateInstallationId(otherUserSession.getSessionId(), 7777L);
 
-        otherUserEntity = userRepository.save(UserEntity.builder()
-                .githubUserId(998877L)
-                .login("bob")
-                .name("Bob Developer")
-                .email("bob@example.com")
-                .createdAt(Instant.now())
-                .build());
+        otherUserEntity = userRepository.findByGithubUserId(998877L)
+                .orElseGet(() -> userRepository.save(UserEntity.builder()
+                        .githubUserId(998877L)
+                        .login("bob")
+                        .name("Bob Developer")
+                        .email("bob@example.com")
+                        .createdAt(Instant.now())
+                        .build()));
 
         otherRepositoryEntity = repositoryRepository.save(RepositoryEntity.builder()
                 .userId(otherUserEntity.getId())

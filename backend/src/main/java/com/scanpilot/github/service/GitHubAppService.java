@@ -25,7 +25,6 @@ public class GitHubAppService {
 
     public static final String GITHUB_USER_INSTALLATIONS_URL = "https://api.github.com/user/installations";
     public static final String GITHUB_USER_INSTALLATION_REPOS_URL = "https://api.github.com/user/installations/%d/repositories";
-    public static final String GITHUB_USER_REPOS_URL = "https://api.github.com/user/repos";
 
     private final GitHubAppConfigProperties properties;
     private final InstallationStateService installationStateService;
@@ -223,7 +222,12 @@ public class GitHubAppService {
     }
 
     /**
-     * Fetches user accessible repositories from GitHub.
+     * Fetches user accessible repositories from GitHub App installation.
+     * Strict fail-closed contract (R90-01):
+     * - If session.getInstallationId() == null -> returns empty List.of() (user has not linked GitHub App).
+     *   Does NOT use OAuth repository listing to substitute unlinked state.
+     * - If session.getInstallationId() != null -> queries App installation repositories.
+     *   If remote API fails, propagates error fail-closed (never falls back to OAuth listing).
      */
     public List<GitHubRepositoryDto> getAccessibleRepositories(UserSession session) {
         if (session == null) {
@@ -231,21 +235,11 @@ public class GitHubAppService {
         }
 
         Long installationId = session.getInstallationId();
-        UUID userId = resolveUserId(session);
-        Long currentSelectedRepoId = repositoryRepository.findByUserId(userId).stream()
-                .findFirst()
-                .map(com.scanpilot.persistence.entity.RepositoryEntity::getGithubRepoId)
-                .orElse(null);
-
-        if (installationId != null) {
-            try {
-                return getUserAccessibleInstallationRepositories(session.getAccessToken(), installationId);
-            } catch (Exception e) {
-                log.warn("Failed to fetch user-accessible installation repositories from remote provider");
-            }
+        if (installationId == null) {
+            return List.of();
         }
 
-        return fetchUserRepositories(session.getAccessToken(), currentSelectedRepoId);
+        return getUserAccessibleInstallationRepositories(session.getAccessToken(), installationId);
     }
 
     private UUID resolveUserId(UserSession session) {
@@ -259,52 +253,5 @@ public class GitHubAppService {
                         .avatarUrl(session.getAvatarUrl())
                         .createdAt(Instant.now())
                         .build()).getId());
-    }
-
-    private List<GitHubRepositoryDto> fetchUserRepositories(String userAccessToken, Long currentSelectedRepoId) {
-        if (userAccessToken == null || userAccessToken.isBlank()) {
-            return List.of();
-        }
-
-        try {
-            List<Map<String, Object>> reposList = restClient.get()
-                    .uri(GITHUB_USER_REPOS_URL)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + userAccessToken)
-                    .header(HttpHeaders.ACCEPT, "application/vnd.github+json")
-                    .header("X-GitHub-Api-Version", "2022-11-28")
-                    .retrieve()
-                    .body(new ParameterizedTypeReference<List<Map<String, Object>>>() {});
-
-            if (reposList == null) {
-                return List.of();
-            }
-
-            return mapRawReposToDto(reposList, currentSelectedRepoId);
-        } catch (Exception e) {
-            log.warn("Failed to fetch user repositories from remote provider");
-            return List.of();
-        }
-    }
-
-    private List<GitHubRepositoryDto> mapRawReposToDto(List<Map<String, Object>> reposList, Long currentSelectedRepoId) {
-        List<GitHubRepositoryDto> dtos = new ArrayList<>();
-        for (Map<String, Object> repo : reposList) {
-            Long id = repo.get("id") instanceof Number n ? n.longValue() : null;
-            String name = repo.get("name") instanceof String s ? s : "";
-            String fullName = repo.get("full_name") instanceof String s ? s : "";
-            Boolean isPrivate = repo.get("private") instanceof Boolean b ? b : false;
-            String defaultBranch = repo.get("default_branch") instanceof String s ? s : "main";
-            String htmlUrl = repo.get("html_url") instanceof String s ? s : "";
-            String description = repo.get("description") instanceof String s ? s : "";
-
-            Map<?, ?> ownerMap = repo.get("owner") instanceof Map<?, ?> m ? m : Map.of();
-            String owner = ownerMap.get("login") instanceof String s ? s : "";
-
-            if (id != null) {
-                boolean isSelected = currentSelectedRepoId != null && currentSelectedRepoId.equals(id);
-                dtos.add(new GitHubRepositoryDto(id, name, fullName, owner, defaultBranch, isPrivate, htmlUrl, description, isSelected));
-            }
-        }
-        return dtos;
     }
 }

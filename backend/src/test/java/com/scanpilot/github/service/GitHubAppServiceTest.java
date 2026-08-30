@@ -253,4 +253,45 @@ class GitHubAppServiceTest {
         assertThatThrownBy(() -> gitHubAppService.getUserAccessibleInstallationRepositories(userToken, installationId))
                 .isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    @DisplayName("R90-01: getAccessibleRepositories returns empty list and does NOT call OAuth fallback when installationId is null")
+    void testGetAccessibleRepositoriesWithoutInstallationReturnsEmptyListWithoutOAuthFallback() {
+        UserSession unlinkedSession = UserSession.builder()
+                .sessionId("sess-unlinked")
+                .githubUserId(12345L)
+                .login("unlinked-user")
+                .accessToken("ghu_token_123")
+                .installationId(null)
+                .build();
+
+        List<GitHubRepositoryDto> repos = gitHubAppService.getAccessibleRepositories(unlinkedSession);
+
+        assertThat(repos).isEmpty();
+        // Verifies no remote calls were made to /user/repos or elsewhere
+        mockServer.verify();
+    }
+
+    @Test
+    @DisplayName("R90-01: getAccessibleRepositories propagates error fail-closed and does NOT call OAuth fallback when installation API fails")
+    void testGetAccessibleRepositoriesWithInstallationApiErrorFailsClosedWithoutOAuthFallback() {
+        UserSession linkedSession = UserSession.builder()
+                .sessionId("sess-linked")
+                .githubUserId(12345L)
+                .login("linked-user")
+                .accessToken("ghu_token_123")
+                .installationId(9001L)
+                .build();
+
+        // Installation endpoint returns 500 error
+        mockServer.expect(requestTo("https://api.github.com/user/installations/9001/repositories?per_page=100&page=1"))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        assertThatThrownBy(() -> gitHubAppService.getAccessibleRepositories(linkedSession))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("GITHUB_INSTALLATION_REPOS_API_ERROR");
+
+        // Verifies only installation endpoint was queried, never falling back to /user/repos
+        mockServer.verify();
+    }
 }

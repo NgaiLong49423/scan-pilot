@@ -3,18 +3,21 @@ package com.scanpilot.auth.service;
 import com.scanpilot.auth.config.AuthConfigProperties;
 import com.scanpilot.auth.dto.GitHubUserDto;
 import com.scanpilot.auth.model.UserSession;
+import com.scanpilot.persistence.entity.UserEntity;
+import com.scanpilot.persistence.entity.UserSessionEntity;
+import com.scanpilot.persistence.repository.UserRepository;
+import com.scanpilot.persistence.repository.UserSessionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -22,9 +25,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SessionService {
 
     private final AuthConfigProperties properties;
+    private final UserSessionRepository userSessionRepository;
+    private final UserRepository userRepository;
     private final SecureRandom secureRandom = new SecureRandom();
-    private final Map<String, UserSession> sessionStore = new ConcurrentHashMap<>();
 
+    @Transactional
     public UserSession createSession(GitHubUserDto user, String accessToken) {
         return createSession(
                 user.id(),
@@ -36,6 +41,7 @@ public class SessionService {
         );
     }
 
+    @Transactional
     public UserSession createSession(
             Long githubUserId,
             String login,
@@ -48,55 +54,135 @@ public class SessionService {
         Instant now = Instant.now();
         Instant expiresAt = now.plusSeconds(properties.getSessionTtlSeconds());
 
-        UserSession session = new UserSession(
-                sessionId,
-                githubUserId,
-                login,
-                name,
-                avatarUrl,
-                email,
-                accessToken,
-                now,
-                expiresAt
-        );
+        UserEntity userEntity = userRepository.findByGithubUserId(githubUserId)
+                .map(existing -> {
+                    existing.setLogin(login);
+                    existing.setName(name);
+                    existing.setAvatarUrl(avatarUrl);
+                    existing.setEmail(email);
+                    existing.setUpdatedAt(now);
+                    return userRepository.save(existing);
+                })
+                .orElseGet(() -> userRepository.save(UserEntity.builder()
+                        .githubUserId(githubUserId)
+                        .login(login)
+                        .name(name)
+                        .avatarUrl(avatarUrl)
+                        .email(email)
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .build()));
 
-        sessionStore.put(sessionId, session);
-        return session;
+        UserSessionEntity sessionEntity = UserSessionEntity.builder()
+                .sessionId(sessionId)
+                .userId(userEntity.getId())
+                .accessToken(accessToken)
+                .createdAt(now)
+                .expiresAt(expiresAt)
+                .build();
+
+        userSessionRepository.save(sessionEntity);
+
+        return UserSession.builder()
+                .sessionId(sessionId)
+                .githubUserId(githubUserId)
+                .login(login)
+                .name(name)
+                .avatarUrl(avatarUrl)
+                .email(email)
+                .accessToken(accessToken)
+                .installationId(null)
+                .createdAt(now)
+                .expiresAt(expiresAt)
+                .build();
     }
 
+    @Transactional
     public Optional<UserSession> getSession(String sessionId) {
         if (sessionId == null || sessionId.isBlank()) {
             return Optional.empty();
         }
 
-        UserSession session = sessionStore.get(sessionId);
-        if (session == null) {
+        Optional<UserSessionEntity> entityOpt = userSessionRepository.findBySessionId(sessionId);
+        if (entityOpt.isEmpty()) {
             return Optional.empty();
         }
 
-        if (session.isExpired()) {
-            sessionStore.remove(sessionId);
+        UserSessionEntity entity = entityOpt.get();
+        Instant now = Instant.now();
+        if (entity.getExpiresAt() != null && now.isAfter(entity.getExpiresAt())) {
+            userSessionRepository.deleteBySessionId(sessionId);
             return Optional.empty();
         }
+
+        Optional<UserEntity> userOpt = userRepository.findById(entity.getUserId());
+        if (userOpt.isEmpty()) {
+            userSessionRepository.deleteBySessionId(sessionId);
+            return Optional.empty();
+        }
+
+        UserEntity user = userOpt.get();
+        UserSession session = UserSession.builder()
+                .sessionId(entity.getSessionId())
+                .githubUserId(user.getGithubUserId())
+                .login(user.getLogin())
+                .name(user.getName())
+                .avatarUrl(user.getAvatarUrl())
+                .email(user.getEmail())
+                .accessToken(entity.getAccessToken())
+                .installationId(entity.getInstallationId())
+                .createdAt(entity.getCreatedAt())
+                .expiresAt(entity.getExpiresAt())
+                .build();
 
         return Optional.of(session);
     }
 
+    @Transactional
     public Optional<UserSession> updateInstallationId(String sessionId, Long installationId) {
         if (sessionId == null || sessionId.isBlank()) {
             return Optional.empty();
         }
 
-        UserSession updated = sessionStore.computeIfPresent(sessionId, (key, existing) ->
-                existing.withInstallationId(installationId)
-        );
+        Optional<UserSessionEntity> entityOpt = userSessionRepository.findBySessionId(sessionId);
+        if (entityOpt.isEmpty()) {
+            return Optional.empty();
+        }
 
-        return Optional.ofNullable(updated);
+        UserSessionEntity entity = entityOpt.get();
+        Instant now = Instant.now();
+        if (entity.getExpiresAt() != null && now.isAfter(entity.getExpiresAt())) {
+            userSessionRepository.deleteBySessionId(sessionId);
+            return Optional.empty();
+        }
+
+        entity.setInstallationId(installationId);
+        userSessionRepository.save(entity);
+
+        Optional<UserEntity> userOpt = userRepository.findById(entity.getUserId());
+        if (userOpt.isEmpty()) {
+            return Optional.empty();
+        }
+
+        UserEntity user = userOpt.get();
+        return Optional.of(UserSession.builder()
+                .sessionId(entity.getSessionId())
+                .githubUserId(user.getGithubUserId())
+                .login(user.getLogin())
+                .name(user.getName())
+                .avatarUrl(user.getAvatarUrl())
+                .email(user.getEmail())
+                .accessToken(entity.getAccessToken())
+                .installationId(entity.getInstallationId())
+                .createdAt(entity.getCreatedAt())
+                .expiresAt(entity.getExpiresAt())
+                .build());
     }
 
+    @Transactional
     public void invalidateSession(String sessionId) {
         if (sessionId != null && !sessionId.isBlank()) {
-            sessionStore.remove(sessionId);
+            userSessionRepository.deleteBySessionId(sessionId);
         }
     }
 
@@ -120,18 +206,19 @@ public class SessionService {
                 .build();
     }
 
+    @Transactional
     public void cleanExpiredSessions() {
-        Instant now = Instant.now();
-        sessionStore.entrySet().removeIf(entry -> entry.getValue().isExpired(now));
+        userSessionRepository.deleteByExpiresAtBefore(Instant.now());
     }
 
+    @Transactional(readOnly = true)
     public int getActiveSessionCount() {
-        cleanExpiredSessions();
-        return sessionStore.size();
+        return (int) userSessionRepository.count();
     }
 
+    @Transactional
     public void clearAllSessions() {
-        sessionStore.clear();
+        userSessionRepository.deleteAll();
     }
 
     private String generateSecureSessionId() {
