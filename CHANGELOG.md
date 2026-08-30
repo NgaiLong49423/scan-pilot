@@ -9,6 +9,22 @@
 
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
+## 2026-08-30 — Evidence-First Fleet Posture, Live Terminal, and Zero-Mock Telemetry Polish (Issue #81)
+
+**Status:** Working tree (pre-commit)
+
+**Scope:** Polished frontend to be strictly evidence-first and zero-mock compliant per Issue #81. Eliminated synthetic scores, letter grades, percentages, and hardcoded mock artifact lists. Updated `CoverageAuditView.tsx` to dynamically formulate guardrail exclusions from `reasonCode` and `limitHitValue` without fabricated mock file names. Updated `CoverageWarningBanner.tsx` warning notices to reference verified audits without score/grade terminology. Added `LiveScanTerminal.test.tsx` and `CoverageWarningBanner.test.tsx` ensuring 100% test coverage across terminal event parsing, log hierarchy, and guardrail banner explanations.
+
+### Added
+
+- Added `frontend/src/components/LiveScanTerminal.test.tsx` (Component & log formatter tests).
+- Added `frontend/src/components/CoverageWarningBanner.test.tsx` (Guardrail reason & dynamic limit explanation tests).
+
+### Changed
+
+- Updated `frontend/src/components/CoverageWarningBanner.tsx` (Zero score/grade terminology).
+- Updated `frontend/src/components/CoverageAuditView.tsx` (Truthful, zero-mock guardrail telemetry reporting).
+
 ## 2026-08-30 — Spring Boot Safe Remediation Pull Request MVP (Issue #80)
 
 **Status:** Committed (`864e558`)

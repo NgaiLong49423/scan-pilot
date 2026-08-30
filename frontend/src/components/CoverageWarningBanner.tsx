@@ -74,7 +74,7 @@ export const CoverageWarningBanner: React.FC<CoverageWarningBannerProps> = ({
             </div>
             <p className="text-xs text-[#c9d1d9] leading-relaxed max-w-2xl">{description}</p>
             <p className="text-[11px] text-[#8b949e]">
-              <span className="font-semibold text-[#d29922]">Important:</span> Security score and grade reflect audited portions only. Scan checkpoint advancement is held.
+              <span className="font-semibold text-[#d29922]">Important:</span> Verified audit reflects analyzed portions only. Scan checkpoint advancement is held.
             </p>
           </div>
         </div>
