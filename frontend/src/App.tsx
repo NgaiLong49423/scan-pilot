@@ -633,9 +633,12 @@ export default function App() {
         currentUser={currentUser}
         activeTab={activeNavTab}
         onTabChange={setActiveNavTab}
-        isScanning={isScanning}
-        onTriggerRescan={handleTriggerRescan}
-        onNavigateHome={() => setCurrentView('landing')}
+          isScanning={isScanning}
+          onTriggerRescan={handleTriggerRescan}
+          onLogout={() => {
+            void logoutUser();
+          }}
+          onNavigateHome={() => setCurrentView('landing')}
         onNavigateFleet={() => setCurrentView('fleet')}
       />
 
