@@ -2,6 +2,7 @@ package com.scanpilot.persistence.repository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -70,7 +71,12 @@ public class ScanEventRepositoryImpl implements ScanEventRepositoryCustom {
 
             return Optional.ofNullable(allocatedSeq);
         } catch (Exception e) {
-            // Fallback for non-Postgres databases (e.g. H2 in unit tests)
+            if (!isH2Database()) {
+                log.warn("Event persistence error for eventType={}", eventType);
+                return Optional.empty();
+            }
+
+            // H2 does not support this PostgreSQL CTE form in local tests.
             try {
                 int updated = jdbcTemplate.update(
                     "UPDATE scan_jobs SET next_event_sequence = next_event_sequence + 1 WHERE id = ? AND next_event_sequence < ?",
@@ -91,6 +97,16 @@ public class ScanEventRepositoryImpl implements ScanEventRepositoryCustom {
                 log.warn("Event persistence error for eventType={}", eventType);
             }
             return Optional.empty();
+        }
+    }
+
+    private boolean isH2Database() {
+        try {
+            return Boolean.TRUE.equals(jdbcTemplate.execute((ConnectionCallback<Boolean>) connection ->
+                "H2".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName())
+            ));
+        } catch (Exception ignored) {
+            return false;
         }
     }
 }
