@@ -70,7 +70,26 @@ public class ScanEventRepositoryImpl implements ScanEventRepositoryCustom {
 
             return Optional.ofNullable(allocatedSeq);
         } catch (Exception e) {
-            log.warn("Event persistence error for eventType={}", eventType);
+            // Fallback for non-Postgres databases (e.g. H2 in unit tests)
+            try {
+                int updated = jdbcTemplate.update(
+                    "UPDATE scan_jobs SET next_event_sequence = next_event_sequence + 1 WHERE id = ? AND next_event_sequence < ?",
+                    jobId, maxLimit
+                );
+                if (updated > 0) {
+                    Long currentSeq = jdbcTemplate.queryForObject(
+                        "SELECT next_event_sequence FROM scan_jobs WHERE id = ?",
+                        Long.class, jobId
+                    );
+                    jdbcTemplate.update(
+                        "INSERT INTO scan_events (id, scan_job_id, sequence_number, stage, event_type, message_code, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        eventId, jobId, currentSeq, stage, eventType, messageCode, payloadJson, Timestamp.from(createdAt != null ? createdAt : Instant.now())
+                    );
+                    return Optional.ofNullable(currentSeq);
+                }
+            } catch (Exception ex) {
+                log.warn("Event persistence error for eventType={}", eventType);
+            }
             return Optional.empty();
         }
     }

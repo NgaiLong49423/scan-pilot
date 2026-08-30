@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -582,6 +583,79 @@ class GitleaksDetectorAdapterTest {
 
             // Ensure singleton properties object was NOT mutated
             assertThat(properties.getTimeoutSeconds()).isEqualTo(180);
+        }
+
+        @Test
+        @DisplayName("Embedded git history scan enforces timeout, kills hung git process tree, and throws SCAN_TIMEOUT")
+        void testEmbeddedGitHistoryScanEnforcesTimeoutAndTerminatesProcessTree(@TempDir Path tempDir) throws Exception {
+            // Ensure binary is disabled so embedded scanner is used
+            properties.setBinaryPath("non-existent-binary");
+            assertThat(adapter.isBinaryAvailable()).isFalse();
+
+            boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+            Path childPidFile = tempDir.resolve("child-git.pid");
+
+            Path dummyRepo = tempDir.resolve("repo");
+            Files.createDirectories(dummyRepo);
+            Files.createDirectories(dummyRepo.resolve(".git"));
+
+            String mockGitPath;
+            if (isWindows) {
+                Path batchScript = tempDir.resolve("mock-slow-git.bat");
+                String scriptContent = String.format("""
+                    @echo off
+                    powershell -NoProfile -Command "$p = Start-Process powershell -ArgumentList '-NoProfile','-Command','Start-Sleep -Seconds 30' -PassThru; $p.Id | Out-File -FilePath '%s' -Encoding ascii; Start-Sleep -Seconds 30"
+                    exit /b 0
+                    """, childPidFile.toAbsolutePath().toString().replace("\\", "\\\\"));
+                Files.writeString(batchScript, scriptContent, StandardCharsets.UTF_8);
+                mockGitPath = batchScript.toAbsolutePath().toString();
+            } else {
+                Path shellScript = tempDir.resolve("mock-slow-git.sh");
+                String scriptContent = String.format("""
+                    #!/bin/sh
+                    sleep 30 &
+                    echo $! > "%s"
+                    sleep 30
+                    exit 0
+                    """, childPidFile.toAbsolutePath().toString());
+                Files.writeString(shellScript, scriptContent, StandardCharsets.UTF_8);
+                shellScript.toFile().setExecutable(true);
+                mockGitPath = shellScript.toAbsolutePath().toString();
+            }
+
+            String originalGitPath = properties.getGitBinaryPath();
+            properties.setGitBinaryPath(mockGitPath);
+
+            try {
+                long startTime = System.currentTimeMillis();
+                // Scan git history with 2s timeout
+                GitleaksScanRequest request = GitleaksScanRequest.forGitHistory(dummyRepo, null, 2);
+
+                assertThatThrownBy(() -> adapter.scan(request))
+                    .isInstanceOf(ResourceGuardrailExceededException.class)
+                    .satisfies(ex -> {
+                        ResourceGuardrailExceededException rge = (ResourceGuardrailExceededException) ex;
+                        assertThat(rge.getReasonCode()).isEqualTo("SCAN_TIMEOUT");
+                        assertThat(rge.getLimitHitValue()).isEqualTo(2L);
+                    });
+
+                long elapsed = System.currentTimeMillis() - startTime;
+                // Verify execution was bounded (~2 seconds, not hung for 30s)
+                assertThat(elapsed).isLessThan(10000L);
+
+                // Assert spawned child process was forcibly killed by the watchdog process-tree cleanup
+                long deadline = System.currentTimeMillis() + 5000;
+                while (!Files.exists(childPidFile) && System.currentTimeMillis() < deadline) {
+                    Thread.sleep(50);
+                }
+
+                assertThat(Files.exists(childPidFile)).as("Child PID file must exist").isTrue();
+                long childPid = Long.parseLong(Files.readString(childPidFile).trim());
+                Optional<ProcessHandle> ph = ProcessHandle.of(childPid);
+                ph.ifPresent(p -> assertThat(p.isAlive()).isFalse());
+            } finally {
+                properties.setGitBinaryPath(originalGitPath);
+            }
         }
     }
 }

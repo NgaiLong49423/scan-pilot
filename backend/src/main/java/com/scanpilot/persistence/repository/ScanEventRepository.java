@@ -16,4 +16,6 @@ public interface ScanEventRepository extends JpaRepository<ScanEventEntity, UUID
         long sequenceNumber,
         Pageable pageable
     );
+
+    List<ScanEventEntity> findByScanJobIdOrderBySequenceNumberAsc(UUID scanJobId);
 }

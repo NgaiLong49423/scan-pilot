@@ -293,23 +293,51 @@ public class ScanPipelineService {
             record.setReasonCode(rge.getReasonCode());
             record.setLimitHitValue(rge.getLimitHitValue());
             record.setCoverageImpact("INCOMPLETE");
-            coverageRecordRepository.save(record);
-
-            long observedVal = rge.getObservedBytes() > 0 ? rge.getObservedBytes() : (long) rge.getObservedFiles();
-            emitEvent(scanJob.getId(), "GUARDRAIL_TRIGGERED", "GUARDRAIL_TRIGGERED", "GUARDRAIL_LIMIT_HIT", new ScanEventPayload.GuardrailLimitHitPayload(
-                    rge.getReasonCode(),
-                    observedVal,
-                    rge.getLimitHitValue()
-            ), 100L);
+            try {
+                coverageRecordRepository.save(record);
+            } catch (Exception e) {
+                log.warn("Failed to persist coverage record for jobId={}: errorType={}", scanJob.getId(), e.getClass().getSimpleName());
+            }
 
             Instant completedTime = Instant.now();
-            scanJob.setStatus("COMPLETED");
-            scanJob.setStage("COMPLETED");
-            scanJob.setCompletedAt(completedTime);
-            scanJob.setUpdatedAt(completedTime);
-            scanJob.setHeartbeatAt(completedTime);
-            scanJob.setDurationMs(completedTime.toEpochMilli() - startTime.toEpochMilli());
-            return scanJobRepository.save(scanJob);
+            if ("SCAN_TIMEOUT".equals(rge.getReasonCode())) {
+                emitEvent(scanJob.getId(), "FAILED", "SCAN_FAILED", "JOB_FAILED",
+                        new ScanEventPayload.JobFailedPayload("SCAN_TIMEOUT"), 100L);
+
+                scanJob.setStatus("FAILED");
+                scanJob.setStage("FAILED");
+                scanJob.setErrorMessage("SCAN_TIMEOUT");
+                scanJob.setCompletedAt(completedTime);
+                scanJob.setUpdatedAt(completedTime);
+                scanJob.setHeartbeatAt(completedTime);
+                scanJob.setDurationMs(completedTime.toEpochMilli() - startTime.toEpochMilli());
+                try {
+                    return scanJobRepository.save(scanJob);
+                } catch (Exception e) {
+                    log.warn("Failed to save terminal FAILED state for jobId={}: errorType={}", scanJob.getId(), e.getClass().getSimpleName());
+                    return scanJob;
+                }
+            } else {
+                long observedVal = rge.getObservedBytes() > 0 ? rge.getObservedBytes() : (long) rge.getObservedFiles();
+                emitEvent(scanJob.getId(), "GUARDRAIL_TRIGGERED", "GUARDRAIL_TRIGGERED", "GUARDRAIL_LIMIT_HIT", new ScanEventPayload.GuardrailLimitHitPayload(
+                        rge.getReasonCode(),
+                        observedVal,
+                        rge.getLimitHitValue()
+                ), 100L);
+
+                scanJob.setStatus("COMPLETED");
+                scanJob.setStage("COMPLETED");
+                scanJob.setCompletedAt(completedTime);
+                scanJob.setUpdatedAt(completedTime);
+                scanJob.setHeartbeatAt(completedTime);
+                scanJob.setDurationMs(completedTime.toEpochMilli() - startTime.toEpochMilli());
+                try {
+                    return scanJobRepository.save(scanJob);
+                } catch (Exception e) {
+                    log.warn("Failed to save guardrail COMPLETED state for jobId={}: errorType={}", scanJob.getId(), e.getClass().getSimpleName());
+                    return scanJob;
+                }
+            }
         } catch (Exception e) {
             String sanitizedMsg = sanitizeErrorMessage(e.getMessage());
             log.error("Scan pipeline execution failed for jobId={} repositoryId={}: errorType={} message={}",
@@ -329,7 +357,12 @@ public class ScanPipelineService {
             scanJob.setUpdatedAt(completedTime);
             scanJob.setHeartbeatAt(completedTime);
             scanJob.setDurationMs(completedTime.toEpochMilli() - startTime.toEpochMilli());
-            return scanJobRepository.save(scanJob);
+            try {
+                return scanJobRepository.save(scanJob);
+            } catch (Exception ex) {
+                log.warn("Failed to save terminal FAILED state for jobId={}: errorType={}", scanJob.getId(), ex.getClass().getSimpleName());
+                return scanJob;
+            }
         } finally {
             heartbeatExecutor.shutdownNow();
             if (workspace != null) {
@@ -541,23 +574,51 @@ public class ScanPipelineService {
             record.setReasonCode(rge.getReasonCode());
             record.setLimitHitValue(rge.getLimitHitValue());
             record.setCoverageImpact("INCOMPLETE");
-            coverageRecordRepository.save(record);
-
-            long observedVal = rge.getObservedBytes() > 0 ? rge.getObservedBytes() : (long) rge.getObservedFiles();
-            emitEvent(scanJob.getId(), "GUARDRAIL_TRIGGERED", "GUARDRAIL_TRIGGERED", "GUARDRAIL_LIMIT_HIT", new ScanEventPayload.GuardrailLimitHitPayload(
-                    rge.getReasonCode(),
-                    observedVal,
-                    rge.getLimitHitValue()
-            ), 100L);
+            try {
+                coverageRecordRepository.save(record);
+            } catch (Exception e) {
+                log.warn("Failed to persist coverage record for jobId={}: errorType={}", scanJob.getId(), e.getClass().getSimpleName());
+            }
 
             Instant completedTime = Instant.now();
-            scanJob.setStatus("COMPLETED");
-            scanJob.setStage("COMPLETED");
-            scanJob.setCompletedAt(completedTime);
-            scanJob.setUpdatedAt(completedTime);
-            scanJob.setHeartbeatAt(completedTime);
-            scanJob.setDurationMs(completedTime.toEpochMilli() - startTime.toEpochMilli());
-            return scanJobRepository.save(scanJob);
+            if ("SCAN_TIMEOUT".equals(rge.getReasonCode())) {
+                emitEvent(scanJob.getId(), "FAILED", "SCAN_FAILED", "JOB_FAILED",
+                        new ScanEventPayload.JobFailedPayload("SCAN_TIMEOUT"), 100L);
+
+                scanJob.setStatus("FAILED");
+                scanJob.setStage("FAILED");
+                scanJob.setErrorMessage("SCAN_TIMEOUT");
+                scanJob.setCompletedAt(completedTime);
+                scanJob.setUpdatedAt(completedTime);
+                scanJob.setHeartbeatAt(completedTime);
+                scanJob.setDurationMs(completedTime.toEpochMilli() - startTime.toEpochMilli());
+                try {
+                    return scanJobRepository.save(scanJob);
+                } catch (Exception e) {
+                    log.warn("Failed to save terminal FAILED state for jobId={}: errorType={}", scanJob.getId(), e.getClass().getSimpleName());
+                    return scanJob;
+                }
+            } else {
+                long observedVal = rge.getObservedBytes() > 0 ? rge.getObservedBytes() : (long) rge.getObservedFiles();
+                emitEvent(scanJob.getId(), "GUARDRAIL_TRIGGERED", "GUARDRAIL_TRIGGERED", "GUARDRAIL_LIMIT_HIT", new ScanEventPayload.GuardrailLimitHitPayload(
+                        rge.getReasonCode(),
+                        observedVal,
+                        rge.getLimitHitValue()
+                ), 100L);
+
+                scanJob.setStatus("COMPLETED");
+                scanJob.setStage("COMPLETED");
+                scanJob.setCompletedAt(completedTime);
+                scanJob.setUpdatedAt(completedTime);
+                scanJob.setHeartbeatAt(completedTime);
+                scanJob.setDurationMs(completedTime.toEpochMilli() - startTime.toEpochMilli());
+                try {
+                    return scanJobRepository.save(scanJob);
+                } catch (Exception e) {
+                    log.warn("Failed to save guardrail COMPLETED state for jobId={}: errorType={}", scanJob.getId(), e.getClass().getSimpleName());
+                    return scanJob;
+                }
+            }
         } catch (Exception e) {
             String sanitizedMsg = sanitizeErrorMessage(e.getMessage());
             log.error("Scan pipeline execution failed for jobId={} repositoryId={}: errorType={} message={}",
@@ -577,7 +638,12 @@ public class ScanPipelineService {
             scanJob.setUpdatedAt(completedTime);
             scanJob.setHeartbeatAt(completedTime);
             scanJob.setDurationMs(completedTime.toEpochMilli() - startTime.toEpochMilli());
-            return scanJobRepository.save(scanJob);
+            try {
+                return scanJobRepository.save(scanJob);
+            } catch (Exception ex) {
+                log.warn("Failed to save terminal FAILED state for jobId={}: errorType={}", scanJob.getId(), ex.getClass().getSimpleName());
+                return scanJob;
+            }
         } finally {
             // Mandated strict cleanup in finally block (DEC-015)
             if (workspace != null) {
@@ -943,8 +1009,8 @@ public class ScanPipelineService {
 
         if (isWebhookTrigger) {
             if (repo.getInstallationId() == null) {
-                log.warn("Webhook scan dispatch rejected: repository {} has no linked installation", fullName);
-                throw new IllegalStateException("INSTALLATION_TOKEN_UNAVAILABLE: Repository " + fullName + " has no linked GitHub App installation");
+                log.warn("Webhook scan dispatch rejected: repositoryId={} has no linked installation", repo.getId());
+                throw new IllegalStateException("INSTALLATION_TOKEN_UNAVAILABLE: Repository has no linked GitHub App installation");
             }
             if (gitHubAppAuthService == null) {
                 throw new IllegalStateException("INSTALLATION_TOKEN_UNAVAILABLE: GitHubAppAuthService is not configured");
@@ -959,7 +1025,7 @@ public class ScanPipelineService {
             }
         }
 
-        log.info("Fetching remote repository {} on branch {} (triggerType={}, exactSha={})", fullName, branch, triggerType, expectedCommitSha);
+        log.info("Fetching remote repository repositoryId={} on branch {} (triggerType={}, exactSha={})", repo.getId(), branch, triggerType, expectedCommitSha);
 
         if (gitCloneService != null) {
             if (expectedCommitSha != null && !expectedCommitSha.isBlank()) {
@@ -969,8 +1035,8 @@ public class ScanPipelineService {
             }
             long wsSize = computeDirectorySize(workspacePath);
             int entryCount = countEntries(workspacePath);
-            log.info("Successfully cloned repository {} on branch {} via GitCloneService (workspaceBytes={}, entries={})",
-                    fullName, branch, wsSize, entryCount);
+            log.info("Successfully cloned repository repositoryId={} on branch {} via GitCloneService (workspaceBytes={}, entries={})",
+                    repo.getId(), branch, wsSize, entryCount);
             // Represent Git clone transfer evidence truthfully: mode=GIT_CLONE, archiveBytes=null
             return SnapshotTransferMetrics.forGitClone(wsSize, entryCount);
         }
@@ -985,11 +1051,11 @@ public class ScanPipelineService {
 
             // Bounded streaming snapshot acquisition and extraction (FR-028, FR-031, NFR-001)
             SnapshotTransferMetrics metrics = streamedSnapshotFetcher.downloadAndExtract(httpClient, url, token, workspacePath, jobDeadline);
-            log.info("Successfully fetched and extracted repository snapshot for {}", fullName);
+            log.info("Successfully fetched and extracted repository snapshot for repositoryId={}", repo.getId());
             return metrics;
         }
 
-        throw new IllegalStateException("No repository fetcher service configured for repository: " + fullName);
+        throw new IllegalStateException("No repository fetcher service configured for repositoryId: " + repo.getId());
     }
 
     private long computeDirectorySize(Path dir) {

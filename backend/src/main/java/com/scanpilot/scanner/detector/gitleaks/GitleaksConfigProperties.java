@@ -21,6 +21,11 @@ public class GitleaksConfigProperties {
     private String binaryPath = "gitleaks";
 
     /**
+     * Git binary path or command name. Defaults to "git".
+     */
+    private String gitBinaryPath = "git";
+
+    /**
      * Timeout in seconds for Gitleaks process execution.
      */
     private int timeoutSeconds = 180;

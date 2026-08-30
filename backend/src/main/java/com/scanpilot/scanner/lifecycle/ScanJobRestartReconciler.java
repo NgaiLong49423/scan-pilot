@@ -1,7 +1,9 @@
 package com.scanpilot.scanner.lifecycle;
 
+import com.scanpilot.persistence.entity.ScanJobEntity;
 import com.scanpilot.persistence.repository.ScanJobRepository;
 import com.scanpilot.scanner.dispatcher.ScanJobDispatcher;
+import com.scanpilot.scanner.telemetry.ScanEventPayload;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -40,7 +42,22 @@ public class ScanJobRestartReconciler {
         Instant now = Instant.now();
         Instant cutoff = now.minus(HEARTBEAT_EXPIRATION_THRESHOLD);
 
-        int reconciled = scanJobRepository.reconcileStaleJobsAtomic(cutoff, RESTART_INTERRUPTED_MESSAGE, now);
+        List<ScanJobEntity> staleJobs = scanJobRepository.findStaleRunningJobs(cutoff);
+        int reconciled = 0;
+        for (ScanJobEntity job : staleJobs) {
+            try {
+                int updated = scanJobRepository.reconcileStaleJobByIdAtomic(
+                        job.getId(), cutoff, RESTART_INTERRUPTED_MESSAGE, now);
+                if (updated > 0) {
+                    scanJobDispatcher.emitEvent(job.getId(), "FAILED", "SCAN_FAILED", "JOB_FAILED",
+                            new ScanEventPayload.JobFailedPayload("STALE_HEARTBEAT_TIMEOUT"), 100L);
+                    reconciled++;
+                }
+            } catch (Exception e) {
+                log.warn("Failed to reconcile stale job {}: errorType={}", job.getId(), e.getClass().getSimpleName());
+            }
+        }
+
         if (reconciled > 0) {
             log.warn("Atomic reconciliation completed. Marked {} expired RUNNING jobs as FAILED (cutoff={})", reconciled, cutoff);
         } else {
@@ -54,7 +71,7 @@ public class ScanJobRestartReconciler {
                 scanJobDispatcher.tryProcessNextJobForRepository(repoId);
             }
         } catch (Exception e) {
-            log.warn("Error kicking stranded repository queues");
+            log.warn("Error kicking stranded repository queues: errorType={}", e.getClass().getSimpleName());
         }
 
         return reconciled;

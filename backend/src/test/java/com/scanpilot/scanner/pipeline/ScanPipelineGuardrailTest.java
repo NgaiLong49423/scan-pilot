@@ -231,11 +231,14 @@ class ScanPipelineGuardrailTest {
         }).when(gitWorkspaceManager).createWorkspace(any());
 
         doThrow(new ResourceGuardrailExceededException("SCAN_TIMEOUT", 0, 0, 180))
-                .when(streamedSnapshotFetcher).downloadAndExtract(any(), any(), any(), any(), any());
+                .when(gitCloneService).cloneRepository(any(), any(), any(), any(), any());
 
         ScanJobEntity resultJob = scanPipelineService.executeScanJob(job.getId());
 
         assertThat(resultJob).isNotNull();
+        assertThat(resultJob.getStatus()).isEqualTo("FAILED");
+        assertThat(resultJob.getStage()).isEqualTo("FAILED");
+        assertThat(resultJob.getErrorMessage()).isEqualTo("SCAN_TIMEOUT");
         assertThat(createdWorkspaces).isNotEmpty();
 
         for (Path wsPath : createdWorkspaces) {
@@ -273,8 +276,9 @@ class ScanPipelineGuardrailTest {
             ScanJobEntity resultJob = scanPipelineService.executeScan(testRepo.getId(), "main", syntheticRepo);
 
             assertThat(resultJob).isNotNull();
-            assertThat(resultJob.getStatus()).isEqualTo("COMPLETED");
-            assertThat(resultJob.getStage()).isEqualTo("COMPLETED");
+            assertThat(resultJob.getStatus()).isEqualTo("FAILED");
+            assertThat(resultJob.getStage()).isEqualTo("FAILED");
+            assertThat(resultJob.getErrorMessage()).isEqualTo("SCAN_TIMEOUT");
 
             // Assert CoverageRecordEntity is INCOMPLETE with SCAN_TIMEOUT
             Optional<CoverageRecordEntity> coverageOpt = coverageRecordRepository.findByScanJobId(resultJob.getId());
@@ -361,8 +365,9 @@ class ScanPipelineGuardrailTest {
         ScanJobEntity syncJob = scanPipelineService.executeScan(testRepo.getId(), "main", null);
 
         assertThat(syncJob).isNotNull();
-        assertThat(syncJob.getStatus()).isEqualTo("COMPLETED");
-        assertThat(syncJob.getStage()).isEqualTo("COMPLETED");
+        assertThat(syncJob.getStatus()).isEqualTo("FAILED");
+        assertThat(syncJob.getStage()).isEqualTo("FAILED");
+        assertThat(syncJob.getErrorMessage()).isEqualTo("SCAN_TIMEOUT");
 
         Optional<CoverageRecordEntity> syncCoverageOpt = coverageRecordRepository.findByScanJobId(syncJob.getId());
         assertThat(syncCoverageOpt).isPresent();
@@ -388,8 +393,9 @@ class ScanPipelineGuardrailTest {
         ScanJobEntity asyncJob = scanPipelineService.executeScanJob(queuedJob.getId());
 
         assertThat(asyncJob).isNotNull();
-        assertThat(asyncJob.getStatus()).isEqualTo("COMPLETED");
-        assertThat(asyncJob.getStage()).isEqualTo("COMPLETED");
+        assertThat(asyncJob.getStatus()).isEqualTo("FAILED");
+        assertThat(asyncJob.getStage()).isEqualTo("FAILED");
+        assertThat(asyncJob.getErrorMessage()).isEqualTo("SCAN_TIMEOUT");
 
         Optional<CoverageRecordEntity> asyncCoverageOpt = coverageRecordRepository.findByScanJobId(asyncJob.getId());
         assertThat(asyncCoverageOpt).isPresent();
