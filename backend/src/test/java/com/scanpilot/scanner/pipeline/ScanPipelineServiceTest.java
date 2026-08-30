@@ -65,6 +65,9 @@ class ScanPipelineServiceTest {
     @MockitoSpyBean
     private StreamedSnapshotFetcher streamedSnapshotFetcher;
 
+    @MockitoSpyBean
+    private com.scanpilot.scanner.workspace.GitWorkspaceManager gitWorkspaceManager;
+
     @Autowired
     private UserRepository userRepository;
 
@@ -532,8 +535,42 @@ class ScanPipelineServiceTest {
             verify(scanPipelineService).emitEvent(org.mockito.ArgumentMatchers.eq(job.getId()), org.mockito.ArgumentMatchers.eq("CLASSIFYING_FILES"), org.mockito.ArgumentMatchers.eq("STAGE_TRANSITION"), org.mockito.ArgumentMatchers.eq("STAGE_STARTED"), any(), org.mockito.ArgumentMatchers.eq(95L));
             verify(scanPipelineService).emitEvent(org.mockito.ArgumentMatchers.eq(job.getId()), org.mockito.ArgumentMatchers.eq("CLASSIFYING_FILES"), org.mockito.ArgumentMatchers.eq("CLASSIFICATION_SUMMARY"), org.mockito.ArgumentMatchers.eq("FILES_CLASSIFIED"), any(), org.mockito.ArgumentMatchers.eq(95L));
             verify(scanPipelineService).emitEvent(org.mockito.ArgumentMatchers.eq(job.getId()), org.mockito.ArgumentMatchers.eq("SCANNING_SECRETS"), org.mockito.ArgumentMatchers.eq("STAGE_TRANSITION"), org.mockito.ArgumentMatchers.eq("STAGE_STARTED"), any(), org.mockito.ArgumentMatchers.eq(95L));
-            verify(scanPipelineService).emitEvent(org.mockito.ArgumentMatchers.eq(job.getId()), org.mockito.ArgumentMatchers.eq("SCANNING_SECRETS"), org.mockito.ArgumentMatchers.eq("SCANNER_LIFECYCLE"), org.mockito.ArgumentMatchers.eq("SCANNER_ACTIVE"), any(), org.mockito.ArgumentMatchers.eq(95L));
             verify(scanPipelineService).emitEvent(org.mockito.ArgumentMatchers.eq(job.getId()), org.mockito.ArgumentMatchers.eq("COMPLETED"), org.mockito.ArgumentMatchers.eq("SCAN_COMPLETED"), org.mockito.ArgumentMatchers.eq("JOB_COMPLETED"), any(), org.mockito.ArgumentMatchers.eq(100L));
+        }
+
+        @Test
+        @DisplayName("Clone auth failure transitions job to FAILED with GIT_AUTH_OR_ACCESS_FAILED and cleans up workspace")
+        void testGitCloneAuthFailureTransitionsJobToFailedAndCleansUp() throws Exception {
+            org.mockito.Mockito.doThrow(new IllegalStateException(com.scanpilot.scanner.git.GitCloneService.GIT_AUTH_OR_ACCESS_FAILED))
+                    .when(gitCloneService).cloneRepository(any(), any(), any(), any(), any(), any());
+
+            ScanJobEntity job = scanJobRepository.save(ScanJobEntity.builder()
+                    .repositoryId(testRepo.getId())
+                    .branchName("main")
+                    .scanMode("SNAPSHOT_AND_HISTORY")
+                    .status("QUEUED")
+                    .stage("QUEUED")
+                    .createdAt(Instant.now())
+                    .build());
+
+            ScanJobEntity failedJob = scanPipelineService.executeScanJob(job.getId());
+
+            assertThat(failedJob).isNotNull();
+            assertThat(failedJob.getStatus()).isEqualTo("FAILED");
+            assertThat(failedJob.getStage()).isEqualTo("FAILED");
+            assertThat(failedJob.getErrorMessage()).isEqualTo("GIT_AUTH_OR_ACCESS_FAILED");
+
+            verify(gitWorkspaceManager).disposeWorkspace((com.scanpilot.scanner.workspace.GitWorkspace) any());
+            verify(scanPipelineService).emitEvent(
+                    org.mockito.ArgumentMatchers.eq(job.getId()),
+                    org.mockito.ArgumentMatchers.eq("FAILED"),
+                    org.mockito.ArgumentMatchers.eq("SCAN_FAILED"),
+                    org.mockito.ArgumentMatchers.eq("JOB_FAILED"),
+                    argThat((com.scanpilot.scanner.telemetry.ScanEventPayload p) ->
+                            p instanceof com.scanpilot.scanner.telemetry.ScanEventPayload.JobFailedPayload jfp
+                                    && "GIT_AUTH_OR_ACCESS_FAILED".equals(jfp.errorReason())),
+                    org.mockito.ArgumentMatchers.eq(100L)
+            );
         }
     }
 
