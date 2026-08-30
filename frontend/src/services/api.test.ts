@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fetchFindingsForRepo, fetchCoverageForRepo, createFindingIssue } from './api';
+import {
+  fetchFindingsForRepo,
+  fetchCoverageForRepo,
+  createFindingIssue,
+  fetchAvailableGitHubRepositoriesResult,
+  fetchInstallUrl
+} from './api';
 
 describe('API Service - ApiResult Error Mapping', () => {
   const validUuid = '11111111-2222-3333-4444-555555555555';
@@ -296,6 +302,97 @@ describe('API Service - ApiResult Error Mapping', () => {
         expect(result.error).not.toContain('gho_secret999');
         expect(result.statusCode).toBe(409);
       }
+    });
+  });
+
+  describe('fetchAvailableGitHubRepositoriesResult & fetchInstallUrl', () => {
+    it('fetchAvailableGitHubRepositoriesResult returns SUCCESS with array on 200', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => [
+          { id: 101, fullName: 'org/repo1', defaultBranch: 'main', private: false },
+          { id: 102, fullName: 'org/repo2', defaultBranch: 'develop', private: true },
+        ],
+      } as Response);
+
+      const result = await fetchAvailableGitHubRepositoriesResult();
+      expect(result.status).toBe('SUCCESS');
+      if (result.status === 'SUCCESS') {
+        expect(result.data).toHaveLength(2);
+        expect(result.data[0].name).toBe('org/repo1');
+        expect(result.data[1].branch).toBe('develop');
+        expect(result.data[1].isPrivate).toBe(true);
+      }
+    });
+
+    it('fetchAvailableGitHubRepositoriesResult returns ERROR on 200 when response body is not an array', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ unexpectedKey: 'not-an-array' }),
+      } as unknown as Response);
+
+      const result = await fetchAvailableGitHubRepositoriesResult();
+      expect(result.status).toBe('ERROR');
+      if (result.status === 'ERROR') {
+        expect(result.error).toBe('Invalid response format received from server');
+      }
+    });
+
+    it('fetchAvailableGitHubRepositoriesResult returns UNAUTHORIZED on 401', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+      } as Response);
+
+      const result = await fetchAvailableGitHubRepositoriesResult();
+      expect(result.status).toBe('UNAUTHORIZED');
+    });
+
+    it('fetchAvailableGitHubRepositoriesResult returns sanitized ERROR on 500 without leaking diagnostics', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      } as Response);
+
+      const result = await fetchAvailableGitHubRepositoriesResult();
+      expect(result.status).toBe('ERROR');
+      if (result.status === 'ERROR') {
+        expect(result.error).toBe('Failed to retrieve repositories from server');
+      }
+    });
+
+    it('fetchAvailableGitHubRepositoriesResult catches exception and suppresses forged token/path diagnostics', async () => {
+      vi.spyOn(global, 'fetch').mockRejectedValueOnce(
+        new Error('Connection failure at /opt/keys/jwt_secret.pem with auth token gho_injected_secret_999')
+      );
+
+      const result = await fetchAvailableGitHubRepositoriesResult();
+      expect(result.status).toBe('ERROR');
+      if (result.status === 'ERROR') {
+        expect(result.error).toBe('Network error while fetching repositories');
+        expect(result.error).not.toContain('/opt/keys');
+        expect(result.error).not.toContain('gho_injected_secret_999');
+      }
+    });
+
+    it('fetchInstallUrl returns server installUrl on 200', async () => {
+      const targetUrl = 'https://github.com/apps/scan-pilot/installations/new?state=token-xyz';
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ installUrl: targetUrl }),
+      } as Response);
+
+      const url = await fetchInstallUrl();
+      expect(url).toBe(targetUrl);
+    });
+
+    it('fetchInstallUrl returns null on error', async () => {
+      vi.spyOn(global, 'fetch').mockRejectedValueOnce(new Error('Network error'));
+      const url = await fetchInstallUrl();
+      expect(url).toBeNull();
     });
   });
 });

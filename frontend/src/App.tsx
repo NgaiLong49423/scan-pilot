@@ -9,6 +9,8 @@ import {
 import { Repository, Finding, UserProfile, SecurityActionSummary } from './types';
 import { 
   fetchAvailableGitHubRepositories,
+  fetchAvailableGitHubRepositoriesResult,
+  fetchInstallUrl,
   fetchMonitoredProjects,
   selectRepositoryOnBackend,
   fetchFindingsForRepo, 
@@ -42,6 +44,9 @@ export default function App() {
   
   // Available repos from GitHub App vs Explicitly Monitored repos in Scan Pilot
   const [availableRepos, setAvailableRepos] = useState<Repository[]>([]);
+  const [availableReposStatus, setAvailableReposStatus] = useState<'LOADING' | 'SUCCESS' | 'UNAUTHORIZED' | 'ERROR'>('LOADING');
+  const [availableReposError, setAvailableReposError] = useState<string | null>(null);
+  const [installUrl, setInstallUrl] = useState<string | null>(null);
   const [monitoredRepos, setMonitoredRepos] = useState<Repository[]>([]);
   const [isBackendUnavailable, setIsBackendUnavailable] = useState<boolean>(false);
   
@@ -68,24 +73,42 @@ export default function App() {
 
   // Sync monitored/available repositories directly from PostgreSQL
   const loadData = async () => {
+    setAvailableReposStatus('LOADING');
+    setAvailableReposError(null);
+
     // 1. Check active user session
     try {
       const user = await fetchCurrentUser();
       if (user) {
         setCurrentUser(user);
         setCurrentView('fleet');
+      } else {
+        setCurrentUser(null);
       }
     } catch (_e) {
-      // Ignore error
+      setCurrentUser(null);
     }
 
-    // 2. Load available GitHub repos and explicitly monitored repos in parallel
-    const [allGithubRepos, dbMonitored] = await Promise.all([
-      fetchAvailableGitHubRepositories(),
+    // 2. Load installUrl, available GitHub repos, and monitored projects in parallel
+    const [installUrlData, reposResult, dbMonitored] = await Promise.all([
+      fetchInstallUrl(),
+      fetchAvailableGitHubRepositoriesResult(),
       fetchMonitoredProjects(),
     ]);
 
-    setAvailableRepos(allGithubRepos);
+    setInstallUrl(installUrlData);
+
+    if (reposResult.status === 'SUCCESS') {
+      setAvailableRepos(reposResult.data);
+      setAvailableReposStatus('SUCCESS');
+    } else if (reposResult.status === 'UNAUTHORIZED') {
+      setAvailableRepos([]);
+      setAvailableReposStatus('UNAUTHORIZED');
+    } else {
+      setAvailableRepos([]);
+      setAvailableReposStatus('ERROR');
+      setAvailableReposError(reposResult.error);
+    }
 
     // If DB returned monitored projects, strictly replace state (no local storage cache)
     if (dbMonitored === null) {
@@ -873,16 +896,15 @@ export default function App() {
       {/* Import Repository Modal (Only displays unmonitored repositories) */}
       <RepoSelectModal
         isOpen={isImportModalOpen}
-        repositories={availableRepos.filter(
-          (avail) =>
-            !monitoredRepos.some(
-              (m) =>
-                m.name.toLowerCase() === avail.name.toLowerCase() ||
-                (avail.githubRepoId && m.githubRepoId === avail.githubRepoId)
-            )
-        )}
+        status={availableReposStatus}
+        errorMessage={availableReposError}
+        availableRepos={availableRepos}
+        monitoredRepos={monitoredRepos}
+        installUrl={installUrl}
         onSelectRepo={handleImportRepo}
         onClose={() => setIsImportModalOpen(false)}
+        onRetry={loadData}
+        onSignIn={() => loginWithGitHub()}
       />
     </div>
   );

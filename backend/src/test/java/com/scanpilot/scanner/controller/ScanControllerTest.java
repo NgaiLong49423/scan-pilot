@@ -131,13 +131,14 @@ class ScanControllerTest {
             "gho_test_oauth_token"
         );
 
-        userEntity = userRepository.save(UserEntity.builder()
-            .githubUserId(445566L)
-            .login("scanpilot-tester")
-            .name("Scan Pilot Tester")
-            .email("tester@scanpilot.com")
-            .createdAt(Instant.now())
-            .build());
+        userEntity = userRepository.findByGithubUserId(445566L)
+            .orElseGet(() -> userRepository.save(UserEntity.builder()
+                .githubUserId(445566L)
+                .login("scanpilot-tester")
+                .name("Scan Pilot Tester")
+                .email("tester@scanpilot.com")
+                .createdAt(Instant.now())
+                .build()));
 
         repositoryEntity = repositoryRepository.save(RepositoryEntity.builder()
             .userId(userEntity.getId())

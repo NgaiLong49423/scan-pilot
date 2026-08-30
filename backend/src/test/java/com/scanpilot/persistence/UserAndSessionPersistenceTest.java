@@ -36,6 +36,8 @@ class UserAndSessionPersistenceTest {
     void cleanDatabase() {
         sessionRepository.deleteAll();
         userRepository.deleteAll();
+        sessionRepository.flush();
+        userRepository.flush();
     }
 
     @Nested

@@ -153,65 +153,83 @@ export async function logoutUser(): Promise<void> {
 
 
 /**
-
- * Fetches all available repositories from user's GitHub App installation.
-
+ * Result structure for fetching accessible GitHub repositories.
  */
+export type GitHubRepositoriesResult =
+  | { status: 'SUCCESS'; data: Repository[] }
+  | { status: 'UNAUTHORIZED' }
+  | { status: 'ERROR'; error: string };
 
-export async function fetchAvailableGitHubRepositories(): Promise<Repository[]> {
-
+/**
+ * Fetches the server-generated GitHub App installation URL (with signed single-use state token).
+ */
+export async function fetchInstallUrl(): Promise<string | null> {
   try {
-
     const baseUrl = getApiBaseUrl();
-
-    const response = await fetch(`${baseUrl}/api/v1/github/repositories`, {
-
+    const response = await fetch(`${baseUrl}/api/v1/github/install-url`, {
       credentials: 'include',
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return data.installUrl || null;
+    }
+    return null;
+  } catch (_e) {
+    return null;
+  }
+}
 
+/**
+ * Fetches accessible repositories with full status discrimination (SUCCESS, UNAUTHORIZED, ERROR).
+ * Fail-closed contract (R90-01):
+ * - 401 -> UNAUTHORIZED
+ * - 200 with Array -> SUCCESS
+ * - 200 with non-Array -> ERROR (never masquerades as empty SUCCESS [])
+ * - HTTP error / network exception -> ERROR with sanitized message (never leaks raw error.message/diagnostics)
+ */
+export async function fetchAvailableGitHubRepositoriesResult(): Promise<GitHubRepositoriesResult> {
+  try {
+    const baseUrl = getApiBaseUrl();
+    const response = await fetch(`${baseUrl}/api/v1/github/repositories`, {
+      credentials: 'include',
     });
 
-    if (response.ok) {
-
-      const data = await response.json();
-
-      if (Array.isArray(data)) {
-
-        return data.map((item: any) => ({
-
-          id: String(item.id || item.githubRepoId || item.fullName),
-
-          githubRepoId: item.githubRepoId || item.id,
-
-          name: item.fullName || item.name,
-
-          branch: item.defaultBranch || 'main',
-
-          isPrivate: Boolean(item.isPrivate || item.private),
-
-          language: item.language || 'Java',
-
-          lastScanned: null,
-
-          isScanned: false,
-
-          findingCount: 0,
-
-          attentionStatus: 'NotScanned',
-
-        }));
-
-      }
-
+    if (response.status === 401) {
+      return { status: 'UNAUTHORIZED' };
     }
 
-  } catch (_e) {
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        const repos: Repository[] = data.map((item: any) => ({
+          id: String(item.id || item.githubRepoId || item.fullName),
+          githubRepoId: item.githubRepoId || item.id,
+          name: item.fullName || item.name,
+          branch: item.defaultBranch || 'main',
+          isPrivate: Boolean(item.isPrivate || item.private),
+          language: item.language || 'Java',
+          lastScanned: null,
+          isScanned: false,
+          findingCount: 0,
+          attentionStatus: 'NotScanned',
+        }));
+        return { status: 'SUCCESS', data: repos };
+      }
+      return { status: 'ERROR', error: 'Invalid response format received from server' };
+    }
 
-    // Fallback
-
+    return { status: 'ERROR', error: 'Failed to retrieve repositories from server' };
+  } catch (_err) {
+    return { status: 'ERROR', error: 'Network error while fetching repositories' };
   }
+}
 
-  return [];
-
+/**
+ * Fetches all available repositories from user's GitHub App installation (legacy array helper).
+ */
+export async function fetchAvailableGitHubRepositories(): Promise<Repository[]> {
+  const res = await fetchAvailableGitHubRepositoriesResult();
+  return res.status === 'SUCCESS' ? res.data : [];
 }
 
 

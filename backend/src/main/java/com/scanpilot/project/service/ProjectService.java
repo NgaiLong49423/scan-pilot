@@ -219,19 +219,84 @@ public class ProjectService {
 
     /**
      * Retrieves the active monitored project for the authenticated user.
+     * Checks in-memory cache first, then falls back to PostgreSQL (surviving restarts & reloads).
      */
     public Optional<MonitoredProject> getCurrentProject(UserSession user) {
         if (user == null) {
             return Optional.empty();
         }
-        return Optional.ofNullable(userProjects.get(user.getGithubUserId()));
+        MonitoredProject inMemory = userProjects.get(user.getGithubUserId());
+        if (inMemory != null) {
+            return Optional.of(inMemory);
+        }
+
+        List<MonitoredProject> allMonitored = getAllMonitoredProjects(user);
+        if (!allMonitored.isEmpty()) {
+            MonitoredProject latest = allMonitored.get(0);
+            userProjects.put(user.getGithubUserId(), latest);
+            return Optional.of(latest);
+        }
+        return Optional.empty();
     }
 
     public Optional<MonitoredProject> getProjectByUserId(Long userId) {
         if (userId == null) {
             return Optional.empty();
         }
-        return Optional.ofNullable(userProjects.get(userId));
+        MonitoredProject inMemory = userProjects.get(userId);
+        if (inMemory != null) {
+            return Optional.of(inMemory);
+        }
+
+        if (userRepository == null || repositoryRepository == null) {
+            return Optional.empty();
+        }
+
+        Optional<UserEntity> userEntityOpt = userRepository.findByGithubUserId(userId);
+        if (userEntityOpt.isEmpty()) {
+            return Optional.empty();
+        }
+
+        List<RepositoryEntity> entities = repositoryRepository.findByUserId(userEntityOpt.get().getId());
+        if (entities.isEmpty()) {
+            return Optional.empty();
+        }
+
+        RepositoryEntity e = entities.get(0);
+        List<MonitoredBranchEntity> activeBranches = (monitoredBranchRepository != null)
+                ? monitoredBranchRepository.findByRepositoryIdAndIsActiveTrue(e.getId())
+                : List.of();
+
+        String primary = activeBranches.stream()
+                .filter(b -> "PRIMARY".equalsIgnoreCase(b.getBranchType()))
+                .map(MonitoredBranchEntity::getBranchName)
+                .findFirst()
+                .orElse(e.getPrimaryBranch() != null ? e.getPrimaryBranch() : e.getDefaultBranch());
+
+        List<String> secBranches = activeBranches.stream()
+                .filter(b -> "SECONDARY".equalsIgnoreCase(b.getBranchType()) || !b.getBranchName().equals(primary))
+                .map(MonitoredBranchEntity::getBranchName)
+                .filter(name -> !name.equals(primary))
+                .distinct()
+                .toList();
+
+        MonitoredProject project = new MonitoredProject(
+                e.getId().toString(),
+                userId,
+                e.getGithubRepoId(),
+                e.getOwner(),
+                e.getName(),
+                e.getFullName(),
+                e.getDefaultBranch(),
+                primary,
+                secBranches,
+                Boolean.TRUE.equals(e.getIsPrivate()),
+                e.getMonitoredAt() != null ? e.getMonitoredAt() : Instant.now(),
+                e.getStatus() != null ? e.getStatus() : "ACTIVE"
+        );
+
+        userProjects.put(userId, project);
+        return Optional.of(project);
     }
 
     /**
