@@ -43,15 +43,16 @@ class GitHubOAuthServiceTest {
     }
 
     @Test
-    @DisplayName("generateAuthorizationUrl generates valid GitHub App user-to-server authorize URL without scopes by default")
+    @DisplayName("generateAuthorizationUrl includes configured repository scope for private scan access")
     void testGenerateAuthorizationUrlDefaultAppFlow() {
+        properties.setScopes("repo");
         String authUrl = gitHubOAuthService.generateAuthorizationUrl();
 
         assertThat(authUrl).startsWith("https://github.com/login/oauth/authorize");
         assertThat(authUrl).contains("client_id=test-client-id");
         assertThat(authUrl).contains("redirect_uri=" + "http://localhost:8080/api/v1/auth/github/callback");
         assertThat(authUrl).contains("state=");
-        assertThat(authUrl).doesNotContain("scope=");
+        assertThat(authUrl).contains("scope=repo");
 
         // Extract state parameter
         URI uri = URI.create(authUrl);
