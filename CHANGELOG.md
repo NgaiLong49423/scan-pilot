@@ -11,7 +11,7 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 ## 2026-08-30 — Evidence-First Fleet Posture, Live Terminal, and Zero-Mock Telemetry Polish (Issue #81)
 
-**Status:** Working tree (pre-commit)
+**Status:** Committed (`8eda66c`)
 
 **Scope:** Polished frontend to be strictly evidence-first and zero-mock compliant per Issue #81. Eliminated synthetic scores, letter grades, percentages, and hardcoded mock artifact lists. Updated `CoverageAuditView.tsx` to dynamically formulate guardrail exclusions from `reasonCode` and `limitHitValue` without fabricated mock file names. Updated `CoverageWarningBanner.tsx` warning notices to reference verified audits without score/grade terminology. Added `LiveScanTerminal.test.tsx` and `CoverageWarningBanner.test.tsx` ensuring 100% test coverage across terminal event parsing, log hierarchy, and guardrail banner explanations.
 
