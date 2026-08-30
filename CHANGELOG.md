@@ -11,7 +11,7 @@ This file records notable Scan Pilot changes as a chronological, human-readable 
 
 ## 2026-08-30 — Restore Durable Production Sessions and Verified Repository Onboarding (Issue #90)
 
-**Status:** Committed
+**Status:** Committed (`3a76360`)
 
 **Scope:** Restored PostgreSQL-backed durable server sessions via `user_sessions` and `users` tables in `SessionService`, eliminating all in-memory session map dependencies to survive Cloud Run multi-instance scaling and container restarts. Implemented fail-closed session expiry, strict token isolation without raw secret logging, and reliable session invalidation on logout. Enhanced `ProjectService` to query PostgreSQL when active UI selection is missing from cache, ensuring selected monitored repositories survive page reloads and browser refreshes. Updated repository onboarding frontend (`RepoSelectModal.tsx`, `App.tsx`, `api.ts`) to dynamically query server-generated `GET /api/v1/github/install-url` with opaque signed state tokens, completely removing hardcoded GitHub App URLs. Implemented 4 distinct, truthful UI states for onboarding: (1) Session Expired, (2) Repository Request Failed, (3) No Repositories Accessible, and (4) All Repositories Monitored. Added comprehensive backend unit/integration tests and frontend Vitest component tests.
 
