@@ -347,6 +347,8 @@ public class ScanPipelineService {
                 errorReasonCode = "GUARDRAIL_EXCEEDED";
             } else if (e instanceof IOException) {
                 errorReasonCode = "IO_ERROR";
+            } else if ("GIT_AUTH_OR_ACCESS_FAILED".equals(sanitizedMsg) || (e.getMessage() != null && e.getMessage().contains("GIT_AUTH_OR_ACCESS_FAILED"))) {
+                errorReasonCode = "GIT_AUTH_OR_ACCESS_FAILED";
             }
             emitEvent(scanJob.getId(), "FAILED", "SCAN_FAILED", "JOB_FAILED", new ScanEventPayload.JobFailedPayload(errorReasonCode), 100L);
             Instant completedTime = Instant.now();
@@ -628,6 +630,8 @@ public class ScanPipelineService {
                 errorReasonCode = "GUARDRAIL_EXCEEDED";
             } else if (e instanceof IOException) {
                 errorReasonCode = "IO_ERROR";
+            } else if ("GIT_AUTH_OR_ACCESS_FAILED".equals(sanitizedMsg) || (e.getMessage() != null && e.getMessage().contains("GIT_AUTH_OR_ACCESS_FAILED"))) {
+                errorReasonCode = "GIT_AUTH_OR_ACCESS_FAILED";
             }
             emitEvent(scanJob.getId(), "FAILED", "SCAN_FAILED", "JOB_FAILED", new ScanEventPayload.JobFailedPayload(errorReasonCode), 100L);
             Instant completedTime = Instant.now();
@@ -658,6 +662,7 @@ public class ScanPipelineService {
         }
         String sanitized = rawMessage.replaceAll("(?i)(gh[pousr]_[A-Za-z0-9_]{16,})", "[REDACTED_TOKEN]");
         sanitized = sanitized.replaceAll("(?i)(bearer\\s+)[A-Za-z0-9_.-]+", "$1[REDACTED_TOKEN]");
+        sanitized = sanitized.replaceAll("(?i)(basic\\s+)[A-Za-z0-9_./+=]+", "$1[REDACTED_TOKEN]");
         sanitized = sanitized.replaceAll("(?i)(password|secret|token)\\s*[=:]\\s*(?!\\[REDACTED)[^\\s,;]+", "$1=[REDACTED]");
         return sanitized;
     }

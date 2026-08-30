@@ -27,6 +27,8 @@ import java.util.stream.Stream;
 @RequiredArgsConstructor
 public class GitCloneService {
 
+    public static final String GIT_AUTH_OR_ACCESS_FAILED = "GIT_AUTH_OR_ACCESS_FAILED";
+
     private final GitCloneProperties properties;
 
     /**
@@ -110,7 +112,7 @@ public class GitCloneService {
             throw ise;
         } catch (Exception e) {
             log.warn("Git clone execution failure for repository {}", repoFullName);
-            throw new IllegalStateException("Git clone execution failure", e);
+            throw new IllegalStateException(GIT_AUTH_OR_ACCESS_FAILED, e);
         }
     }
 
@@ -122,12 +124,52 @@ public class GitCloneService {
             String stageName
     ) throws Exception {
         Process process = pb.start();
+
+        // Read bounded stderr asynchronously in memory (max 8KB) to classify errors without storing secrets/raw diagnostics
+        StringBuilder stderrBuffer = new StringBuilder();
+        Thread stderrThread = new Thread(() -> {
+            try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(process.getErrorStream(), java.nio.charset.StandardCharsets.UTF_8))) {
+                char[] buf = new char[512];
+                int read;
+                int totalRead = 0;
+                while ((read = reader.read(buf, 0, Math.min(buf.length, 8192 - totalRead))) != -1) {
+                    stderrBuffer.append(buf, 0, read);
+                    totalRead += read;
+                    if (totalRead >= 8192) {
+                        break;
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        });
+        stderrThread.setDaemon(true);
+        stderrThread.start();
+
         monitorAndEnforceGuardrails(process, workspacePath, jobDeadline, effectiveTimeout);
         int exitCode = process.exitValue();
+        try {
+            stderrThread.join(1000);
+        } catch (InterruptedException ignored) {
+        }
+
         if (exitCode != 0) {
             log.warn("{} process exited with code {}", stageName, exitCode);
-            throw new IllegalStateException(stageName + " failed with exit code " + exitCode);
+            String safeError = classifyGitError(stderrBuffer.toString(), exitCode);
+            throw new IllegalStateException(safeError);
         }
+    }
+
+    private String classifyGitError(String stderr, int exitCode) {
+        if (stderr != null) {
+            String lower = stderr.toLowerCase();
+            if (lower.contains("authentication failed") || lower.contains("could not read username")
+                    || lower.contains("access denied") || lower.contains("403") || lower.contains("401")
+                    || lower.contains("not found") || lower.contains("repository not found")) {
+                return GIT_AUTH_OR_ACCESS_FAILED;
+            }
+        }
+        return GIT_AUTH_OR_ACCESS_FAILED;
     }
 
     public String resolveAndVerifyHeadSha(Path workspacePath, String expectedCommitSha) throws Exception {
@@ -208,13 +250,16 @@ public class GitCloneService {
 
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-        pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+        pb.redirectError(ProcessBuilder.Redirect.PIPE);
         Map<String, String> env = pb.environment();
 
         if (token != null && !token.isBlank() && !token.startsWith("mock-")) {
+            String encodedAuth = java.util.Base64.getEncoder().encodeToString(
+                    ("x-access-token:" + token).getBytes(java.nio.charset.StandardCharsets.UTF_8)
+            );
             env.put("GIT_CONFIG_COUNT", "1");
             env.put("GIT_CONFIG_KEY_0", "http.extraHeader");
-            env.put("GIT_CONFIG_VALUE_0", "Authorization: Bearer " + token);
+            env.put("GIT_CONFIG_VALUE_0", "Authorization: Basic " + encodedAuth);
         }
         env.put("GIT_TERMINAL_PROMPT", "0");
 
@@ -242,13 +287,16 @@ public class GitCloneService {
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.directory(workspacePath.toFile());
         pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-        pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+        pb.redirectError(ProcessBuilder.Redirect.PIPE);
         Map<String, String> env = pb.environment();
 
         if (token != null && !token.isBlank() && !token.startsWith("mock-")) {
+            String encodedAuth = java.util.Base64.getEncoder().encodeToString(
+                    ("x-access-token:" + token).getBytes(java.nio.charset.StandardCharsets.UTF_8)
+            );
             env.put("GIT_CONFIG_COUNT", "1");
             env.put("GIT_CONFIG_KEY_0", "http.extraHeader");
-            env.put("GIT_CONFIG_VALUE_0", "Authorization: Bearer " + token);
+            env.put("GIT_CONFIG_VALUE_0", "Authorization: Basic " + encodedAuth);
         }
         env.put("GIT_TERMINAL_PROMPT", "0");
 

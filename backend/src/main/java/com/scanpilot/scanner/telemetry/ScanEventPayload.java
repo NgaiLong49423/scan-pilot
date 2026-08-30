@@ -42,7 +42,9 @@ public sealed interface ScanEventPayload permits
                 "UNEXPECTED_SCAN_FAILURE",
                 "GUARDRAIL_EXCEEDED",
                 "IO_ERROR",
-                "AUTH_ERROR"
+                "AUTH_ERROR",
+                "SCAN_TIMEOUT",
+                "GIT_AUTH_OR_ACCESS_FAILED"
         );
 
         public JobFailedPayload(String errorReason) {

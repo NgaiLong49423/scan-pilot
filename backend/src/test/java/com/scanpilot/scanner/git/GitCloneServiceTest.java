@@ -47,7 +47,7 @@ class GitCloneServiceTest {
         List<String> command = pb.command();
 
         assertThat(pb.redirectOutput()).isEqualTo(ProcessBuilder.Redirect.DISCARD);
-        assertThat(pb.redirectError()).isEqualTo(ProcessBuilder.Redirect.DISCARD);
+        assertThat(pb.redirectError()).isEqualTo(ProcessBuilder.Redirect.PIPE);
 
         assertThat(command).noneMatch(arg -> arg.contains(token));
         assertThat(command).noneMatch(arg -> arg.contains("Authorization"));
@@ -65,7 +65,7 @@ class GitCloneServiceTest {
     }
 
     @Test
-    @DisplayName("AC-02: testCloneSetsEnvironmentVariablesCorrectly - credential injected strictly in environment map")
+    @DisplayName("AC-02: testCloneSetsEnvironmentVariablesCorrectly - credential injected strictly as Basic auth in environment map")
     void testCloneSetsEnvironmentVariablesCorrectly(@TempDir Path tempDir) {
         String token = "ghp_superSecretToken1234567890abcdef";
         Path emptyHooks = tempDir.resolve(".empty-hooks");
@@ -73,9 +73,32 @@ class GitCloneServiceTest {
         ProcessBuilder pb = gitCloneService.buildProcessBuilder("org/repo", "main", token, tempDir, emptyHooks);
         Map<String, String> env = pb.environment();
 
+        String expectedAuth = "Authorization: Basic " + java.util.Base64.getEncoder().encodeToString(
+                ("x-access-token:" + token).getBytes(java.nio.charset.StandardCharsets.UTF_8)
+        );
+
         assertThat(env.get("GIT_CONFIG_COUNT")).isEqualTo("1");
         assertThat(env.get("GIT_CONFIG_KEY_0")).isEqualTo("http.extraHeader");
-        assertThat(env.get("GIT_CONFIG_VALUE_0")).isEqualTo("Authorization: Bearer " + token);
+        assertThat(env.get("GIT_CONFIG_VALUE_0")).isEqualTo(expectedAuth);
+        assertThat(env.get("GIT_TERMINAL_PROMPT")).isEqualTo("0");
+    }
+
+    @Test
+    @DisplayName("AC-02: testCloneSetsInstallationTokenCorrectly - GitHub App installation token formatted as Basic auth")
+    void testCloneSetsInstallationTokenCorrectly(@TempDir Path tempDir) {
+        String token = "ghs_installationToken1234567890abcdef";
+        Path emptyHooks = tempDir.resolve(".empty-hooks");
+
+        ProcessBuilder pb = gitCloneService.buildProcessBuilder("org/repo", "main", token, tempDir, emptyHooks);
+        Map<String, String> env = pb.environment();
+
+        String expectedAuth = "Authorization: Basic " + java.util.Base64.getEncoder().encodeToString(
+                ("x-access-token:" + token).getBytes(java.nio.charset.StandardCharsets.UTF_8)
+        );
+
+        assertThat(env.get("GIT_CONFIG_COUNT")).isEqualTo("1");
+        assertThat(env.get("GIT_CONFIG_KEY_0")).isEqualTo("http.extraHeader");
+        assertThat(env.get("GIT_CONFIG_VALUE_0")).isEqualTo(expectedAuth);
         assertThat(env.get("GIT_TERMINAL_PROMPT")).isEqualTo("0");
     }
 
@@ -192,7 +215,7 @@ class GitCloneServiceTest {
                 .satisfies(ex -> {
                     assertThat(ex.getMessage()).doesNotContain(secretToken);
                     assertThat(ex.getMessage()).doesNotContain("Authorization");
-                    assertThat(ex.getMessage()).isEqualTo("Git clone execution failure");
+                    assertThat(ex.getMessage()).isEqualTo(GitCloneService.GIT_AUTH_OR_ACCESS_FAILED);
                 });
     }
 
@@ -217,8 +240,11 @@ class GitCloneServiceTest {
         // Assert zero token in argv command line
         assertThat(String.join(" ", command)).doesNotContain("ghp_testtoken123");
 
-        // Assert token in GIT_CONFIG environment
-        assertThat(pb.environment().get("GIT_CONFIG_VALUE_0")).isEqualTo("Authorization: Bearer ghp_testtoken123");
+        // Assert token in GIT_CONFIG environment formatted as Basic auth
+        String expectedAuth = "Authorization: Basic " + java.util.Base64.getEncoder().encodeToString(
+                ("x-access-token:ghp_testtoken123").getBytes(java.nio.charset.StandardCharsets.UTF_8)
+        );
+        assertThat(pb.environment().get("GIT_CONFIG_VALUE_0")).isEqualTo(expectedAuth);
         assertThat(pb.environment().get("GIT_TERMINAL_PROMPT")).isEqualTo("0");
     }
 
@@ -237,7 +263,10 @@ class GitCloneServiceTest {
         List<String> command = pb.command();
         assertThat(command).contains("fetch", "--depth", "origin", targetSha);
         assertThat(String.join(" ", command)).doesNotContain("ghp_testtoken123");
-        assertThat(pb.environment().get("GIT_CONFIG_VALUE_0")).isEqualTo("Authorization: Bearer ghp_testtoken123");
+        String expectedAuth = "Authorization: Basic " + java.util.Base64.getEncoder().encodeToString(
+                ("x-access-token:ghp_testtoken123").getBytes(java.nio.charset.StandardCharsets.UTF_8)
+        );
+        assertThat(pb.environment().get("GIT_CONFIG_VALUE_0")).isEqualTo(expectedAuth);
     }
 
     @Test
@@ -290,7 +319,7 @@ class GitCloneServiceTest {
 
             assertThatThrownBy(() -> customService.cloneRepository("owner/repo", "main", forgedSecret, tempDir, null))
                     .isInstanceOf(IllegalStateException.class)
-                    .hasMessage("Git clone execution failure") // Static safe message only
+                    .hasMessage(GitCloneService.GIT_AUTH_OR_ACCESS_FAILED)
                     .satisfies(e -> {
                         assertThat(e.getMessage()).doesNotContain(forgedSecret);
                         assertThat(e.getMessage()).doesNotContain(forgedPath);
@@ -304,6 +333,27 @@ class GitCloneServiceTest {
         } finally {
             logger.detachAppender(listAppender);
         }
+    }
+
+    @Test
+    @DisplayName("Clone exit code 128 classifies to GIT_AUTH_OR_ACCESS_FAILED without diagnostic leakage")
+    void testCloneExitCode128ClassifiesToGitAuthOrAccessFailed(@TempDir Path tempDir) throws Exception {
+        String secretToken = "ghp_superSecretToken1234567890abcdef";
+
+        // Use a script/command that exits with 128 and prints standard Git auth error to stderr
+        Path mockScript = tempDir.resolve("mock_exit_128.bat");
+        Files.writeString(mockScript, "@echo off\n>&2 echo fatal: Authentication failed for 'https://github.com/org/repo.git/'\nexit /b 128");
+
+        properties.setGitBinaryPath(mockScript.toAbsolutePath().toString());
+        gitCloneService = new GitCloneService(properties);
+
+        assertThatThrownBy(() -> gitCloneService.cloneRepository("org/repo", "main", secretToken, tempDir.resolve("workspace"), null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage(GitCloneService.GIT_AUTH_OR_ACCESS_FAILED)
+                .satisfies(e -> {
+                    assertThat(e.getMessage()).doesNotContain(secretToken);
+                    assertThat(e.getMessage()).doesNotContain("https://github.com/org/repo.git");
+                });
     }
 
     private String[] getSleepCommand(int seconds) {
