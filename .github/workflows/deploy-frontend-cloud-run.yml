@@ -1,0 +1,115 @@
+name: Frontend Delivery (Cloud Run)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend-cloud-run.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: scan-pilot-frontend-production
+  cancel-in-progress: false
+
+env:
+  REGION: asia-southeast1
+  SERVICE_NAME: scan-pilot-web
+  API_BASE_URL: https://scan-pilot-api-drbjfwrlxq-as.a.run.app
+
+jobs:
+  verify-frontend:
+    name: Verify Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check frontend
+        run: npm run lint
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: ${{ env.API_BASE_URL }}
+
+  deploy-frontend:
+    name: Build and Deploy Frontend
+    needs: verify-frontend
+    runs-on: ubuntu-latest
+    if: github.repository == 'NgaiLong49423/scan-pilot'
+    environment:
+      name: production
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build container image with Cloud Build
+        shell: bash
+        run: |
+          PROJECT_ID="${{ secrets.GCP_PROJECT_ID }}"
+          if [ -z "$PROJECT_ID" ]; then
+            PROJECT_ID="gen-lang-client-0098508328"
+          fi
+          IMAGE_TAG="asia-southeast1-docker.pkg.dev/${PROJECT_ID}/scan-pilot/web:${{ github.sha }}"
+          LATEST_TAG="asia-southeast1-docker.pkg.dev/${PROJECT_ID}/scan-pilot/web:latest"
+          gcloud builds submit --tag "${IMAGE_TAG}" --suppress-logs frontend/
+          gcloud artifacts docker tags add "${IMAGE_TAG}" "${LATEST_TAG}" || true
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_ENV"
+
+      - name: Deploy frontend to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: ${{ env.IMAGE_TAG }}
+          flags: |
+            --min-instances=0
+            --max-instances=2
+            --memory=256Mi
+            --cpu=1
+            --allow-unauthenticated
+
+      - name: Publish the frontend origin to the API
+        shell: bash
+        run: |
+          FRONTEND_URL="${{ steps.deploy.outputs.url }}"
+          if [ -z "$FRONTEND_URL" ]; then
+            echo "Cloud Run did not return a frontend URL" >&2
+            exit 1
+          fi
+          gcloud run services update scan-pilot-api \
+            --region "${{ env.REGION }}" \
+            --update-env-vars "FRONTEND_URL=${FRONTEND_URL},SCANPILOT_CORS_ALLOWED_ORIGINS=${FRONTEND_URL}"
+
+      - name: Verify frontend health endpoint
+        shell: bash
+        run: |
+          curl --fail --retry 3 --retry-delay 2 "${{ steps.deploy.outputs.url }}/healthz"

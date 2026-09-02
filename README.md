@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Project README
 > **File:** `README.md`
-> **Version:** v1.3.1
+> **Version:** v1.4.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-20
+> **Last Updated:** 2026-09-02
 > **Status:** Active
 
 # Scan Pilot
@@ -66,7 +66,9 @@ The accepted second-rule direction is the gated stretch rule `SP-CI-001 — Muta
 
 - **Backend API (Google Cloud Run):** [`https://scan-pilot-api-drbjfwrlxq-as.a.run.app`](https://scan-pilot-api-drbjfwrlxq-as.a.run.app/api/v1/system/status) (Region: `asia-southeast1`, Scale-to-Zero $0 idle cost)
 - **Deployment Specification:** [Cloud Run Deployment Spec](docs/DEPLOYMENT-SPEC.md)
-- **AI Studio Deployment Guide:** [AI Studio Frontend Sync & Publish Guide](docs/AI-STUDIO-DEPLOYMENT-GUIDE.md)
+- **Frontend delivery:** `.github/workflows/deploy-frontend-cloud-run.yml` builds the Git-tracked `frontend/` source and deploys it to the `scan-pilot-web` Cloud Run service after an authorized merge to `main`.
+
+Google AI Studio is retained as an optional prototype workspace. It is not the production source of truth and must not be used to publish changes independently of GitHub.
 
 Detailed infrastructure choices that remain open are recorded in [Accepted Decisions](docs/DECISIONS.md).
 
