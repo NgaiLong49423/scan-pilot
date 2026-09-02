@@ -1,13 +1,25 @@
 > **Document:** Scan Pilot Changelog
 > **File:** `CHANGELOG.md`
-> **Version:** v2.41.0
+> **Version:** v2.42.0
 > **Created:** 2026-08-11
-> **Last Updated:** 2026-08-30
+> **Last Updated:** 2026-09-02
 > **Status:** Active
 
 # Scan Pilot Changelog
 
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
+
+## 2026-09-02 — Cloud Run-Safe Frontend Healthcheck Hotfix
+
+**Status:** Committed (`c6b2918`)
+
+**Scope:** Replaced reserved `/healthz` healthcheck path in frontend Nginx configuration and GitHub Actions deployment workflow with `/_scanpilot_health` to avoid Google Frontend 404 interception on Cloud Run.
+
+### Changed
+
+- Updated `frontend/nginx.conf` to serve plain-text `200 ok` on `/_scanpilot_health` instead of `/healthz`.
+- Updated `.github/workflows/deploy-frontend-cloud-run.yml` to target `/_scanpilot_health` and assert an exact `ok` body in the post-deployment health verification step.
+- Updated `docs/DEPLOYMENT-SPEC.md` container contract and runbook references to reflect `/_scanpilot_health`.
 
 ## 2026-09-02 — GitHub-Controlled Cloud Run Frontend Delivery
 
