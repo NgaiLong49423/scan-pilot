@@ -1,8 +1,8 @@
 > **Document:** Scan Pilot Cloud Run Deployment Specification
 > **File:** `docs/DEPLOYMENT-SPEC.md`
-> **Version:** v1.1.0
+> **Version:** v2.0.0
 > **Created:** 2026-08-19
-> **Last Updated:** 2026-08-22
+> **Last Updated:** 2026-09-02
 > **Status:** Active
 
 # Scan Pilot Cloud Run Deployment Specification
@@ -13,10 +13,10 @@ Scan Pilot adopts a **Decoupled Multi-Service Cloud Run Architecture** (`DEC-056
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
-│                      Google AI Studio Project                          │
-│            (Frontend React Source + Gemini Reasoning Prompt)           │
+│                 GitHub repository (`frontend/`)                         │
+│      (Canonical React source, CI verification, Cloud Run workflow)     │
 └───────────────────────────────────┬────────────────────────────────────┘
-                                    │ AI Studio "Deploy to Cloud Run"
+                                    │ GitHub Actions frontend delivery
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
 │                 Frontend Service: scan-pilot-web                       │
@@ -37,7 +37,7 @@ Scan Pilot adopts a **Decoupled Multi-Service Cloud Run Architecture** (`DEC-056
 │  - Flyway Database Migrations (12 Core PostgreSQL tables)              │
 │  - Pinned SP-CONFIG-001 Policy & Gitleaks Detection Engine             │
 │  - Gemini AI Explanation Client (gemini-1.5-flash)                     │
-│  - Multi-Origin CORS: https://aistudio.google.com + Web Service Origin │
+│  - Exact CORS origin for the deployed web service                      │
 │  - Scale-to-Zero (min-instances = 0, $0 idle cost)                     │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │ Cloud SQL Unix Socket / Socket Factory
@@ -82,7 +82,7 @@ All database credentials and sensitive API secrets are injected securely via Goo
 | `GITHUB_CLIENT_SECRET` | Optional | Secret `scan-pilot-github-client-secret:latest` | GitHub App OAuth client secret |
 | `SCANPILOT_HMAC_SECRET_KEY`| Yes | Secret `scanpilot-hmac-key:latest` | Cryptographic key for `SP_SECRET_FP_V1` fingerprinting (Mandatory in prod, fail-closed) |
 | `GEMINI_API_KEY` | Optional | Secret `scanpilot-gemini-key:latest` | Gemini 1.5 Flash API Key |
-| `SCANPILOT_CORS_ALLOWED_ORIGINS` | Yes | Static / Env | Comma-separated CORS allowed origins (`https://aistudio.google.com,https://scan-pilot-web-*.run.app`) |
+| `SCANPILOT_CORS_ALLOWED_ORIGINS` | Yes | Workflow-managed Env | Exact deployed frontend origin |
 
 ### 2.3 Cloud SQL Connectivity & Socket Factory
 
@@ -102,39 +102,20 @@ Scan Pilot connects to Cloud SQL using the official Google Cloud SQL Postgres So
 
 ---
 
-## 3. Frontend & Google AI Studio Contract
+## 3. Frontend Delivery Contract
 
 ### 3.1 Dual-Origin & Base URL Resolution (`frontend/src/services/api.ts`)
 
 ```typescript
-export function getApiBaseUrl(): string {
-  const envUrl =
-    (import.meta.env.VITE_API_URL as string | undefined) ||
-    (import.meta.env.VITE_BACKEND_URL as string | undefined) ||
-    (import.meta.env.VITE_API_BASE_URL as string | undefined);
-
-  if (envUrl && envUrl.trim().length > 0) {
-    return envUrl.trim().replace(/\/+$/, '');
-  }
-
-  return '';
-}
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 ```
 
-### 3.2 AI Studio Prompt & File Boundary Guardrails
+### 3.2 Source and Runtime Boundary
 
-To prevent LLM code generation inside Google AI Studio from corrupting API integration:
-1. **Frontend Service Layer (`frontend/src/services/api.ts`):** Contains typed API client methods (`fetchCurrentUser`, `fetchMonitoredProjects`, `fetchAvailableGitHubRepositories`, `fetchFindingsForRepo`, `fetchCoverageForRepo`, `triggerScan`).
-2. **Customizable UI Layer (`frontend/src/components/` & `frontend/src/App.tsx`):** Presentation components (`FindingCard`, `ScanProgressBar`, `CoverageTab`, `Header`, `FleetDashboard`) consuming API state.
-3. **Graceful Fail-Closed Guarantee:** When backend connection is unavailable, displays a dedicated connection retry banner instead of unhandled crashes or mock fallbacks.
-
-### 3.3 Google AI Studio Workspace Manual Transfer Procedure
-
-To synchronize frontend codebase with Google AI Studio:
-1. Copy updated source files from `frontend/src/**` to the Google AI Studio project workspace.
-2. In Google AI Studio Project Settings / Environment Variables, configure `VITE_API_BASE_URL=https://scan-pilot-api-drbjfwrlxq-as.a.run.app`.
-3. In Google AI Studio, trigger **Deploy to Cloud Run** to build and host `scan-pilot-web`.
-4. Ensure CORS settings on `scan-pilot-api` permit the generated `https://scan-pilot-web-*.run.app` domain.
+1. **Canonical source:** Git-tracked `frontend/` is the only production frontend source.
+2. **Container contract:** `frontend/Dockerfile` builds Vite with the public API URL and serves the SPA through Nginx on port `8080`; `frontend/nginx.conf` provides `/healthz` and history fallback.
+3. **Delivery contract:** `.github/workflows/deploy-frontend-cloud-run.yml` runs Node 20 verification, deploys `scan-pilot-web`, then sets the API's `FRONTEND_URL` and exact allowed CORS origin to the deployed service URL.
+4. **AI Studio boundary:** Google AI Studio may be used for experiments only. It must not publish a production copy of the application.
 
 ---
 
@@ -163,9 +144,8 @@ gcloud run deploy scan-pilot-api \
   --set-secrets "SPRING_DATASOURCE_URL=scan-pilot-db-url:latest,SPRING_DATASOURCE_USERNAME=scan-pilot-db-user:latest,SPRING_DATASOURCE_PASSWORD=scan-pilot-db-password:latest,GITHUB_CLIENT_SECRET=scan-pilot-github-client-secret:latest,SCANPILOT_HMAC_SECRET_KEY=scanpilot-hmac-key:latest"
 ```
 
-### Step 2: Configure AI Studio Frontend & Deploy
-1. Open Google AI Studio Project workspace.
-2. Transfer `frontend/src/**` to AI Studio workspace.
-3. In Project Settings / Environment Variables, add `VITE_API_BASE_URL=https://scan-pilot-api-drbjfwrlxq-as.a.run.app`.
-4. Click **Deploy to Cloud Run** in Google AI Studio.
-5. Verify backend connectivity from the deployed frontend interface.
+### Step 2: Deploy the Git-Tracked Frontend
+1. Merge an authorized pull request that changes `frontend/**` or `.github/workflows/deploy-frontend-cloud-run.yml` into `main`.
+2. GitHub Actions verifies the frontend, builds `frontend/Dockerfile` with Cloud Build, and deploys the `scan-pilot-web` Cloud Run service.
+3. The workflow reads the deployed service URL, then updates `scan-pilot-api` with that exact `FRONTEND_URL` and CORS origin.
+4. The workflow calls `/healthz`; a successful response proves only that the frontend container is reachable. Browser login, logout, and scan flow still require production acceptance testing.

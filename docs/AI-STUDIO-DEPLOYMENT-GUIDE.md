@@ -1,11 +1,15 @@
 > **Document:** Google AI Studio Frontend Sync & Cloud Run Deployment Guide
 > **File:** `docs/AI-STUDIO-DEPLOYMENT-GUIDE.md`
-> **Version:** v1.0.0
+> **Version:** v2.0.0
 > **Created:** 2026-08-19
-> **Last Updated:** 2026-08-19
-> **Status:** Active
+> **Last Updated:** 2026-09-02
+> **Status:** Deprecated
 
-# Google AI Studio Frontend Sync & Cloud Run Deployment Guide
+# Deprecated: Google AI Studio Frontend Sync & Cloud Run Deployment Guide
+
+Production frontend delivery is now GitHub-controlled. The `.github/workflows/deploy-frontend-cloud-run.yml` workflow builds the tracked `frontend/` directory and deploys `scan-pilot-web` to Cloud Run. Do not manually sync or publish this application from Google AI Studio: that would create a second, unverifiable production source.
+
+This document is retained only as historical context for the earlier prototype workflow.
 
 This guide provides step-by-step instructions for syncing the Scan Pilot React Frontend to your **Google AI Studio Project** and deploying it to **Google Cloud Run** using AI Studio's native publishing feature (`DEC-056`).
 

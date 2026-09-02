@@ -9,6 +9,21 @@
 
 This file records notable Scan Pilot changes as a chronological, human-readable history. Git remains the exact file-level source of truth.
 
+## 2026-09-02 — GitHub-Controlled Cloud Run Frontend Delivery
+
+**Status:** Committed (`6e93be6`)
+
+**Scope:** Added a production frontend container and GitHub Actions delivery workflow for the tracked React source. The workflow verifies, builds, deploys `scan-pilot-web` to Cloud Run, synchronizes the API's accepted frontend origin, and checks the public health endpoint. Google AI Studio is now documented as a prototype-only workspace rather than a production publishing path.
+
+### Added
+
+- Added `frontend/Dockerfile` and `frontend/nginx.conf` for a non-interactive Vite SPA container with a health endpoint and client-side route fallback.
+- Added `.github/workflows/deploy-frontend-cloud-run.yml` for source-controlled frontend verification and Cloud Run delivery.
+
+### Changed
+
+- Updated `README.md`, `docs/DEPLOYMENT-SPEC.md`, and deprecated `docs/AI-STUDIO-DEPLOYMENT-GUIDE.md` to establish GitHub as the sole production frontend source.
+
 ## 2026-08-30 — Restore Durable Production Sessions and Verified Repository Onboarding (Issue #90)
 
 **Status:** Committed (`3a76360`)
