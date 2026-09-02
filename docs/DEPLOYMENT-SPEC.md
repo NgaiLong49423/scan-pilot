@@ -1,6 +1,6 @@
 > **Document:** Scan Pilot Cloud Run Deployment Specification
 > **File:** `docs/DEPLOYMENT-SPEC.md`
-> **Version:** v2.0.0
+> **Version:** v2.0.1
 > **Created:** 2026-08-19
 > **Last Updated:** 2026-09-02
 > **Status:** Active
@@ -113,7 +113,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '
 ### 3.2 Source and Runtime Boundary
 
 1. **Canonical source:** Git-tracked `frontend/` is the only production frontend source.
-2. **Container contract:** `frontend/Dockerfile` builds Vite with the public API URL and serves the SPA through Nginx on port `8080`; `frontend/nginx.conf` provides `/healthz` and history fallback.
+2. **Container contract:** `frontend/Dockerfile` builds Vite with the public API URL and serves the SPA through Nginx on port `8080`; `frontend/nginx.conf` provides `/_scanpilot_health` and history fallback.
 3. **Delivery contract:** `.github/workflows/deploy-frontend-cloud-run.yml` runs Node 20 verification, deploys `scan-pilot-web`, then sets the API's `FRONTEND_URL` and exact allowed CORS origin to the deployed service URL.
 4. **AI Studio boundary:** Google AI Studio may be used for experiments only. It must not publish a production copy of the application.
 
@@ -148,4 +148,4 @@ gcloud run deploy scan-pilot-api \
 1. Merge an authorized pull request that changes `frontend/**` or `.github/workflows/deploy-frontend-cloud-run.yml` into `main`.
 2. GitHub Actions verifies the frontend, builds `frontend/Dockerfile` with Cloud Build, and deploys the `scan-pilot-web` Cloud Run service.
 3. The workflow reads the deployed service URL, then updates `scan-pilot-api` with that exact `FRONTEND_URL` and CORS origin.
-4. The workflow calls `/healthz`; a successful response proves only that the frontend container is reachable. Browser login, logout, and scan flow still require production acceptance testing.
+4. The workflow calls `/_scanpilot_health` and asserts that the response body is `ok`; a successful response proves only that the frontend container is reachable. Browser login, logout, and scan flow still require production acceptance testing.

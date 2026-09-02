@@ -112,4 +112,5 @@ jobs:
       - name: Verify frontend health endpoint
         shell: bash
         run: |
-          curl --fail --retry 3 --retry-delay 2 "${{ steps.deploy.outputs.url }}/healthz"
+          HEALTH_BODY="$(curl --fail --silent --show-error --retry 3 --retry-delay 2 "${{ steps.deploy.outputs.url }}/_scanpilot_health")"
+          test "$HEALTH_BODY" = "ok"
